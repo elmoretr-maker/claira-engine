@@ -1,10 +1,5 @@
 import express from "express";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
-import { extname, join } from "path";
-import { analyze } from "../index.js";
-import { loadProcessFolderReferenceEmbeddings } from "../interfaces/processFolderPipeline.js";
-import { getImageEmbedding } from "../vision/clipEmbedder.js";
+import { analyzeImage } from "./clairaImagePipeline.js";
 
 /** Last POST /run body + extracted fields (in-memory only; resets on process restart). */
 let lastWixWebhook = null;
@@ -72,28 +67,6 @@ function extractWixSummary(body) {
 
 /** Products extracted from Wix webhooks (in-memory only; resets on process restart). */
 const processedProducts = [];
-
-/** @type {Map<string, Float32Array[]> | null} */
-let referenceEmbeddingsByLabelCache = null;
-
-function getReferenceEmbeddingsByLabel() {
-  if (referenceEmbeddingsByLabelCache == null) {
-    referenceEmbeddingsByLabelCache = loadProcessFolderReferenceEmbeddings();
-  }
-  return referenceEmbeddingsByLabelCache;
-}
-
-/**
- * @param {string} url
- */
-function extensionFromImageUrl(url) {
-  try {
-    const ext = extname(new URL(url).pathname).toLowerCase();
-    return ext && ext.length <= 8 ? ext : ".img";
-  } catch {
-    return ".img";
-  }
-}
 
 /**
  * @param {unknown} body
@@ -228,57 +201,6 @@ function extractImageUrlsFromProduct(p) {
   }
 
   return urls;
-}
-
-/**
- * Fetch image URL → CLIP embedding → full Claira analyze() (same path as process-folder).
- * Root `analyze()` expects embeddings; `type: "image_url"` is not supported by the engine module.
- * @param {string} url
- */
-async function analyzeImage(url) {
-  try {
-    console.log("Analyzing with Claira:", url);
-
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) {
-      throw new Error(`image fetch failed: ${res.status} ${res.statusText}`);
-    }
-    const buf = Buffer.from(await res.arrayBuffer());
-    const tmpDir = mkdtempSync(join(tmpdir(), "claira-img-"));
-    const tmpPath = join(tmpDir, `input${extensionFromImageUrl(url)}`);
-    writeFileSync(tmpPath, buf);
-    /** @type {{ embedding: number[] } | { error: string; message?: string }} */
-    let embRes;
-    try {
-      embRes = await getImageEmbedding(tmpPath);
-    } finally {
-      try {
-        rmSync(tmpDir, { recursive: true, force: true });
-      } catch {
-        /* ignore cleanup errors */
-      }
-    }
-    if ("error" in embRes) {
-      throw new Error(embRes.message ?? "embedding_failed");
-    }
-    const inputEmbedding = new Float32Array(embRes.embedding);
-    const result = await analyze({
-      inputEmbedding,
-      referenceEmbeddingsByLabel: getReferenceEmbeddingsByLabel(),
-      file: url,
-    });
-
-    console.log("Claira result:", JSON.stringify(result, null, 2));
-
-    return result;
-  } catch (err) {
-    console.error("Claira analysis error:", err);
-
-    return {
-      label: "error",
-      confidence: 0,
-    };
-  }
 }
 
 /**
