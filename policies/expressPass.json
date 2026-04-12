@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "predicted": "debris",
+      "selected": "terrain",
+      "count": 2
+    }
+  ]
+}

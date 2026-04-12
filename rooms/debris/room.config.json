@@ -1,0 +1,6 @@
+{
+  "name": "debris",
+  "destination": "assets/debris",
+  "allow_auto": true,
+  "require_review_threshold": 0.5
+}

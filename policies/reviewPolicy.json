@@ -1,0 +1,8 @@
+{
+  "priority_rules": {
+    "rejected_by_room": "high",
+    "low_confidence": "high",
+    "ambiguous": "medium",
+    "default": "low"
+  }
+}

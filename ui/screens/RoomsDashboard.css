@@ -1,0 +1,138 @@
+.rooms-dashboard {
+  font-family: system-ui, Segoe UI, Roboto, sans-serif;
+  color: #e8eaed;
+  background: #0f1115;
+  min-height: 100vh;
+  padding: 1.25rem 1.5rem 2rem;
+  box-sizing: border-box;
+}
+
+.rooms-dashboard-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.rooms-dashboard-nav-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #3b82f6;
+  background: #3b82f6;
+  color: #fff;
+}
+
+.rooms-dashboard-nav-btn:hover {
+  background: #2563eb;
+}
+
+.rooms-dashboard-nav-btn--secondary {
+  border-color: #4b5563;
+  background: #2d3340;
+  color: #e8eaed;
+}
+
+.rooms-dashboard-nav-btn--secondary:hover {
+  background: #3d4450;
+}
+
+.rooms-dashboard-header {
+  margin-bottom: 1.25rem;
+}
+
+.rooms-dashboard-header h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.rooms-dashboard-header p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #9ca3af;
+}
+
+.rooms-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.rooms-dashboard-card {
+  background: #1a1d24;
+  border: 1px solid #2d3340;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  color: inherit;
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.rooms-dashboard-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+
+.rooms-dashboard-card:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.rooms-dashboard-card h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.rooms-dashboard-card .destination {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  word-break: break-all;
+  margin-bottom: 0.65rem;
+  line-height: 1.35;
+}
+
+.rooms-dashboard-card .count {
+  font-size: 0.85rem;
+  color: #c4c9d4;
+  margin-bottom: 0.75rem;
+}
+
+.rooms-dashboard-card .preview {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.82rem;
+  color: #d1d5db;
+}
+
+.rooms-dashboard-card .preview li {
+  padding: 0.2rem 0;
+  border-bottom: 1px solid #2d3340;
+}
+
+.rooms-dashboard-card .preview li:last-child {
+  border-bottom: none;
+}
+
+.rooms-dashboard-card .more {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+.rooms-dashboard-card .empty {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-style: italic;
+  margin: 0;
+}

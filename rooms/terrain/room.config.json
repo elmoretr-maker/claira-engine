@@ -1,0 +1,6 @@
+{
+  "name": "terrain",
+  "destination": "assets/terrain",
+  "allow_auto": true,
+  "require_review_threshold": 0.5
+}

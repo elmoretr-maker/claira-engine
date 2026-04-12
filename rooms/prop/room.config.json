@@ -1,0 +1,6 @@
+{
+  "name": "prop",
+  "destination": "assets/props",
+  "allow_auto": true,
+  "require_review_threshold": 0.5
+}

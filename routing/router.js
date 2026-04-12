@@ -1,6 +1,18 @@
 /**
- * Label → destination path resolution (config-driven, no filesystem, no synthetic fallbacks).
+ * Label → destination path resolution (room-driven; categories in engine.config are ignored here).
  */
+
+import { loadRooms } from "../rooms/index.js";
+
+/** @type {ReturnType<typeof loadRooms> | null} */
+let cachedRooms = null;
+
+function getRooms() {
+  if (!cachedRooms) {
+    cachedRooms = loadRooms();
+  }
+  return cachedRooms;
+}
 
 /**
  * @param {unknown} p
@@ -25,28 +37,30 @@ function asStringMap(obj) {
 }
 
 /**
- * Resolve a label to a destination path using categories and optional aliases.
- * Aliases map raw label → category key; category keys map to path strings.
+ * Resolve a label to a destination path using `rooms/` (see loadRooms) and optional aliases.
+ * Aliases map raw label → room key; room keys must exist under `rooms/<name>/`.
  *
  * @param {string|null|undefined} label
  * @param {{ categories?: Record<string, string>, aliases?: Record<string, string> }} config
  * @returns {string|null}
  */
 export function resolveDestination(label, config) {
-  const categories = asStringMap(config?.categories);
+  const rooms = getRooms();
   const aliases = asStringMap(config?.aliases);
   const key = String(label ?? "").trim();
   if (!key) return null;
 
-  if (Object.prototype.hasOwnProperty.call(categories, key)) {
-    return normalizePath(categories[key]);
+  const room = rooms[key];
+  if (room?.config?.destination != null) {
+    return normalizePath(room.config.destination);
   }
 
   if (Object.prototype.hasOwnProperty.call(aliases, key)) {
     const target = String(aliases[key] ?? "").trim();
     if (!target) return null;
-    if (Object.prototype.hasOwnProperty.call(categories, target)) {
-      return normalizePath(categories[target]);
+    const via = rooms[target];
+    if (via?.config?.destination != null) {
+      return normalizePath(via.config.destination);
     }
     return null;
   }

@@ -2,3 +2,8 @@ node_modules/
 output/
 _clip_test.png
 dev/_clip_smoke.png
+
+eng.traineddata
+claira-pdf-*
+*.log
+data/session_report.json

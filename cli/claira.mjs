@@ -4,9 +4,8 @@
  * Usage: node cli/claira.mjs <command> [options]
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { readdir, stat } from "fs/promises";
-import { dirname, join, relative, resolve } from "path";
+import { existsSync, readFileSync, writeFileSync } from "fs";
+import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import {
   analyze,
@@ -19,33 +18,9 @@ import {
   resetSessionLedger,
 } from "../index.js";
 import { getImageEmbedding } from "../vision/clipEmbedder.js";
+import { processFolder, getSessionSummary } from "../interfaces/api.js";
 
 const CLI_DIR = dirname(fileURLToPath(import.meta.url));
-const REF_EMBEDDINGS_JSON = join(CLI_DIR, "..", "references", "reference_embeddings.json");
-
-function loadProcessFolderReferenceEmbeddings() {
-  if (!existsSync(REF_EMBEDDINGS_JSON)) {
-    throw new Error(
-      "process-folder: missing references/reference_embeddings.json — add PNGs to references/<category>/ and run: node vision/buildReferences.js",
-    );
-  }
-  const raw = readFileSync(REF_EMBEDDINGS_JSON, "utf8");
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`process-folder: invalid references/reference_embeddings.json (${msg})`);
-  }
-  try {
-    return parseReferenceEmbeddingsByLabel(parsed);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(
-      `process-folder: ${msg}. Add PNGs under references/terrain|prop|debris/, then run: node vision/buildReferences.js`,
-    );
-  }
-}
 
 function printHelp() {
   console.log(`claira — Claira Engine CLI
@@ -272,89 +247,62 @@ function cmdLearningStats(flags) {
   outJson({ predicted_label: predicted, selected_label: selected, stats });
 }
 
-async function collectPngFilesRecursive(rootDir) {
-  /** @type {string[]} */
-  const out = [];
-  async function walk(current) {
-    const entries = await readdir(current, { withFileTypes: true });
-    for (const e of entries) {
-      const full = join(current, e.name);
-      if (e.isDirectory()) await walk(full);
-      else if (e.isFile() && e.name.toLowerCase().endsWith(".png")) out.push(full);
-    }
-  }
-  await walk(rootDir);
-  return out.sort();
-}
-
-function displayRelative(inputRootResolved, absolutePath) {
-  return relative(inputRootResolved, absolutePath).replace(/\\/g, "/");
+/** @param {"high" | "medium" | "low"} priority */
+function reviewBracketTag(priority) {
+  const p = String(priority).toLowerCase();
+  if (p === "high") return "[HIGH]";
+  if (p === "medium") return "[MEDIUM]";
+  return "[LOW]";
 }
 
 async function cmdProcessFolder(positional) {
   const folderArg = positional[1];
   if (!folderArg) throw new Error("process-folder requires a folder path");
-  const inputRoot = resolve(folderArg);
-  try {
-    const st = await stat(inputRoot);
-    if (!st.isDirectory()) throw new Error("not a directory");
-  } catch {
-    throw new Error(`process-folder: cannot read folder ${folderArg}`);
-  }
+  const out = await processFolder(folderArg);
 
-  resetSessionLedger();
-
-  const pngFiles = await collectPngFilesRecursive(inputRoot);
-  const referenceEmbeddingsByLabel = loadProcessFolderReferenceEmbeddings();
-  /** @type {Array<{ place_card: object | null }>} */
-  const resultsArray = [];
-
-  for (const absPath of pngFiles) {
-    const rel = displayRelative(inputRoot, absPath);
-    const embRes = await getImageEmbedding(absPath);
-    if (embRes.error) {
+  for (const row of out.results) {
+    const rel = row.rel;
+    if (row.error === "embedding_failed") {
       console.log(`[ERROR] ${rel} → embedding_failed`);
-      resultsArray.push({ place_card: null });
       continue;
     }
-    const inputEmbedding = new Float32Array(embRes.embedding);
-    const result = await analyze({
-      inputEmbedding,
-      referenceEmbeddingsByLabel,
-      file: absPath,
-    });
-
-    if (result.error) {
-      console.log(`[REVIEW] ${rel} → ${result.error}`);
-      resultsArray.push({ place_card: null });
+    if (row.room_validation && row.priority) {
+      const rv = row.room_validation;
+      console.log(
+        `[REVIEW]${reviewBracketTag(row.priority)} ${rel} → rejected_by_room (score: ${rv.score})`,
+      );
       continue;
     }
-
-    const { placeCard } = await generatePlaceCard(result);
-    const dec = result.decision?.decision;
+    if (row.priority && row.place_card === null) {
+      console.log(`[REVIEW]${reviewBracketTag(row.priority)} ${rel} → ${row.reason}`);
+      continue;
+    }
+    if (row.priority && row.place_card) {
+      console.log(`[REVIEW]${reviewBracketTag(row.priority)} ${rel} → ${row.reason}`);
+      continue;
+    }
+    const pc = row.place_card;
     const conf =
-      placeCard?.confidence != null && Number.isFinite(Number(placeCard.confidence))
-        ? Number(placeCard.confidence).toFixed(4)
-        : String(placeCard?.confidence ?? "?");
-
-    if (dec === "auto") {
-      const dest = placeCard?.proposed_destination ?? "(none)";
-      console.log(`[OK] ${rel} → ${dest} (confidence: ${conf})`);
-    } else {
-      const reason = placeCard?.reason ?? result.decision?.reason ?? "review";
-      console.log(`[REVIEW] ${rel} → ${reason}`);
+      pc?.confidence != null && Number.isFinite(Number(pc.confidence))
+        ? Number(pc.confidence).toFixed(4)
+        : String(pc?.confidence ?? "?");
+    const dest = pc?.proposed_destination ?? "(none)";
+    console.log(`[OK] ${rel} → ${dest} (confidence: ${conf})`);
+    if (row.move_error) {
+      console.log(`[ERROR] ${rel} → move_failed (${row.move_error})`);
+    } else if (row.moved_to) {
+      const destLabel = String(pc?.proposed_destination ?? "").replace(/\\/g, "/") || "(none)";
+      console.log(`[MOVED] ${rel} → ${destLabel}`);
     }
-    resultsArray.push({ place_card: placeCard ?? null });
   }
 
-  const outDir = resolve(process.cwd(), "output");
-  mkdirSync(outDir, { recursive: true });
-  const outPath = join(outDir, "results.json");
-  writeFileSync(outPath, JSON.stringify(resultsArray, null, 2), "utf8");
-
-  const rep = generateSessionReport();
+  const rep = getSessionSummary();
   console.log("\n--- session summary ---");
   console.log(JSON.stringify(rep.summary, null, 2));
+  const rpc = out.reviewPriorityCounts;
+  console.log(`High priority: ${rpc.high}`);
+  console.log(`Medium priority: ${rpc.medium}`);
+  console.log(`Low priority: ${rpc.low}`);
 }
 
 async function main() {
