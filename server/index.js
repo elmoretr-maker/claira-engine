@@ -17,11 +17,22 @@ app.get("/health", (req, res) => {
 });
 
 app.post("/run", (req, res) => {
-  const body = req.body ?? {};
-  res.json({
-    message: "Claira API connected",
-    received: body,
-  });
+  try {
+    console.log("Webhook received from Wix:");
+    console.log(JSON.stringify(req.body, null, 2));
+
+    return res.status(200).json({
+      success: true,
+      message: "Webhook received",
+    });
+  } catch (err) {
+    console.error("Webhook error:", err);
+
+    return res.status(200).json({
+      success: false,
+      error: "Handled safely",
+    });
+  }
 });
 
 const port = Number(process.env.PORT) || 3000;
