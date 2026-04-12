@@ -1,4 +1,10 @@
 import express from "express";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { extname, join } from "path";
+import { analyze } from "../index.js";
+import { loadProcessFolderReferenceEmbeddings } from "../interfaces/processFolderPipeline.js";
+import { getImageEmbedding } from "../vision/clipEmbedder.js";
 
 /** Last POST /run body + extracted fields (in-memory only; resets on process restart). */
 let lastWixWebhook = null;
@@ -66,6 +72,28 @@ function extractWixSummary(body) {
 
 /** Products extracted from Wix webhooks (in-memory only; resets on process restart). */
 const processedProducts = [];
+
+/** @type {Map<string, Float32Array[]> | null} */
+let referenceEmbeddingsByLabelCache = null;
+
+function getReferenceEmbeddingsByLabel() {
+  if (referenceEmbeddingsByLabelCache == null) {
+    referenceEmbeddingsByLabelCache = loadProcessFolderReferenceEmbeddings();
+  }
+  return referenceEmbeddingsByLabelCache;
+}
+
+/**
+ * @param {string} url
+ */
+function extensionFromImageUrl(url) {
+  try {
+    const ext = extname(new URL(url).pathname).toLowerCase();
+    return ext && ext.length <= 8 ? ext : ".img";
+  } catch {
+    return ".img";
+  }
+}
 
 /**
  * @param {unknown} body
@@ -203,16 +231,84 @@ function extractImageUrlsFromProduct(p) {
 }
 
 /**
- * Detect `data.product` | `data.products` | `data.entity`, extract fields, log + append to `processedProducts`.
+ * Fetch image URL → CLIP embedding → full Claira analyze() (same path as process-folder).
+ * Root `analyze()` expects embeddings; `type: "image_url"` is not supported by the engine module.
+ * @param {string} url
+ */
+async function analyzeImage(url) {
+  try {
+    console.log("Analyzing with Claira:", url);
+
+    const res = await fetch(url, { redirect: "follow" });
+    if (!res.ok) {
+      throw new Error(`image fetch failed: ${res.status} ${res.statusText}`);
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    const tmpDir = mkdtempSync(join(tmpdir(), "claira-img-"));
+    const tmpPath = join(tmpDir, `input${extensionFromImageUrl(url)}`);
+    writeFileSync(tmpPath, buf);
+    /** @type {{ embedding: number[] } | { error: string; message?: string }} */
+    let embRes;
+    try {
+      embRes = await getImageEmbedding(tmpPath);
+    } finally {
+      try {
+        rmSync(tmpDir, { recursive: true, force: true });
+      } catch {
+        /* ignore cleanup errors */
+      }
+    }
+    if ("error" in embRes) {
+      throw new Error(embRes.message ?? "embedding_failed");
+    }
+    const inputEmbedding = new Float32Array(embRes.embedding);
+    const result = await analyze({
+      inputEmbedding,
+      referenceEmbeddingsByLabel: getReferenceEmbeddingsByLabel(),
+      file: url,
+    });
+
+    console.log("Claira result:", JSON.stringify(result, null, 2));
+
+    return result;
+  } catch (err) {
+    console.error("Claira analysis error:", err);
+
+    return {
+      label: "error",
+      confidence: 0,
+    };
+  }
+}
+
+/**
+ * Runs after webhook responds so /run stays fast.
+ * @param {{ name: string | null; id: string | null; images: string[] }[]} entries
+ */
+async function runProductImagePipeline(entries) {
+  for (const { name, id, images } of entries) {
+    const results = await Promise.all(images.map((u) => analyzeImage(u)));
+    processedProducts.push({ name, id, images, analysis: results });
+    console.log("Analysis result:");
+    console.log("  product name:", name ?? "(not found)");
+    console.log("  image classifications:", results);
+  }
+}
+
+/**
+ * Detect `data.product` | `data.products` | `data.entity`, extract fields, log.
  * @param {unknown} body
+ * @returns {{ name: string | null; id: string | null; images: string[] }[]}
  */
 function detectAndLogProductsFromData(body) {
+  /** @type {{ name: string | null; id: string | null; images: string[] }[]} */
+  const entries = [];
   const data = getBodyData(body);
-  if (data == null) return;
+  if (data == null) return entries;
 
   const payload = getDataProductPayload(data);
   const records = normalizeToProductRecords(payload);
-  if (records.length === 0) return;
+  if (records.length === 0) return entries;
 
   for (const rec of records) {
     const name = extractProductName(rec);
@@ -222,8 +318,9 @@ function detectAndLogProductsFromData(body) {
     console.log("  name:", name ?? "(not found)");
     console.log("  id:", id ?? "(not found)");
     console.log("  image URLs:", images.length ? images : "(none)");
-    processedProducts.push({ name, id, images });
+    entries.push({ name, id, images });
   }
+  return entries;
 }
 
 const app = express();
@@ -256,7 +353,12 @@ app.post("/run", (req, res) => {
       console.log("  product / catalog data: (not found)");
     }
 
-    detectAndLogProductsFromData(body);
+    const productEntries = detectAndLogProductsFromData(body);
+    if (productEntries.length > 0) {
+      void runProductImagePipeline(productEntries).catch((err) => {
+        console.error("Product image pipeline error:", err);
+      });
+    }
 
     if (summary.siteData != null) {
       console.log("  site data:", JSON.stringify(summary.siteData, null, 2));

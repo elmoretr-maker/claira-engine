@@ -52,7 +52,7 @@ function parseReferenceEmbeddingsByLabel(obj) {
   return m;
 }
 
-function loadProcessFolderReferenceEmbeddings() {
+export function loadProcessFolderReferenceEmbeddings() {
   if (!existsSync(REF_EMBEDDINGS_JSON)) {
     throw new Error(
       "process-folder: missing references/reference_embeddings.json — add PNGs to references/<category>/ and run: node vision/buildReferences.js",
