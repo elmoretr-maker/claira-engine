@@ -1,0 +1,409 @@
+#!/usr/bin/env node
+/**
+ * Claira Engine — Stage 4 CLI (wraps index.js; no core logic here).
+ * Usage: node cli/claira.mjs <command> [options]
+ */
+
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { readdir, stat } from "fs/promises";
+import { dirname, join, relative, resolve } from "path";
+import { fileURLToPath } from "url";
+import {
+  analyze,
+  applyDecision,
+  classify,
+  generatePlaceCard,
+  generateSessionReport,
+  getLearningStats,
+  getSuggestions,
+  resetSessionLedger,
+} from "../index.js";
+import { getImageEmbedding } from "../vision/clipEmbedder.js";
+
+const CLI_DIR = dirname(fileURLToPath(import.meta.url));
+const REF_EMBEDDINGS_JSON = join(CLI_DIR, "..", "references", "reference_embeddings.json");
+
+function loadProcessFolderReferenceEmbeddings() {
+  if (!existsSync(REF_EMBEDDINGS_JSON)) {
+    throw new Error(
+      "process-folder: missing references/reference_embeddings.json — add PNGs to references/<category>/ and run: node vision/buildReferences.js",
+    );
+  }
+  const raw = readFileSync(REF_EMBEDDINGS_JSON, "utf8");
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`process-folder: invalid references/reference_embeddings.json (${msg})`);
+  }
+  try {
+    return parseReferenceEmbeddingsByLabel(parsed);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `process-folder: ${msg}. Add PNGs under references/terrain|prop|debris/, then run: node vision/buildReferences.js`,
+    );
+  }
+}
+
+function printHelp() {
+  console.log(`claira — Claira Engine CLI
+
+Commands:
+  analyze           Full pipeline: classify → route → decide (session ledger updated)
+  classify          Classification only
+  place-card        Place-card summary from a prior analyze result JSON
+  suggestions       Ranked cosine/softmax suggestions from result JSON
+  apply-decision    Record human correction (predicted vs selected)
+  session-report    Write data/session_report.json and print report JSON
+  reset-session     Clear session ledger (in-memory)
+  learning-stats    Print learning stats for (predicted_label [, selected_label])
+  process-folder    Recursively process all PNGs in a folder (placeholder embeddings)
+
+Embedding inputs (analyze / classify):
+  --embedding <file>       JSON: number[] or { "data": number[] }
+  --references <file>      JSON: { "label": [n,...] | [[n,...], ...], ... }
+  --file <path>            Optional logical file path for ledger / place-card
+
+Options:
+  --softmax-temperature N  Override config softmax temperature
+  --stdin                  Read analyze result JSON from stdin (place-card, suggestions)
+  --result <file>          Read analyze result JSON from file
+  --predicted <label>      apply-decision / learning-stats
+  --selected <label>       apply-decision / learning-stats
+  --confidence <n>         apply-decision optional model confidence
+
+Examples:
+  node cli/claira.mjs analyze --embedding emb.json --references refs.json --file ./asset.png
+  node cli/claira.mjs place-card --result out.json
+  cat out.json | node cli/claira.mjs place-card --stdin
+  node cli/claira.mjs process-folder ./test-images
+`);
+}
+
+function parseArgs(argv) {
+  /** @type {string[]} */
+  const positional = [];
+  /** @type {Record<string, string | boolean>} */
+  const flags = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "-h" || a === "--help") {
+      flags.help = true;
+      continue;
+    }
+    if (a.startsWith("--")) {
+      const key = a.slice(2);
+      const next = argv[i + 1];
+      if (next != null && !String(next).startsWith("-")) {
+        flags[key] = next;
+        i++;
+      } else {
+        flags[key] = true;
+      }
+    } else {
+      positional.push(a);
+    }
+  }
+  return { positional, flags };
+}
+
+function readJsonPath(p) {
+  const abs = resolve(p);
+  const raw = readFileSync(abs, "utf8");
+  return JSON.parse(raw);
+}
+
+/**
+ * @param {unknown} data
+ * @returns {Float32Array}
+ */
+function parseInputEmbedding(data) {
+  if (Array.isArray(data) && data.length && typeof data[0] === "number") {
+    return new Float32Array(data);
+  }
+  if (data && typeof data === "object" && Array.isArray(/** @type {{ data?: number[] }} */ (data).data)) {
+    return new Float32Array(/** @type {{ data: number[] }} */ (data).data);
+  }
+  throw new Error("embedding: expected number[] or { data: number[] }");
+}
+
+/**
+ * @param {unknown} obj
+ * @returns {Map<string, Float32Array[]>}
+ */
+function parseReferenceEmbeddingsByLabel(obj) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+    throw new Error("references: expected object of label → vectors");
+  }
+  const m = new Map();
+  for (const [label, val] of Object.entries(obj)) {
+    if (!Array.isArray(val) || val.length === 0) continue;
+    if (typeof val[0] === "number") {
+      m.set(label, [new Float32Array(/** @type {number[]} */ (val))]);
+    } else {
+      const vecs = val.map((row) => {
+        if (!Array.isArray(row)) throw new Error(`references.${label}: expected number[][]`);
+        return new Float32Array(row);
+      });
+      m.set(label, vecs);
+    }
+  }
+  if (m.size === 0) throw new Error("references: no label pools found");
+  return m;
+}
+
+function readAnalyzeResult(flags) {
+  if (flags.stdin) {
+    if (process.stdin.isTTY) {
+      throw new Error("--stdin requires piped input");
+    }
+    const s = readFileSync(0, "utf8").trim();
+    if (!s) throw new Error("stdin empty");
+    return JSON.parse(s);
+  }
+  if (flags.result && typeof flags.result === "string") {
+    return readJsonPath(flags.result);
+  }
+  throw new Error("provide --result <file> or --stdin with analyze JSON");
+}
+
+function outJson(obj) {
+  console.log(JSON.stringify(obj, null, 2));
+}
+
+async function cmdAnalyze(flags) {
+  const embPath = flags.embedding;
+  const refPath = flags.references;
+  if (!embPath || !refPath) throw new Error("analyze requires --embedding and --references");
+  const embRaw = readJsonPath(String(embPath));
+  const refRaw = readJsonPath(String(refPath));
+  const inputEmbedding = parseInputEmbedding(embRaw);
+  const referenceEmbeddingsByLabel = parseReferenceEmbeddingsByLabel(refRaw);
+  const file = flags.file != null ? String(flags.file) : null;
+  let softmaxTemperature;
+  if (flags["softmax-temperature"] != null) {
+    softmaxTemperature = Number(flags["softmax-temperature"]);
+    if (!Number.isFinite(softmaxTemperature)) throw new Error("invalid --softmax-temperature");
+  }
+  const input = {
+    inputEmbedding,
+    referenceEmbeddingsByLabel,
+    file,
+    ...(softmaxTemperature != null ? { softmaxTemperature } : {}),
+  };
+  const result = await analyze(input);
+  if (result.error) {
+    outJson(result);
+    process.exitCode = 1;
+    return;
+  }
+  outJson(result);
+}
+
+async function cmdClassify(flags) {
+  const embPath = flags.embedding;
+  const refPath = flags.references;
+  if (!embPath || !refPath) throw new Error("classify requires --embedding and --references");
+  const embRaw = readJsonPath(String(embPath));
+  const refRaw = readJsonPath(String(refPath));
+  const inputEmbedding = parseInputEmbedding(embRaw);
+  const referenceEmbeddingsByLabel = parseReferenceEmbeddingsByLabel(refRaw);
+  let softmaxTemperature;
+  if (flags["softmax-temperature"] != null) {
+    softmaxTemperature = Number(flags["softmax-temperature"]);
+    if (!Number.isFinite(softmaxTemperature)) throw new Error("invalid --softmax-temperature");
+  }
+  const input = {
+    inputEmbedding,
+    referenceEmbeddingsByLabel,
+    ...(softmaxTemperature != null ? { softmaxTemperature } : {}),
+  };
+  const result = await classify(input);
+  if (result.error) {
+    outJson(result);
+    process.exitCode = 1;
+    return;
+  }
+  outJson(result);
+}
+
+async function cmdPlaceCard(flags) {
+  const result = readAnalyzeResult(flags);
+  const { placeCard } = await generatePlaceCard(result);
+  outJson({ placeCard });
+}
+
+async function cmdSuggestions(flags) {
+  const result = readAnalyzeResult(flags);
+  const r = await getSuggestions(result);
+  outJson(r);
+}
+
+async function cmdApplyDecision(flags) {
+  const predicted = flags.predicted != null ? String(flags.predicted) : "";
+  const selected = flags.selected != null ? String(flags.selected) : "";
+  if (!predicted || !selected) throw new Error("apply-decision requires --predicted and --selected");
+  let confidence;
+  if (flags.confidence != null) {
+    confidence = Number(flags.confidence);
+    if (!Number.isFinite(confidence)) throw new Error("invalid --confidence");
+  }
+  const r = await applyDecision({ predicted_label: predicted, selected_label: selected, confidence });
+  outJson(r);
+}
+
+function cmdSessionReport() {
+  const rep = generateSessionReport();
+  outJson(rep);
+}
+
+function cmdResetSession() {
+  resetSessionLedger();
+  outJson({ ok: true, reset: "session_ledger" });
+}
+
+function cmdLearningStats(flags) {
+  const predicted = flags.predicted != null ? String(flags.predicted) : "";
+  if (!predicted) throw new Error("learning-stats requires --predicted");
+  const selected = flags.selected != null ? String(flags.selected) : null;
+  const stats = getLearningStats(predicted, selected);
+  outJson({ predicted_label: predicted, selected_label: selected, stats });
+}
+
+async function collectPngFilesRecursive(rootDir) {
+  /** @type {string[]} */
+  const out = [];
+  async function walk(current) {
+    const entries = await readdir(current, { withFileTypes: true });
+    for (const e of entries) {
+      const full = join(current, e.name);
+      if (e.isDirectory()) await walk(full);
+      else if (e.isFile() && e.name.toLowerCase().endsWith(".png")) out.push(full);
+    }
+  }
+  await walk(rootDir);
+  return out.sort();
+}
+
+function displayRelative(inputRootResolved, absolutePath) {
+  return relative(inputRootResolved, absolutePath).replace(/\\/g, "/");
+}
+
+async function cmdProcessFolder(positional) {
+  const folderArg = positional[1];
+  if (!folderArg) throw new Error("process-folder requires a folder path");
+  const inputRoot = resolve(folderArg);
+  try {
+    const st = await stat(inputRoot);
+    if (!st.isDirectory()) throw new Error("not a directory");
+  } catch {
+    throw new Error(`process-folder: cannot read folder ${folderArg}`);
+  }
+
+  resetSessionLedger();
+
+  const pngFiles = await collectPngFilesRecursive(inputRoot);
+  const referenceEmbeddingsByLabel = loadProcessFolderReferenceEmbeddings();
+  /** @type {Array<{ place_card: object | null }>} */
+  const resultsArray = [];
+
+  for (const absPath of pngFiles) {
+    const rel = displayRelative(inputRoot, absPath);
+    const embRes = await getImageEmbedding(absPath);
+    if (embRes.error) {
+      console.log(`[ERROR] ${rel} → embedding_failed`);
+      resultsArray.push({ place_card: null });
+      continue;
+    }
+    const inputEmbedding = new Float32Array(embRes.embedding);
+    const result = await analyze({
+      inputEmbedding,
+      referenceEmbeddingsByLabel,
+      file: absPath,
+    });
+
+    if (result.error) {
+      console.log(`[REVIEW] ${rel} → ${result.error}`);
+      resultsArray.push({ place_card: null });
+      continue;
+    }
+
+    const { placeCard } = await generatePlaceCard(result);
+    const dec = result.decision?.decision;
+    const conf =
+      placeCard?.confidence != null && Number.isFinite(Number(placeCard.confidence))
+        ? Number(placeCard.confidence).toFixed(4)
+        : String(placeCard?.confidence ?? "?");
+
+    if (dec === "auto") {
+      const dest = placeCard?.proposed_destination ?? "(none)";
+      console.log(`[OK] ${rel} → ${dest} (confidence: ${conf})`);
+    } else {
+      const reason = placeCard?.reason ?? result.decision?.reason ?? "review";
+      console.log(`[REVIEW] ${rel} → ${reason}`);
+    }
+    resultsArray.push({ place_card: placeCard ?? null });
+  }
+
+  const outDir = resolve(process.cwd(), "output");
+  mkdirSync(outDir, { recursive: true });
+  const outPath = join(outDir, "results.json");
+  writeFileSync(outPath, JSON.stringify(resultsArray, null, 2), "utf8");
+
+  const rep = generateSessionReport();
+  console.log("\n--- session summary ---");
+  console.log(JSON.stringify(rep.summary, null, 2));
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  const { positional, flags } = parseArgs(argv);
+  if (flags.help || positional.length === 0) {
+    printHelp();
+    return;
+  }
+  const cmd = positional[0];
+  try {
+    switch (cmd) {
+      case "analyze":
+        await cmdAnalyze(flags);
+        break;
+      case "classify":
+        await cmdClassify(flags);
+        break;
+      case "place-card":
+        await cmdPlaceCard(flags);
+        break;
+      case "suggestions":
+        await cmdSuggestions(flags);
+        break;
+      case "apply-decision":
+        await cmdApplyDecision(flags);
+        break;
+      case "session-report":
+        cmdSessionReport();
+        break;
+      case "reset-session":
+        cmdResetSession();
+        break;
+      case "learning-stats":
+        cmdLearningStats(flags);
+        break;
+      case "process-folder":
+        await cmdProcessFolder(positional);
+        break;
+      default:
+        console.error(`Unknown command: ${cmd}`);
+        printHelp();
+        process.exitCode = 1;
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(JSON.stringify({ error: "cli", message: msg }, null, 2));
+    process.exitCode = 1;
+  }
+}
+
+main();

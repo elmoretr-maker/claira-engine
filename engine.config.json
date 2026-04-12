@@ -1,7 +1,11 @@
 {
   "inputPath": "./input",
   "outputPath": "./output",
-  "categories": {},
+  "categories": {
+    "terrain": "assets/terrain",
+    "prop": "assets/props",
+    "debris": "assets/debris"
+  },
   "aliases": {},
   "softmaxTemperature": 12,
   "thresholds": {

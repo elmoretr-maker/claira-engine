@@ -1,32 +1,19 @@
 {
-  "generatedAt": "2026-04-12T06:46:30.350Z",
+  "generatedAt": "2026-04-12T08:05:00.027Z",
   "summary": {
-    "totalProcessed": 1,
-    "totalReviewItems": 1,
-    "unresolvedCount": 1,
-    "repeatedCorrectionPairs": 1,
-    "highConflictLabelPairHits": 0,
-    "highConflictPairTypesObserved": 0
+    "totalProcessed": 15,
+    "totalReviewItems": 0,
+    "unresolvedCount": 0,
+    "repeatedCorrectionPairs": 0,
+    "highConflictLabelPairHits": 13,
+    "highConflictPairTypesObserved": 1
   },
   "issues": [
     {
-      "kind": "repeated_correction",
-      "pair": "terrain→prop",
-      "sessionCount": 2
+      "kind": "high_conflict_label_pair",
+      "pair": "debris|terrain",
+      "occurrences": 13
     }
   ],
-  "unresolvedItems": [
-    {
-      "at": "2026-04-12T06:46:30.348Z",
-      "file": null,
-      "predicted_label": "terrain",
-      "routing_label": null,
-      "proposed_destination": null,
-      "decision": "review",
-      "reason": "unknown_label_destination",
-      "confidence": 0.9938837289810181,
-      "margin": 0.8834521993994713,
-      "high_conflict_cosine": false
-    }
-  ]
+  "unresolvedItems": []
 }
