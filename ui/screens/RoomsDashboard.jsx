@@ -81,6 +81,7 @@ function resultBelongsToRoom(resultKey, roomDestNorm) {
  *   results?: unknown[],
  *   onBackToProcessing?: () => void,
  *   onBackToEntrance?: () => void,
+ *   onSessionReport?: () => void,
  * }} props
  */
 export default function RoomsDashboard({
@@ -88,6 +89,7 @@ export default function RoomsDashboard({
   results = [],
   onBackToProcessing,
   onBackToEntrance,
+  onSessionReport,
 }) {
   const roomList = Array.isArray(rooms) ? rooms : [];
   const resultList = Array.isArray(results) ? results : [];
@@ -120,15 +122,22 @@ export default function RoomsDashboard({
 
   return (
     <div className="rooms-dashboard">
-      {(typeof onBackToProcessing === "function" || typeof onBackToEntrance === "function") ? (
+      {(typeof onBackToProcessing === "function" ||
+        typeof onBackToEntrance === "function" ||
+        typeof onSessionReport === "function") ? (
         <nav className="rooms-dashboard-nav" aria-label="Screen navigation">
           {typeof onBackToProcessing === "function" ? (
-            <button type="button" className="rooms-dashboard-nav-btn" onClick={onBackToProcessing}>
+            <button type="button" className="btn btn-primary" onClick={onBackToProcessing}>
               Back to Processing
             </button>
           ) : null}
+          {typeof onSessionReport === "function" ? (
+            <button type="button" className="btn btn-secondary" onClick={() => void onSessionReport()}>
+              Session report
+            </button>
+          ) : null}
           {typeof onBackToEntrance === "function" ? (
-            <button type="button" className="rooms-dashboard-nav-btn rooms-dashboard-nav-btn--secondary" onClick={onBackToEntrance}>
+            <button type="button" className="btn btn-secondary" onClick={onBackToEntrance}>
               Back to Entrance
             </button>
           ) : null}
@@ -163,7 +172,7 @@ function RoomCard({ room, roomResults }) {
   };
 
   return (
-    <button type="button" className="rooms-dashboard-card" onClick={onClick}>
+    <button type="button" className="card rooms-dashboard-card" onClick={onClick}>
       <h2>{room.name || "(unnamed room)"}</h2>
       <div className="destination">{room.destination || "—"}</div>
       <div className="count">{count} item{count === 1 ? "" : "s"}</div>

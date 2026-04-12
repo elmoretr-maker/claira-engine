@@ -2,8 +2,17 @@
  * Live processing flow UI — imports API module (Vite dev aliases this to a fetch client; see ui/vite.config.mjs).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { registerSimulation } from "../../core/simulationRegistry.js";
 import "./ProcessingScreen.css";
+import { formatPipelineErrorForDisplay } from "../formatPipelineError.js";
 import { ingestData, processData, processFolder } from "../../interfaces/api.js";
+
+registerSimulation({
+  name: "processing_replay_ui",
+  location: "ui/screens/ProcessingScreen.jsx",
+  description: "UI replay animation of results",
+  replaceWith: "Live streaming updates (future)",
+});
 
 const STAGES = ["entrance", "processing", "rooms", "waiting", "output"];
 
@@ -248,7 +257,7 @@ export default function ProcessingScreen({
         });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatPipelineErrorForDisplay(e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
     }
@@ -278,21 +287,21 @@ export default function ProcessingScreen({
         </div>
         <div className="processing-actions">
           {typeof onBackToEntrance === "function" ? (
-            <button type="button" className="btn-secondary" onClick={onBackToEntrance}>
+            <button type="button" className="btn btn-secondary" onClick={onBackToEntrance}>
               Back to intake
             </button>
           ) : null}
           {typeof onViewRooms === "function" ? (
             <button
               type="button"
-              className="btn-secondary"
+              className="btn btn-secondary"
               disabled={busy || results.length === 0}
               onClick={onViewRooms}
             >
               View Rooms
             </button>
           ) : null}
-          <button type="button" className="btn-primary" disabled={busy} onClick={() => void run()}>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void run()}>
             {busy ? "Running…" : "Run pipeline"}
           </button>
         </div>
@@ -418,7 +427,9 @@ export default function ProcessingScreen({
  */
 function FlowCard({ title, body, active, alert }) {
   return (
-    <section className={`flow-card ${active ? "flow-card--active" : ""} ${alert ? "flow-card--alert" : ""}`}>
+    <section
+      className={`card flow-card ${active ? "flow-card--active" : ""} ${alert ? "flow-card--alert" : ""}`}
+    >
       <h2>{title}</h2>
       <div className="flow-card-body">{body}</div>
     </section>

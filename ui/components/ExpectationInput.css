@@ -1,0 +1,117 @@
+.expectation-input {
+  margin-bottom: 0.75rem;
+}
+
+.expectation-input-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.45rem;
+}
+
+.expectation-input-label--tasks {
+  margin-top: 0.85rem;
+}
+
+.expectation-intent-text {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+  line-height: 1.35;
+  border: 1px solid #c5c9d1;
+  border-radius: 8px;
+  background: #fafbfc;
+  color: #1a1a1a;
+  margin-bottom: 0.5rem;
+}
+
+.expectation-intent-text::placeholder {
+  color: #888;
+}
+
+.expectation-intent-text:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #3b82f6 22%, transparent);
+}
+
+.expectation-generate-btn {
+  padding: 0.45rem 0.85rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #c5c9d1;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+}
+
+.expectation-generate-btn:hover {
+  background: #f0f2f5;
+}
+
+.expectation-generate-btn:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #3b82f6 22%, transparent);
+}
+
+.expectation-input-context {
+  margin: 0 0 0.15rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  background: #eef1f5;
+  border: 1px solid #dde1e8;
+}
+
+.expectation-input-context-line {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #444;
+}
+
+.expectation-input-context-line + .expectation-input-context-line {
+  margin-top: 0.25rem;
+}
+
+.expectation-input-context-key {
+  font-weight: 600;
+  color: #555;
+}
+
+.expectation-input-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 5.5rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.45;
+  border: 1px solid #c5c9d1;
+  border-radius: 8px;
+  background: #fafbfc;
+  color: #1a1a1a;
+  resize: vertical;
+}
+
+.expectation-input-textarea::placeholder {
+  color: #888;
+}
+
+.expectation-input-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #3b82f6 22%, transparent);
+}
+
+.expectation-input-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  color: #666;
+  line-height: 1.4;
+}

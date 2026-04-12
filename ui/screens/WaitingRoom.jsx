@@ -67,7 +67,7 @@ export default function WaitingRoom({ reviewItems = [], onResolve, onContinueToR
 
       {typeof onContinueToRooms === "function" ? (
         <div className="waiting-room-continue-wrap">
-          <button type="button" className="waiting-room-continue-btn" onClick={onContinueToRooms}>
+          <button type="button" className="btn btn-primary" onClick={onContinueToRooms}>
             Continue to Rooms
           </button>
         </div>
@@ -88,9 +88,7 @@ export default function WaitingRoom({ reviewItems = [], onResolve, onContinueToR
                 onAction={logAction}
               />
             ))}
-            {buckets.high.length === 0 ? (
-              <p style={{ color: "#6b7280", fontSize: "0.85rem", margin: 0 }}>None</p>
-            ) : null}
+            {buckets.high.length === 0 ? <p className="waiting-room-column-empty">None</p> : null}
           </section>
 
           <section className="waiting-room-column" aria-labelledby="col-medium">
@@ -104,9 +102,7 @@ export default function WaitingRoom({ reviewItems = [], onResolve, onContinueToR
                 onAction={logAction}
               />
             ))}
-            {buckets.medium.length === 0 ? (
-              <p style={{ color: "#6b7280", fontSize: "0.85rem", margin: 0 }}>None</p>
-            ) : null}
+            {buckets.medium.length === 0 ? <p className="waiting-room-column-empty">None</p> : null}
           </section>
 
           <section className="waiting-room-column" aria-labelledby="col-low">
@@ -120,9 +116,7 @@ export default function WaitingRoom({ reviewItems = [], onResolve, onContinueToR
                 onAction={logAction}
               />
             ))}
-            {buckets.low.length === 0 ? (
-              <p style={{ color: "#6b7280", fontSize: "0.85rem", margin: 0 }}>None</p>
-            ) : null}
+            {buckets.low.length === 0 ? <p className="waiting-room-column-empty">None</p> : null}
           </section>
         </div>
       )}
@@ -138,20 +132,20 @@ export default function WaitingRoom({ reviewItems = [], onResolve, onContinueToR
  */
 function ReviewCard({ item, onAction }) {
   return (
-    <article className="waiting-room-card">
+    <article className="card waiting-room-card">
       <div className="file">{item.file || "(unnamed)"}</div>
       <div className="reason">{item.reason || "—"}</div>
       {item.score != null ? (
         <div className="score">Score: {item.score}</div>
       ) : null}
       <div className="waiting-room-actions">
-        <button type="button" onClick={() => onAction("assign_room", item)}>
+        <button type="button" className="btn btn-secondary" onClick={() => onAction("assign_room", item)}>
           Assign Room
         </button>
-        <button type="button" onClick={() => onAction("apply_rule", item)}>
+        <button type="button" className="btn btn-secondary" onClick={() => onAction("apply_rule", item)}>
           Apply Rule
         </button>
-        <button type="button" onClick={() => onAction("allow_once", item)}>
+        <button type="button" className="btn btn-secondary" onClick={() => onAction("allow_once", item)}>
           Allow Once
         </button>
       </div>

@@ -1,0 +1,125 @@
+:root {
+  /* Colors */
+  --bg-main: #0f1115;
+  --bg-card: #171a21;
+  --bg-hover: #1f2430;
+
+  --text-primary: #ffffff;
+  --text-secondary: #a0a8b8;
+
+  --accent: #4f8cff;
+  --accent-hover: #6aa3ff;
+
+  --success: #4caf50;
+  --warning: #ffb020;
+  --danger: #ff4d4f;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Shadows */
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+body {
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.card,
+.btn,
+.suggestion-card {
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-card);
+}
+
+.card:hover {
+  background: var(--bg-hover);
+  transform: translateY(-3px);
+}
+
+.btn {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s ease, background 0.2s ease;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--text-secondary);
+  color: var(--text-secondary);
+}
+
+/* Screen change (see also .app-screen-fade keyframes) */
+.fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 0.25s ease;
+}
+
+.app-screen-fade {
+  animation: appScreenFadeIn 0.25s ease forwards;
+  transition: none;
+}
+
+@keyframes appScreenFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}

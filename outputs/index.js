@@ -2,8 +2,24 @@
  * Output routing for processed results.
  */
 
+import { SYSTEM_MODE } from "../core/systemMode.js";
 import { exportToFile } from "./fileOutput.js";
-import { exportToExternal } from "./externalOutput.js";
+import { exportToExternal as exportToExternalSimulated } from "./externalOutput.js";
+import * as realExternalOutput from "./realExternalOutput.js";
+
+/**
+ * @param {unknown} results
+ * @param {string} [externalTarget]
+ */
+function exportExternalResolved(results, externalTarget) {
+  if (SYSTEM_MODE === "simulation") {
+    return exportToExternalSimulated(results, externalTarget);
+  }
+  if (!realExternalOutput.REAL_EXTERNAL_OUTPUT_READY) {
+    throw new Error("Real external output not implemented. Cannot proceed in real mode.");
+  }
+  return realExternalOutput.exportToExternal(results, externalTarget);
+}
 
 /**
  * @param {{
@@ -25,11 +41,18 @@ export function sendOutput(args) {
   }
 
   if (t === "external") {
-    return exportToExternal(results, args.externalTarget);
+    return exportExternalResolved(results, args.externalTarget);
   }
 
   throw new Error(`sendOutput: unknown target "${String(target)}" (expected file | external)`);
 }
 
+/**
+ * @param {unknown} results
+ * @param {string} [target]
+ */
+export function exportToExternal(results, target) {
+  return exportExternalResolved(results, target);
+}
+
 export { exportToFile } from "./fileOutput.js";
-export { exportToExternal } from "./externalOutput.js";

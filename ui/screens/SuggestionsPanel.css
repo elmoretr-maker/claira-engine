@@ -1,18 +1,15 @@
 .suggestions-panel {
-  font-family: system-ui, Segoe UI, Roboto, sans-serif;
-  color: #e8eaed;
-  background: #0f1115;
   min-height: 100%;
-  padding: 1rem 0;
+  padding: var(--space-md) 0;
   box-sizing: border-box;
 }
 
 .suggestions-panel-header {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-md);
 }
 
 .suggestions-panel-header h2 {
-  margin: 0 0 0.35rem;
+  margin: 0 0 calc(var(--space-sm) * 0.45);
   font-size: 1.1rem;
   font-weight: 600;
 }
@@ -20,17 +17,16 @@
 .suggestions-panel-header p {
   margin: 0;
   font-size: 0.82rem;
-  color: #9ca3af;
+  color: var(--text-secondary);
 }
 
 .suggestions-panel-empty {
-  padding: 1.5rem 1rem;
+  padding: calc(var(--space-lg) * 0.75) var(--space-md);
   text-align: center;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 0.95rem;
-  border: 1px dashed #374151;
-  border-radius: 10px;
-  background: #1a1d24;
+  border: 1px dashed color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  background: var(--bg-card);
 }
 
 .suggestions-panel-list {
@@ -39,31 +35,40 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: calc(var(--space-sm) * 1.05);
 }
 
 .suggestion-card {
-  background: #1a1d24;
-  border: 1px solid #2d3340;
-  border-radius: 10px;
-  padding: 1rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 28%, transparent);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .suggestion-card .message {
   font-size: 0.95rem;
   line-height: 1.45;
-  margin: 0 0 0.65rem;
-  color: #e8eaed;
+  margin: 0 0 calc(var(--space-sm) * 0.8);
+  color: var(--text-primary);
 }
 
 .suggestion-card .meta {
   font-size: 0.8rem;
-  color: #9ca3af;
-  margin: 0 0 0.5rem;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-sm);
 }
 
 .suggestion-card .meta strong {
-  color: #c4c9d4;
+  color: color-mix(in srgb, var(--text-secondary) 40%, var(--text-primary));
   font-weight: 600;
 }
 
@@ -72,35 +77,15 @@
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #9ca3af;
-  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
 }
 
 .suggestion-card-actions {
-  margin-top: 0.75rem;
+  margin-top: calc(var(--space-sm) * 0.95);
 }
 
-.suggestion-card-actions button {
-  padding: 0.45rem 0.9rem;
+.suggestion-card-actions .btn {
   font-size: 0.82rem;
   font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 1px solid #4b5563;
-  background: #2d3340;
-  color: #e8eaed;
-}
-
-.suggestion-card-actions button:hover {
-  background: #3d4450;
-}
-
-.suggestion-card-actions button.suggestion-btn-primary {
-  border-color: #3b82f6;
-  background: #3b82f6;
-  color: #fff;
-}
-
-.suggestion-card-actions button.suggestion-btn-primary:hover {
-  background: #2563eb;
 }

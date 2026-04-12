@@ -1,0 +1,59 @@
+.simulation-panel {
+  padding: var(--space-sm) 0 0;
+}
+
+.simulation-panel-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.simulation-panel-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.simulation-panel-item {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-main));
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
+}
+
+.simulation-panel-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.simulation-panel-meta {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: ui-monospace, monospace;
+}
+
+.simulation-panel-desc {
+  margin: var(--space-sm) 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--text-secondary) 12%, var(--text-primary));
+}
+
+.simulation-panel-replace {
+  margin: var(--space-xs) 0 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--success) 35%, var(--text-primary));
+}
+
+.simulation-panel-replace-k {
+  font-weight: 600;
+  color: var(--text-secondary);
+}

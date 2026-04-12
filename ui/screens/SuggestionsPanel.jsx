@@ -24,7 +24,7 @@ export default function SuggestionsPanel({ suggestions = [] }) {
       </header>
 
       {list.length === 0 ? (
-        <div className="suggestions-panel-empty">No suggestions at this time</div>
+        <div className="card suggestions-panel-empty">No suggestions at this time</div>
       ) : (
         <ul className="suggestions-panel-list">
           {list.map((s, i) => (
@@ -59,7 +59,7 @@ function SuggestionCard({ suggestion, index }) {
   };
 
   return (
-    <article className="suggestion-card">
+    <article className="card suggestion-card">
       <div className="type-pill">{type.replace(/_/g, " ")}</div>
       <p className="message">{message || "—"}</p>
       {(predicted != null && predicted.length) || (selected != null && selected.length) || count != null ? (
@@ -89,11 +89,11 @@ function SuggestionCard({ suggestion, index }) {
       ) : null}
       <div className="suggestion-card-actions">
         {isPromoteRule ? (
-          <button type="button" className="suggestion-btn-primary" onClick={onAction}>
+          <button type="button" className="btn btn-primary" onClick={onAction}>
             Apply Rule
           </button>
         ) : (
-          <button type="button" onClick={onAction}>
+          <button type="button" className="btn btn-secondary" onClick={onAction}>
             Dismiss
           </button>
         )}

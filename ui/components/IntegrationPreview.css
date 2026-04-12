@@ -1,0 +1,116 @@
+.integration-preview {
+  margin-top: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #dde1e8;
+  border-radius: 10px;
+  background: #f8f9fb;
+}
+
+.integration-preview-real-blocked {
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  color: #7f1d1d;
+  background: #fecaca;
+  border: 1px solid #f87171;
+}
+
+.integration-preview-simulated-banner {
+  margin: 0 0 0.65rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  color: #5d4200;
+  background: #ffe8a3;
+  border: 1px solid #e6c200;
+}
+
+.integration-preview-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.integration-preview-muted {
+  margin: 0 0 0.75rem;
+  font-size: 0.76rem;
+  color: #666;
+  line-height: 1.35;
+}
+
+.integration-preview-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.35rem;
+}
+
+.integration-preview-select {
+  width: 100%;
+  max-width: 280px;
+  box-sizing: border-box;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.86rem;
+  border: 1px solid #c5c9d1;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+  margin-bottom: 0.65rem;
+}
+
+.integration-preview-detected {
+  margin: 0 0 0.5rem;
+  font-size: 0.84rem;
+  color: #333;
+}
+
+.integration-preview-k {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.integration-preview-k.section-gap {
+  margin-top: 0.65rem;
+}
+
+.integration-preview-list {
+  margin: 0.35rem 0 0.65rem;
+  padding-left: 1.15rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #444;
+}
+
+.integration-preview-list li {
+  margin-bottom: 0.25rem;
+}
+
+.integration-preview-apply {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #2e7d32;
+  border-radius: 8px;
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+
+.integration-preview-apply:hover:not(:disabled) {
+  background: #c8e6c9;
+}
+
+.integration-preview-apply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,59 +1,41 @@
 .waiting-room {
-  font-family: system-ui, Segoe UI, Roboto, sans-serif;
-  color: #e8eaed;
-  background: #0f1115;
   min-height: 100vh;
-  padding: 1.25rem 1.5rem 2rem;
+  padding: var(--space-lg) calc(var(--space-md) * 1.5) var(--space-xl);
   box-sizing: border-box;
 }
 
 .waiting-room-alert {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1rem;
-  margin-bottom: 1.25rem;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  border-radius: 8px;
+  gap: var(--space-sm);
+  padding: calc(var(--space-sm) * 0.75) var(--space-md);
+  margin-bottom: var(--space-lg);
+  background: color-mix(in srgb, var(--danger) 12%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: var(--radius-md);
   font-size: 0.9rem;
-  color: #fecaca;
+  color: color-mix(in srgb, var(--danger) 35%, var(--text-primary));
 }
 
 .waiting-room-alert .dot {
   width: 10px;
   height: 10px;
-  background: #ef4444;
+  background: var(--danger);
   border-radius: 50%;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--danger) 70%, transparent);
   flex-shrink: 0;
 }
 
 .waiting-room-header {
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--space-lg);
 }
 
 .waiting-room-continue-wrap {
-  margin-bottom: 1.25rem;
-}
-
-.waiting-room-continue-btn {
-  padding: 0.55rem 1.1rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid #3b82f6;
-  background: #3b82f6;
-  color: #fff;
-}
-
-.waiting-room-continue-btn:hover {
-  background: #2563eb;
+  margin-bottom: var(--space-lg);
 }
 
 .waiting-room-header h1 {
-  margin: 0 0 0.35rem;
+  margin: 0 0 calc(var(--space-sm) * 0.45);
   font-size: 1.35rem;
   font-weight: 600;
 }
@@ -61,23 +43,23 @@
 .waiting-room-header p {
   margin: 0;
   font-size: 0.88rem;
-  color: #9ca3af;
+  color: var(--text-secondary);
 }
 
 .waiting-room-empty {
   text-align: center;
-  padding: 3rem 1.5rem;
-  color: #9ca3af;
+  padding: calc(var(--space-xl) * 0.95) calc(var(--space-md) * 1.5);
+  color: var(--text-secondary);
   font-size: 1.05rem;
-  border: 1px dashed #374151;
-  border-radius: 12px;
-  background: #1a1d24;
+  border: 1px dashed color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
 }
 
 .waiting-room-columns {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+  gap: var(--space-md);
   align-items: start;
 }
 
@@ -88,22 +70,25 @@
 }
 
 .waiting-room-column h2 {
-  margin: 0 0 0.85rem;
+  margin: 0 0 calc(var(--space-sm) * 1.05);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #9ca3af;
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: calc(var(--space-xs) * 0.85);
+}
+
+.waiting-room-column-empty {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin: 0;
 }
 
 .waiting-room-card {
-  background: #1a1d24;
-  border: 1px solid #2d3340;
-  border-radius: 10px;
-  padding: 0.9rem 1rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: calc(var(--space-sm) * 0.75);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 28%, transparent);
 }
 
 .waiting-room-card:last-child {
@@ -114,40 +99,30 @@
   font-weight: 600;
   font-size: 0.92rem;
   word-break: break-word;
-  margin-bottom: 0.45rem;
+  margin-bottom: calc(var(--space-sm) * 0.55);
 }
 
 .waiting-room-card .reason {
   font-size: 0.82rem;
-  color: #c4c9d4;
-  margin-bottom: 0.35rem;
+  color: color-mix(in srgb, var(--text-secondary) 55%, var(--text-primary));
+  margin-bottom: calc(var(--space-xs) * 0.85);
   line-height: 1.35;
 }
 
 .waiting-room-card .score {
   font-size: 0.78rem;
-  color: #9ca3af;
-  margin-bottom: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: calc(var(--space-sm) * 0.75);
 }
 
 .waiting-room-actions {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: calc(var(--space-xs) * 1);
 }
 
-.waiting-room-actions button {
-  padding: 0.4rem 0.65rem;
+.waiting-room-actions .btn {
+  text-align: center;
   font-size: 0.78rem;
   font-weight: 600;
-  border-radius: 6px;
-  border: 1px solid #4b5563;
-  background: #2d3340;
-  color: #e8eaed;
-  cursor: pointer;
-  text-align: center;
-}
-
-.waiting-room-actions button:hover {
-  background: #3d4450;
 }

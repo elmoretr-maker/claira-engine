@@ -2,6 +2,7 @@
  * Mock external source (e.g. CMS / Wix-style) returning normalized items.
  */
 
+import { registerSimulation } from "../core/simulationRegistry.js";
 import { normalizeInput } from "./baseAdapter.js";
 
 /**
@@ -35,3 +36,10 @@ export async function fetchExternalData() {
     }),
   ];
 }
+
+registerSimulation({
+  name: "mock_external_adapter",
+  location: "adapters/mockExternalAdapter.js",
+  description: "Simulated external data fetch (mock Wix/URL assets)",
+  replaceWith: "Real external API adapter (Shopify/Wix API)",
+});

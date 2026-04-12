@@ -1,4 +1,7 @@
 import { useCallback, useRef, useState } from "react";
+import { registerSimulation } from "../core/simulationRegistry.js";
+import ExpectationInput from "./components/ExpectationInput.jsx";
+import IntegrationPreview from "./components/IntegrationPreview.jsx";
 import "./Entrance.css";
 
 const INTENT_OPTIONS = [
@@ -7,6 +10,13 @@ const INTENT_OPTIONS = [
   { value: "analyze_documents", label: "Analyze Documents" },
   { value: "custom", label: "Custom" },
 ];
+
+registerSimulation({
+  name: "connect_system_placeholder",
+  location: "ui/Entrance.jsx",
+  description: "UI placeholder for system connection",
+  replaceWith: "OAuth / API connection flow",
+});
 
 /**
  * @param {File[]} list
@@ -40,9 +50,17 @@ function filterSupportedImageFiles(list) {
  *     intentLabel: string,
  *     settings: { autoMove: boolean, strictValidation: boolean, reviewThreshold: number },
  *   }) => void,
+ *   expectedItems?: string[],
+ *   onExpectedItemsChange?: (items: string[]) => void,
+ *   onApplyIntegrationFix?: (expectedItems: string[]) => void,
  * }} props
  */
-export default function Entrance({ onStartProcessing }) {
+export default function Entrance({
+  onStartProcessing,
+  expectedItems = [],
+  onExpectedItemsChange,
+  onApplyIntegrationFix,
+}) {
   const [files, setFiles] = useState(/** @type {File[]} */ ([]));
   const [intent, setIntent] = useState("sort_assets");
   const [settings, setSettings] = useState({
@@ -133,6 +151,10 @@ export default function Entrance({ onStartProcessing }) {
 
       <section className="entrance-section" aria-labelledby="input-heading">
         <h2 id="input-heading">Input</h2>
+
+        <ExpectationInput items={expectedItems} onItemsChange={onExpectedItemsChange} />
+
+        <IntegrationPreview onApplyFix={onApplyIntegrationFix} />
 
         <div
           className={`entrance-dropzone ${dragActive ? "entrance-dropzone--active" : ""}`}

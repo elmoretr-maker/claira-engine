@@ -17,6 +17,16 @@ import { loadEngineConfig } from "./utils/loadConfig.js";
 
 export { classifyFromReferenceEmbeddings } from "./core/classifier.js";
 export { decide, isHighConflictCosineTop2, DEFAULT_HIGH_CONFLICT_PAIRS } from "./core/decision.js";
+export { compareWorkflow, normalizeWorkflowText, workflowItemToString } from "./core/workflowEngine.js";
+export { expandIntent } from "./core/intentEngine.js";
+export {
+  simulateIntegration,
+  analyzeIntegrationData,
+  suggestionsToExpectedItems,
+} from "./core/integrationEngine.js";
+export { registerSimulation, getSimulations } from "./core/simulationRegistry.js";
+export { SYSTEM_MODE } from "./core/systemMode.js";
+export { isRealExternalIntegrationReady } from "./core/integrationAvailability.js";
 export { recordCorrection, getLearningStats } from "./learning/learningStore.js";
 export { resolveDestination, buildDestinations } from "./routing/router.js";
 export { loadEngineConfig } from "./utils/loadConfig.js";
