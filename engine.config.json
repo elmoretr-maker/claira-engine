@@ -1,0 +1,11 @@
+{
+  "inputPath": "./input",
+  "outputPath": "./output",
+  "categories": {},
+  "aliases": {},
+  "softmaxTemperature": 12,
+  "thresholds": {
+    "confidence": 0.85,
+    "margin": 0.01
+  }
+}
