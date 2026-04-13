@@ -348,7 +348,7 @@ export default function SessionReport({
       <footer className="session-report-footer">
         {typeof onContinueToWaiting === "function" && waitingItemCount > 0 ? (
           <button type="button" className="btn btn-secondary" onClick={onContinueToWaiting}>
-            Waiting room ({waitingItemCount})
+            Review queue ({waitingItemCount})
           </button>
         ) : null}
         {typeof onBackToRooms === "function" ? (

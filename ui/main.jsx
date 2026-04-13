@@ -31,6 +31,7 @@ import IndustryFeaturePrompt from "./components/IndustryFeaturePrompt.jsx";
 import IndustryFeaturesSettings from "./components/IndustryFeaturesSettings.jsx";
 import ProgressTracker from "./components/ProgressTracker.jsx";
 import LogsView from "./components/LogsView.jsx";
+import ProductWorkspacePanel from "./components/ProductWorkspacePanel.jsx";
 import RiskInsightsBanner from "./components/RiskInsightsBanner.jsx";
 import CapabilityScreen from "./screens/CapabilityScreen.jsx";
 import TunnelScreen from "./screens/TunnelScreen.jsx";
@@ -190,13 +191,18 @@ function App() {
   const [oversightLevel, setOversightLevelState] = useState(getOversightLevel);
 
   const returnFromLogsRef = useRef(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "capabilities" | "tunnel" | "progress"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "capabilities" | "tunnel" | "progress" | "workspace"} */ (
+      "entrance"
+    ),
+  );
+  const workspaceReturnRef = useRef(
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "progress"} */ (
       "entrance"
     ),
   );
 
   const [screen, setScreen] = useState(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "progress"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "progress" | "workspace"} */ (
       "entrance"
     ),
   );
@@ -391,6 +397,18 @@ function App() {
             </span>
           ) : null}
           <div className="app-workflow-top-bar-tools">
+            {screen !== "workspace" ? (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  workspaceReturnRef.current = screen;
+                  setScreen("workspace");
+                }}
+              >
+                Workspace
+              </button>
+            ) : null}
             {screen !== "logs" ? (
               <button
                 type="button"
@@ -425,7 +443,7 @@ function App() {
           <summary>Simulated features (audit)</summary>
           <SimulationPanel />
         </details>
-        {screen !== "logs" && screen !== "capabilities" ? (
+        {screen !== "logs" && screen !== "capabilities" && screen !== "workspace" ? (
           <RiskInsightsBanner
             insights={riskInsights}
             categoryFilter={screen === "tunnel" ? tunnelCategoryScope : null}
@@ -439,6 +457,21 @@ function App() {
       </div>
     </header>
   );
+
+  if (screen === "workspace") {
+    return (
+      <>
+        {workflowTopBar}
+        <div key={screen} className="app-screen-fade">
+          <ProductWorkspacePanel
+            industrySlug={industrySlug}
+            packLabel={formatPackDisplayTitle(industrySlug, packUx.label)}
+            onBack={() => setScreen(workspaceReturnRef.current)}
+          />
+        </div>
+      </>
+    );
+  }
 
   if (screen === "progress") {
     return (

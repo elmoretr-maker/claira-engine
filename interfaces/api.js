@@ -57,6 +57,13 @@ export {
   listTrackingSnapshotsApi,
   resolveTrackingConsistencyConfig,
 } from "./trackingApi.js";
+export {
+  workspaceGeneratorSnapshotApi,
+  workspaceScanApi,
+  workspaceSimulationIngestApi,
+  workspaceSyncApi,
+} from "./workspaceApi.js";
+export { assertFreshGeneratorReadModel, loadGeneratorReadModel } from "../workspace/generatorConsumption.js";
 
 /**
  * @param {unknown} raw

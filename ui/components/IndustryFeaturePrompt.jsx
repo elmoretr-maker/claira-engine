@@ -63,15 +63,15 @@ export default function IndustryFeaturePrompt({ industrySlug, industryDisplayLab
   return (
     <div className="industry-feature-prompt card" role="region" aria-label="Suggested feature">
       <p className="ifp-lead">
-        I see you are in <strong>{label}</strong>. Would you like to use our <strong>{pending.title}</strong> feature?
+        I’ve got you on the <strong>{label}</strong> pack—want me to turn on <strong>{pending.title}</strong> for you?
       </p>
-      <p className="ifp-desc">It will allow you to {pending.description}</p>
+      <p className="ifp-desc">With it, I can {pending.description}</p>
       <p className="ifp-privacy">
-        Tracking and measurements stay in your workspace only — nothing is shared automatically.
+        I keep tracking and measurements in your workspace only—nothing leaves here unless you send it.
       </p>
       <div className="ifp-actions">
         <button type="button" className="btn btn-primary" onClick={onEnable}>
-          Enable feature
+          Yes, enable it
         </button>
         <button type="button" className="btn btn-secondary" onClick={onDismiss}>
           Not now

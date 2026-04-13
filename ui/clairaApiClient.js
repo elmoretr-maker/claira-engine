@@ -288,6 +288,60 @@ export function tunnelUploadStaged(category, files, options) {
   });
 }
 
+/**
+ * @param {{ industry: string, mode?: string, accountId?: string }} args
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export function workspaceScan(args) {
+  return post({
+    kind: "workspaceScan",
+    industry: typeof args?.industry === "string" ? args.industry : "",
+    mode: args?.mode,
+    accountId: typeof args?.accountId === "string" ? args.accountId : undefined,
+  });
+}
+
+/**
+ * @param {{ industry: string, mode?: string, accountId?: string, operations?: unknown[] }} args
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export function workspaceSync(args) {
+  return post({
+    kind: "workspaceSync",
+    industry: typeof args?.industry === "string" ? args.industry : "",
+    mode: args?.mode,
+    accountId: typeof args?.accountId === "string" ? args.accountId : undefined,
+    operations: Array.isArray(args?.operations) ? args.operations : [],
+  });
+}
+
+/**
+ * @param {{ industry: string, accountId?: string, files: Array<{ name: string, base64: string }> }} args
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export function workspaceSimulationIngest(args) {
+  return post({
+    kind: "workspaceSimulationIngest",
+    industry: typeof args?.industry === "string" ? args.industry : "",
+    mode: args?.mode,
+    accountId: typeof args?.accountId === "string" ? args.accountId : undefined,
+    files: Array.isArray(args?.files) ? args.files : [],
+  });
+}
+
+/**
+ * @param {{ industry: string, mode?: string, accountId?: string }} args
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export function workspaceGeneratorSnapshot(args) {
+  return post({
+    kind: "workspaceGeneratorSnapshot",
+    industry: typeof args?.industry === "string" ? args.industry : "",
+    mode: args?.mode,
+    accountId: typeof args?.accountId === "string" ? args.accountId : undefined,
+  });
+}
+
 /** @returns {Promise<string>} */
 export async function getMovesLog() {
   const r = await fetch("/api/logs");

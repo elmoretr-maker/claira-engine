@@ -80,7 +80,7 @@ export default function Entrance({
     Array.isArray(intentOptionsProp) && intentOptionsProp.length > 0
       ? intentOptionsProp
       : [
-          { value: "workflow", label: "Sort & route with Claira" },
+          { value: "workflow", label: "Sort and route with me" },
           { value: "custom", label: "Custom" },
         ];
 
@@ -172,17 +172,17 @@ export default function Entrance({
 
   const setupSubtitle =
     appMode === "setup"
-      ? "First time setting up? Upload sample items so Claira can learn your categories."
-      : "Have new files? Run them through your workflow.";
+      ? "First time setting up? Upload a few sample items and I’ll learn your categories from them."
+      : "Have new files? I’ll run them through your workflow with you.";
 
   return (
     <div className="entrance">
       <header className="entrance-header">
-        <h1>Claira</h1>
+        <h1>Hi, I'm Claira, what would you like me to manage?</h1>
         <p className="subtitle">{setupSubtitle}</p>
         {industrySlug ? (
           <p className="entrance-industry" style={{ fontSize: "0.85rem", color: "#a0a8b8" }}>
-            Pack: {packDisplayLabel || industrySlug}
+            I’m set up for the {packDisplayLabel || industrySlug} pack
             {packDisplayLabel && packDisplayLabel !== industrySlug ? (
               <span className="mono" style={{ marginLeft: "0.35rem", opacity: 0.85 }}>
                 ({industrySlug})
@@ -195,14 +195,14 @@ export default function Entrance({
       <section className="entrance-section" aria-labelledby="oversight-heading">
         <h2 id="oversight-heading">Review sensitivity</h2>
         <p className="entrance-oversight-help" style={{ fontSize: "0.9rem", color: "#c4cad4", marginBottom: "0.75rem" }}>
-          How closely should Claira review your items?
+          How closely should I review your items?
         </p>
-        <div className="entrance-intent" role="radiogroup" aria-label="Oversight level">
+        <div className="entrance-intent" role="radiogroup" aria-label="How closely I review your items">
           {(
             [
-              { value: "light", label: "Light — minimal interruptions" },
+              { value: "light", label: "Light — I’ll stay out of your way" },
               { value: "medium", label: "Medium — balanced" },
-              { value: "strict", label: "Strict — more prompts; prioritize learning" },
+              { value: "strict", label: "Strict — I’ll check in more so I learn faster" },
             ]
           ).map((opt) => (
             <label key={opt.value}>
@@ -235,7 +235,7 @@ export default function Entrance({
           onDragLeave={onDragLeave}
           role="presentation"
         >
-          Drag and drop images or PDFs here (.png, .jpg, .jpeg, .webp, .pdf)
+          Drag and drop images or PDFs here—I’ll take it from there (.png, .jpg, .jpeg, .webp, .pdf)
         </div>
 
         <div className="entrance-file-actions">
@@ -270,8 +270,8 @@ export default function Entrance({
       </section>
 
       <section className="entrance-section" aria-labelledby="intent-heading">
-        <h2 id="intent-heading">Intent</h2>
-        <div className="entrance-intent" role="radiogroup" aria-label="Processing intent">
+        <h2 id="intent-heading">What you want me to do</h2>
+        <div className="entrance-intent" role="radiogroup" aria-label="What you want me to do">
           {intentOptions.map((opt) => (
             <label key={opt.value}>
               <input
@@ -289,7 +289,7 @@ export default function Entrance({
 
       <section className="entrance-section">
         <details className="entrance-details">
-          <summary>Settings (optional)</summary>
+          <summary>More options (optional)</summary>
           <div className="entrance-settings">
             <label>
               <input
@@ -332,18 +332,18 @@ export default function Entrance({
       <div className="entrance-learning-actions">
         {appMode === "runtime" && typeof onEnterLearningMode === "function" ? (
           <button type="button" className="entrance-btn" onClick={onEnterLearningMode}>
-            Enter Learning Mode
+            Let me learn from you
           </button>
         ) : null}
         {typeof onOpenCapabilities === "function" ? (
           <button type="button" className="entrance-btn" onClick={onOpenCapabilities}>
-            Manage categories
+            Adjust what I manage
           </button>
         ) : null}
       </div>
 
       <p className="entrance-hint">
-        After starting, you&apos;ll continue to the processing view. Intake choices are logged in the console for now.
+        After you start, I’ll take you to processing so we can work through your items together.
       </p>
     </div>
   );

@@ -223,9 +223,10 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
   return (
     <div className="capability-screen card">
       <header className="capability-screen-header">
-        <h1>What do you want Claira to manage?</h1>
+        <h1>What would you like me to focus on?</h1>
         <p className="capability-screen-desc">
-          Choose capability groups from your industry pack. Detailed categories stay available when you expand a group.
+          I’ve grouped what your pack can handle—tick the areas you want me to help with. Open a group anytime to see the
+          exact categories I’ll watch.
         </p>
       </header>
 
@@ -235,7 +236,7 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
         </button>
       ) : null}
 
-      {busy ? <p className="capability-status">Loading categories…</p> : null}
+      {busy ? <p className="capability-status">I’m loading what your pack includes…</p> : null}
       {error ? (
         <p className="capability-error" role="alert">
           {error}
@@ -267,7 +268,7 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
                 </div>
                 {g.description ? <p className="capability-group-desc">{g.description}</p> : null}
                 <details className="capability-group-details">
-                  <summary>Categories in this group ({present.length})</summary>
+                  <summary>See the {present.length} categories I’ll handle here</summary>
                   <ul className="capability-sublist">
                     {present.map((k) => (
                       <li key={k}>
@@ -301,7 +302,9 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
               <div className="capability-group-head">
                 <span className="capability-title capability-title--plain">Other categories</span>
               </div>
-              <p className="capability-group-desc">Not listed in a group above; select only what you need.</p>
+              <p className="capability-group-desc">
+                These didn’t fit a group above—turn on only what you actually want me to cover.
+              </p>
               <ul className="capability-sublist capability-sublist--bare">
                 {otherKeys.map((k) => (
                   <li key={k}>
@@ -359,7 +362,9 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
         <button type="button" className="btn btn-primary" disabled={busy} onClick={handleContinue}>
           Continue
         </button>
-        <p className="capability-hint">You can continue with none selected to skip guided setup and exit learning mode.</p>
+        <p className="capability-hint">
+          You can continue with nothing selected—I’ll skip guided setup and leave learning mode for now.
+        </p>
       </div>
     </div>
   );

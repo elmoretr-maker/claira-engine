@@ -286,7 +286,7 @@ export default function ProcessingScreen({
     <div className="processing-screen">
       <header className="processing-header">
         <div>
-          <h1>Claira processing</h1>
+          <h1>I’m processing your items</h1>
           {entranceContext?.intentLabel ? (
             <p className="processing-subtitle">
               From intake: {entranceContext.intentLabel}
@@ -341,7 +341,7 @@ export default function ProcessingScreen({
         />
         <FlowArrow />
         <FlowCard
-          title="Claira processing"
+          title="Processing"
           active={highlight === "processing"}
           body={
             <>
@@ -386,7 +386,7 @@ export default function ProcessingScreen({
         <div className="waiting-wrap">
           {waitingCount > 0 ? <div className="waiting-alert" aria-hidden="true" /> : null}
           <FlowCard
-            title="Waiting room"
+            title="Review queue"
             active={highlight === "waiting"}
             alert={waitingCount > 0}
             body={
@@ -396,7 +396,7 @@ export default function ProcessingScreen({
                   <span className={`value ${waitingCount > 0 ? "review-hot" : ""}`}>{waitingCount}</span>
                 </div>
                 {waitingCount > 0 ? (
-                  <div className="review-indicator" title="Review required">
+                  <div className="review-indicator" title="Needs your review">
                     <span className="dot" />
                     Attention needed
                   </div>

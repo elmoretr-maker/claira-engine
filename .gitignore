@@ -10,6 +10,9 @@ claira-pdf-*
 data/session_report.json
 packs/industryAutogen/cache/
 
+# Isolated workspace (simulation/live per account × industry)
+workspace/
+
 # Runtime / user-local progress tracking (source under tracking/*.js stays tracked)
 tracking/images/
 tracking/snapshots/

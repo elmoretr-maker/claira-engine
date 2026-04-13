@@ -445,7 +445,7 @@ export default function ProgressTracker({ industrySlug, packLabel, onBack, initi
           </section>
 
           <section className="pt-section card">
-            <h2 className="pt-h2">Detected changes</h2>
+            <h2 className="pt-h2">What I noticed changing</h2>
             {pctRows.length === 0 ? (
               <p className="pt-muted">No comparable numeric fields yet (enter the same fields on multiple snapshots).</p>
             ) : (

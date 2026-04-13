@@ -284,6 +284,32 @@ export default {
               out = api.getTrackingProgressApi({
                 entityId: typeof body.entityId === "string" ? body.entityId : "",
               });
+            } else if (body.kind === "workspaceScan") {
+              out = api.workspaceScanApi({
+                accountId: typeof body.accountId === "string" ? body.accountId : undefined,
+                mode: typeof body.mode === "string" ? body.mode : undefined,
+                industry: typeof body.industry === "string" ? body.industry : "",
+              });
+            } else if (body.kind === "workspaceSync") {
+              out = api.workspaceSyncApi({
+                accountId: typeof body.accountId === "string" ? body.accountId : undefined,
+                mode: typeof body.mode === "string" ? body.mode : undefined,
+                industry: typeof body.industry === "string" ? body.industry : "",
+                operations: Array.isArray(body.operations) ? body.operations : [],
+              });
+            } else if (body.kind === "workspaceSimulationIngest") {
+              out = api.workspaceSimulationIngestApi({
+                accountId: typeof body.accountId === "string" ? body.accountId : undefined,
+                mode: typeof body.mode === "string" ? body.mode : undefined,
+                industry: typeof body.industry === "string" ? body.industry : "",
+                files: Array.isArray(body.files) ? body.files : [],
+              });
+            } else if (body.kind === "workspaceGeneratorSnapshot") {
+              out = api.workspaceGeneratorSnapshotApi({
+                accountId: typeof body.accountId === "string" ? body.accountId : undefined,
+                mode: typeof body.mode === "string" ? body.mode : undefined,
+                industry: typeof body.industry === "string" ? body.industry : "",
+              });
             } else {
               res.statusCode = 400;
               res.setHeader("Content-Type", "application/json");

@@ -79,7 +79,7 @@ export default function IntegrationPreview({ onApplyFix }) {
       </select>
 
       <p className="integration-preview-detected">
-        <span className="integration-preview-k">Detected system:</span> {data.system}
+        <span className="integration-preview-k">System I’m seeing:</span> {data.system}
       </p>
 
       <p className="integration-preview-k section-gap">Issues</p>

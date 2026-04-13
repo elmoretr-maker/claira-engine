@@ -200,10 +200,10 @@ export default function TunnelScreen({
     setBusy(true);
     try {
       if (!files.length) {
-        throw new Error("Choose one or more images first.");
+        throw new Error("I need at least one image before we can continue.");
       }
       if (uploadKind === "reference" && categoryKeys.length > 1 && !refTargetCategory) {
-        throw new Error("Choose which category these references belong to.");
+        throw new Error("Which category should these references live under? I’m seeing more than one option.");
       }
       const refCat =
         uploadKind === "reference"

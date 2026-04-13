@@ -80,13 +80,18 @@ export default function WaitingRoom({
       {hasItems ? (
         <div className="waiting-room-alert" role="status">
           <span className="dot" aria-hidden="true" />
-          <span>Review required — {items.length} item{items.length === 1 ? "" : "s"} need attention</span>
+          <span>
+            I need you on this—{items.length} item{items.length === 1 ? "" : "s"} waiting for your review
+          </span>
         </div>
       ) : null}
 
       <header className="waiting-room-header">
-        <h1>Waiting room</h1>
-        <p>Triage items by priority. Choose a category when Claira asks where an item should go.</p>
+        <h1>Your review queue</h1>
+        <p>
+          I’ve sorted what needs you by priority. If I’m not sure where something belongs, I’ll ask you to pick the right
+          category.
+        </p>
       </header>
 
       {typeof onContinueToRooms === "function" ? (
@@ -98,7 +103,7 @@ export default function WaitingRoom({
       ) : null}
 
       {!hasItems ? (
-        <div className="waiting-room-empty">All clear — no items in review</div>
+        <div className="waiting-room-empty">You’re all caught up—nothing needs your review right now</div>
       ) : (
         <div className="waiting-room-columns">
           <section className="waiting-room-column" aria-labelledby="col-high">
@@ -254,20 +259,20 @@ function ReviewCard({ item, onConflictResolved, categoryUi = {} }) {
         <div className="reason">{item.reason || "—"}</div>
         {patternMismatch ? (
           <p className="waiting-room-tunnel-hint" role="status">
-            Reference pattern mismatch — please confirm the correct category.
+            This doesn’t match the reference pattern I expected—tell me which category fits.
           </p>
         ) : null}
         {tunnelMismatch ? (
           <p className="waiting-room-tunnel-hint" role="status">
-            Guided setup: result didn&apos;t match the expected category
+            From our guided setup, I didn&apos;t land on the category we expected
             {cc.expectedCategory != null && String(cc.expectedCategory).length
               ? ` (${String(cc.expectedCategory)})`
               : ""}
-            . Choose the correct label below.
+            . Pick the right label below and I’ll learn from it.
           </p>
         ) : null}
         <p className="waiting-room-conflict-prompt">
-          <strong>Review item — choose category</strong>
+          <strong>I need your call—which category is this?</strong>
         </p>
         <div className="waiting-room-conflict-actions">
           {cc.options.map((opt) => {

@@ -1,0 +1,250 @@
+.product-workspace {
+  min-height: 100vh;
+  padding: var(--space-lg, 1.25rem) calc(var(--space-md, 1rem) * 1.5) var(--space-xl, 2rem);
+  box-sizing: border-box;
+}
+
+.pw-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pw-title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.pw-sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.84rem;
+  color: var(--text-secondary, #a0a8b8);
+  max-width: 44rem;
+  line-height: 1.45;
+}
+
+.pw-toast {
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.pw-toast--ok {
+  background: color-mix(in srgb, #22c55e 14%, var(--bg-card, #171a21));
+  border: 1px solid color-mix(in srgb, #22c55e 40%, #2d3340);
+  color: #86efac;
+}
+
+.pw-toast--err {
+  background: color-mix(in srgb, #f87171 12%, var(--bg-card, #171a21));
+  border: 1px solid color-mix(in srgb, #f87171 45%, #2d3340);
+  color: #fecaca;
+}
+
+.pw-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pw-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.86rem;
+}
+
+.pw-label {
+  font-weight: 600;
+  color: var(--text-secondary, #9aa3b2);
+}
+
+.pw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+.pw-ingest input {
+  display: none;
+}
+
+.pw-ingest--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.pw-mode-callout {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  border: 1px solid #2d3340;
+  background: color-mix(in srgb, var(--bg-card, #171a21) 92%, #3b82f6 8%);
+  color: var(--text-primary, #e8eaed);
+}
+
+.pw-mode-callout strong {
+  font-weight: 600;
+}
+
+.pw-retry-bar {
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.pw-retry-bar p {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #c4cad4);
+  max-width: 42rem;
+}
+
+.pw-inline-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #fecaca;
+  max-width: 14rem;
+}
+
+.pw-hint {
+  margin-bottom: 1rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.pw-h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+}
+
+.pw-table-wrap {
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.pw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.pw-table th,
+.pw-table td {
+  border: 1px solid #2d3340;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.pw-row--err {
+  outline: 1px solid #f87171;
+}
+
+.pw-input {
+  width: 100%;
+  min-width: 6rem;
+  max-width: 14rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid #2d3340;
+  background: #0f1115;
+  color: var(--text-primary, #e8eaed);
+}
+
+.pw-muted {
+  color: var(--text-muted, #6b7280);
+}
+
+.pw-muted.small {
+  font-size: 0.72rem;
+}
+
+.pw-badge {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  background: #3d3420;
+  color: #fcd34d;
+}
+
+.pw-footer {
+  font-size: 0.82rem;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: none;
+  color: var(--accent, #4f8cff);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+}
+
+.pw-readmodel-details {
+  margin-top: 0.65rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #2d3340;
+  background: color-mix(in srgb, var(--bg-card, #171a21) 96%, #1e293b 4%);
+}
+
+.pw-readmodel-summary {
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary, #a0a8b8);
+}
+
+.pw-readmodel-detail-body {
+  margin-top: 0.5rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #2d3340;
+}
+
+.pw-readmodel-path-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.72rem;
+  list-style: disc;
+}
+
+.pw-readmodel-path-list li {
+  margin-bottom: 0.35rem;
+}
+
+.pw-readmodel-path-label {
+  display: block;
+  color: var(--text-secondary, #9aa3b2);
+  margin-bottom: 0.15rem;
+}
+
+.pw-readmodel-path {
+  display: block;
+  font-size: 0.68rem;
+  word-break: break-all;
+  color: #c4cad4;
+}
+
+.product-workspace .mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}

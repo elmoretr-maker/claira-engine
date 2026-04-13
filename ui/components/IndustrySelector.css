@@ -7,6 +7,120 @@
   box-sizing: border-box;
 }
 
+.industry-selector--intro {
+  align-items: center;
+}
+
+.industry-selector-intro-card {
+  width: 100%;
+  max-width: 32rem;
+  text-align: left;
+}
+
+.industry-selector-intro-kicker {
+  margin: 0 0 var(--space-xs);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.industry-selector-intro-title {
+  margin: 0 0 var(--space-md);
+  font-size: 1.65rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.industry-selector-intro-body {
+  margin: 0 0 var(--space-lg);
+  color: var(--text-secondary);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.industry-selector-intro-body p {
+  margin: 0 0 var(--space-md);
+}
+
+.industry-selector-intro-body p:last-child {
+  margin-bottom: 0;
+}
+
+.industry-selector-intro-ask {
+  margin: 0 0 var(--space-lg);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.industry-selector-intro-cta {
+  width: 100%;
+}
+
+.industry-selector--setup {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  max-width: 72rem;
+  margin: 0 auto;
+  gap: var(--space-lg);
+}
+
+.industry-selector-continuation {
+  width: 100%;
+  max-width: none;
+}
+
+.industry-selector-continuation-title {
+  margin: 0 0 var(--space-sm);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.industry-selector-continuation-desc {
+  margin: 0 0 var(--space-md);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.industry-selector-back-to-intro {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.industry-selector-back-to-intro:hover {
+  color: var(--text-primary);
+}
+
+.industry-selector-columns {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+.industry-selector-columns .create-industry-panel {
+  margin-top: 0;
+  flex: 1 1 22rem;
+  max-width: 32rem;
+}
+
+.industry-selector-columns .industry-selector-card {
+  flex: 1 1 22rem;
+}
+
 .industry-selector-card {
   width: 100%;
   max-width: 420px;

@@ -63,14 +63,14 @@ export default function ExpectationInput({ items = [], onItemsChange }) {
   return (
     <div className="expectation-input">
       <label className="expectation-input-label" htmlFor="expectation-intent-field">
-        Describe your workflow (optional)
+        In a sentence, how do you work? (optional)
       </label>
       <input
         id="expectation-intent-field"
         type="text"
         className="expectation-intent-text"
         value={intentText}
-        placeholder="Describe your workflow (e.g. I run a gym and need staff to...)"
+        placeholder="e.g. I run a gym and need staff to upload intake forms before class…"
         onChange={(e) => setIntentText(e.target.value)}
         autoComplete="off"
       />
@@ -81,7 +81,7 @@ export default function ExpectationInput({ items = [], onItemsChange }) {
       {intentSummary ? (
         <div className="expectation-input-context" aria-live="polite">
           <p className="expectation-input-context-line">
-            <span className="expectation-input-context-key">Detected:</span> {intentSummary.industry}
+            <span className="expectation-input-context-key">I’m hearing:</span> {intentSummary.industry}
           </p>
           <p className="expectation-input-context-line">
             <span className="expectation-input-context-key">Keywords:</span>{" "}
@@ -91,13 +91,13 @@ export default function ExpectationInput({ items = [], onItemsChange }) {
       ) : null}
 
       <label className="expectation-input-label expectation-input-label--tasks" htmlFor="expectation-input-field">
-        Expectations (optional)
+        What you want me to watch for (optional)
       </label>
       <textarea
         id="expectation-input-field"
         className="expectation-input-textarea"
         value={text}
-        placeholder="Enter expected tasks or outcomes (one per line)"
+        placeholder="One outcome or check per line—I'll measure against these"
         onChange={(e) => {
           const v = e.target.value;
           setText(v);
@@ -106,7 +106,7 @@ export default function ExpectationInput({ items = [], onItemsChange }) {
         rows={4}
         spellCheck={false}
       />
-      <p className="expectation-input-hint">These will be compared against actual results</p>
+      <p className="expectation-input-hint">I’ll compare what actually happens to this list</p>
     </div>
   );
 }
