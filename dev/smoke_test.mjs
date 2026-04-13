@@ -52,11 +52,17 @@ await applyDecision({
   selected_label: "prop",
   confidence: 0.71,
 });
+await applyDecision({
+  predicted_label: "terrain",
+  selected_label: "prop",
+  confidence: 0.5,
+  scope: "single",
+});
 
 const pc2 = await generatePlaceCard(r1);
 const h = pc2.placeCard?.learning_hint;
 if (!h || h.seen !== 2) {
-  console.error("FAIL learning_hint after two corrections", pc2);
+  console.error("FAIL learning_hint after two global corrections (single scope should not add)", pc2);
   process.exit(1);
 }
 

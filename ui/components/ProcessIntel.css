@@ -1,0 +1,80 @@
+.process-intel {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: #12151c;
+  border: 1px solid #2a3140;
+  font-size: 0.82rem;
+}
+
+.process-intel--default {
+  border-style: dashed;
+  opacity: 0.95;
+}
+
+.process-intel--default .process-intel-purpose {
+  margin: 0;
+  color: #9aa3b2;
+}
+
+.process-intel-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.process-intel-priority {
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: capitalize;
+}
+
+.process-intel-priority--low {
+  background: #1e3a2f;
+  color: #6ee7b7;
+}
+
+.process-intel-priority--medium {
+  background: #3a3420;
+  color: #fcd34d;
+}
+
+.process-intel-priority--high {
+  background: #3b1f24;
+  color: #fca5a5;
+}
+
+.process-intel-review {
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  background: #2c2250;
+  color: #c4b5fd;
+}
+
+.process-intel-auto {
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  border: 1px solid #3d4454;
+}
+
+.process-intel-purpose {
+  margin: 0 0 0.35rem;
+  color: #c8cdd6;
+  line-height: 1.35;
+}
+
+.process-intel-actions {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #9ca3af;
+}
+
+.process-intel-actions li {
+  margin: 0.15rem 0;
+}

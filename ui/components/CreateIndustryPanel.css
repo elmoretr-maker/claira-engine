@@ -1,0 +1,142 @@
+.create-industry-panel {
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.35rem;
+  text-align: left;
+}
+
+.create-industry-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.create-industry-intro {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #9aa3b2);
+  margin-bottom: 1rem;
+}
+
+.create-industry-intro p {
+  margin: 0 0 0.65rem;
+}
+
+.create-industry-disclaimer {
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid color-mix(in srgb, var(--warning, #f59e0b) 35%, transparent);
+  background: color-mix(in srgb, var(--warning, #f59e0b) 8%, var(--bg-card, #1a1d24));
+}
+
+.create-industry-net {
+  margin-bottom: 1rem;
+}
+
+.create-industry-net-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.create-industry-net-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.create-industry-net-ok {
+  font-size: 0.84rem;
+  color: #6ee7b7;
+}
+
+.create-industry-net-bad {
+  font-size: 0.84rem;
+  color: #fca5a5;
+}
+
+.create-industry-net-muted {
+  font-size: 0.84rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.create-industry-label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.create-industry-input {
+  width: 100%;
+  max-width: 32rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #3d4450;
+  background: #12151c;
+  color: #e8eaed;
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.create-industry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
+
+.create-industry-build {
+  margin-bottom: 0;
+}
+
+.create-industry-step-num {
+  font-weight: 600;
+  margin-right: 0.35rem;
+  opacity: 0.85;
+}
+
+.create-industry-error {
+  color: #fca5a5;
+  font-size: 0.86rem;
+}
+
+.create-industry-success {
+  color: #6ee7b7;
+  font-size: 0.86rem;
+}
+
+.create-industry-steps {
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #9aa3b2);
+}
+
+.create-industry-step {
+  margin-bottom: 0.35rem;
+}
+
+.create-industry-step--ok {
+  color: #6ee7b7;
+}
+
+.create-industry-step--error {
+  color: #fca5a5;
+}
+
+.create-industry-step--running {
+  color: #fcd34d;
+}
+
+.create-industry-step-label {
+  display: block;
+  font-weight: 500;
+}
+
+.create-industry-step-detail {
+  display: block;
+  font-size: 0.78rem;
+  opacity: 0.9;
+  margin-top: 0.15rem;
+}

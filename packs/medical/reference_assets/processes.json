@@ -1,0 +1,87 @@
+{
+  "patient_documents": {
+    "purpose": "Identity-linked clinical paperwork; route to secure patient record storage and restrict broad sharing.",
+    "actions": [
+      "Verify patient identifiers match intake context",
+      "File under patient chart or EHR export path",
+      "Flag if PHI appears inconsistent with expected visit"
+    ],
+    "priority": "high",
+    "review_required": true
+  },
+  "lab_results": {
+    "purpose": "Diagnostic lab output used for clinical decisions; treat as high-sensitivity clinical data.",
+    "actions": [
+      "Confirm test panel and dates are legible",
+      "Prefer routing to clinical review queue when confidence is borderline",
+      "Never merge unrelated patients in downstream automation"
+    ],
+    "priority": "high",
+    "review_required": true
+  },
+  "prescriptions": {
+    "purpose": "Medication orders and pharmacy-facing documents; errors have direct patient-safety impact.",
+    "actions": [
+      "Check drug name, strength, and sig when text is available",
+      "Route ambiguous Rx images to pharmacist or clinician review",
+      "Retain originals for audit"
+    ],
+    "priority": "high",
+    "review_required": true
+  },
+  "imaging": {
+    "purpose": "Radiology and diagnostic imaging paperwork or thumbnails; often paired with reports.",
+    "actions": [
+      "Separate report pages from pure image slices when exporting",
+      "Use high priority when study type or laterality is unclear",
+      "Defer destructive automation until modality is confirmed"
+    ],
+    "priority": "high",
+    "review_required": true
+  },
+  "forms": {
+    "purpose": "Administrative and consent forms; important for compliance but usually lower urgency than acute labs.",
+    "actions": [
+      "Index by form type and completion status",
+      "Attach to encounter or intake bundle"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "billing": {
+    "purpose": "Charges, statements, and payment-related documents; financial accuracy matters but not acute care.",
+    "actions": [
+      "Match to account or visit when identifiers exist",
+      "Escalate duplicate or conflicting balances to billing ops"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "insurance": {
+    "purpose": "Coverage, eligibility, and payer correspondence; drives authorization and payment.",
+    "actions": [
+      "Capture member ID and payer when visible",
+      "Queue for benefits specialist if policy context is ambiguous"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "referrals": {
+    "purpose": "Specialty handoffs and external provider requests; timing affects access to care.",
+    "actions": [
+      "Extract referred-to specialty and urgency",
+      "Notify care coordination when marked stat or time-sensitive"
+    ],
+    "priority": "medium",
+    "review_required": true
+  },
+  "uncategorized": {
+    "purpose": "Holding bucket for items that do not match a confident type; needs human triage before automation.",
+    "actions": [
+      "Do not auto-route to clinical destinations",
+      "Suggest manual label or new reference examples"
+    ],
+    "priority": "low",
+    "review_required": true
+  }
+}

@@ -1,0 +1,281 @@
+{
+  "patient_documents": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "patient record",
+      "patient records",
+      "medical record",
+      "medical records",
+      "patient file",
+      "patient files",
+      "health record",
+      "health records",
+      "clinical document",
+      "clinical documents",
+      "patient chart",
+      "patient charts"
+    ]
+  },
+  "lab_results": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "lab result",
+      "lab results",
+      "lab report",
+      "lab reports",
+      "blood test",
+      "blood tests",
+      "urine test",
+      "urine tests",
+      "test result",
+      "test results",
+      "diagnostic report",
+      "diagnostic reports"
+    ]
+  },
+  "prescriptions": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "prescription",
+      "prescriptions",
+      "rx",
+      "medication order",
+      "medication orders",
+      "pharmacy label",
+      "pharmacy labels",
+      "drug prescription",
+      "drug prescriptions",
+      "medication label",
+      "medication labels",
+      "dosage instructions"
+    ]
+  },
+  "imaging": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "xray",
+      "xrays",
+      "x-ray",
+      "x-rays",
+      "xray scan",
+      "radiology image",
+      "radiology images",
+      "mri",
+      "mri scan",
+      "ct scan",
+      "ct scans",
+      "ultrasound"
+    ]
+  },
+  "forms": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "medical form",
+      "medical forms",
+      "intake form",
+      "intake forms",
+      "consent form",
+      "consent forms",
+      "patient form",
+      "patient forms",
+      "health questionnaire",
+      "health questionnaires",
+      "authorization form",
+      "authorization forms"
+    ]
+  },
+  "billing": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "medical bill",
+      "medical bills",
+      "invoice",
+      "invoices",
+      "insurance claim",
+      "insurance claims",
+      "billing statement",
+      "billing statements",
+      "payment receipt",
+      "payment receipts",
+      "medical invoice",
+      "medical invoices"
+    ]
+  },
+  "insurance": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "insurance card",
+      "insurance cards",
+      "insurance document",
+      "insurance documents",
+      "coverage details",
+      "policy document",
+      "policy documents",
+      "insurance statement",
+      "insurance statements",
+      "claim approval",
+      "claim approvals",
+      "claim denial"
+    ]
+  },
+  "referrals": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "referral",
+      "referrals",
+      "doctor referral",
+      "doctor referrals",
+      "specialist referral",
+      "specialist referrals",
+      "consultation request",
+      "consultation requests",
+      "referral form",
+      "referral forms",
+      "care referral",
+      "care referrals"
+    ]
+  },
+  "uncategorized": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "unknown document",
+      "unknown documents",
+      "unidentified file",
+      "unidentified files",
+      "misc medical",
+      "other medical",
+      "unlabeled document",
+      "unlabeled documents",
+      "unclear scan",
+      "unclassified medical document",
+      "ambiguous healthcare file",
+      "indeterminate document type"
+    ]
+  }
+}

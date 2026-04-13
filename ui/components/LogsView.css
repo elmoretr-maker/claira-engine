@@ -1,0 +1,48 @@
+.app-screen-fade--logs {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 5.5rem);
+}
+
+.logs-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  max-width: 72rem;
+  margin: 0 auto;
+  box-sizing: border-box;
+  min-height: 0;
+  flex: 1;
+}
+
+.logs-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.logs-view-error {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--danger);
+}
+
+.logs-view-pre {
+  margin: 0;
+  flex: 1;
+  min-height: 12rem;
+  max-height: calc(100vh - 11rem);
+  overflow: auto;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 18%, transparent);
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "pack": {
+    "label": "Ecommerce",
+    "inputVerb": "Add products or images",
+    "intents": [
+      { "value": "sort_assets", "label": "Sort product assets" },
+      { "value": "organize_products", "label": "Organize catalog items" },
+      { "value": "analyze_documents", "label": "Analyze listing documents" },
+      { "value": "custom", "label": "Custom" }
+    ]
+  },
+  "categories": {
+    "tops": {
+      "label": "Tops",
+      "description": "Sort and route tops product imagery and related assets.",
+      "examples": [
+        "shirt",
+        "tshirt",
+        "t-shirt",
+        "blouse",
+        "tank top",
+        "crop top",
+        "long sleeve",
+        "polo",
+        "sweater",
+        "hoodie"
+      ],
+      "subcategories": {}
+    },
+    "bottoms": {
+      "label": "Bottoms",
+      "description": "Sort and route bottoms product imagery and related assets.",
+      "examples": [
+        "pants",
+        "jeans",
+        "trousers",
+        "shorts",
+        "leggings",
+        "joggers",
+        "sweatpants",
+        "skirt",
+        "mini skirt",
+        "maxi skirt"
+      ],
+      "subcategories": {}
+    },
+    "dresses": {
+      "label": "Dresses",
+      "description": "Sort and route dresses product imagery and related assets.",
+      "examples": [
+        "dress",
+        "gown",
+        "sundress",
+        "cocktail dress",
+        "formal dress",
+        "maxi dress",
+        "mini dress"
+      ],
+      "subcategories": {}
+    },
+    "outerwear": {
+      "label": "Outerwear",
+      "description": "Sort and route outerwear product imagery and related assets.",
+      "examples": [
+        "jacket",
+        "coat",
+        "parka",
+        "windbreaker",
+        "trench coat",
+        "blazer"
+      ],
+      "subcategories": {}
+    },
+    "shoes": {
+      "label": "Shoes",
+      "description": "Sort and route shoes product imagery and related assets.",
+      "examples": [
+        "shoes",
+        "sneakers",
+        "boots",
+        "heels",
+        "sandals",
+        "loafers",
+        "running shoes",
+        "trainers"
+      ],
+      "subcategories": {}
+    },
+    "accessories": {
+      "label": "Accessories",
+      "description": "Sort and route accessories product imagery and related assets.",
+      "examples": [
+        "jewelry",
+        "necklace",
+        "bracelet",
+        "ring",
+        "watch",
+        "sunglasses",
+        "earrings"
+      ],
+      "subcategories": {}
+    },
+    "bags": {
+      "label": "Bags",
+      "description": "Sort and route bags product imagery and related assets.",
+      "examples": [
+        "bag",
+        "handbag",
+        "purse",
+        "backpack",
+        "tote",
+        "crossbody bag",
+        "duffel bag"
+      ],
+      "subcategories": {}
+    },
+    "product_on_model": {
+      "label": "Product On Model",
+      "description": "Sort and route product on model product imagery and related assets.",
+      "examples": [
+        "model wearing clothing",
+        "person wearing outfit",
+        "fashion model",
+        "outfit on person",
+        "clothing on model"
+      ],
+      "subcategories": {}
+    },
+    "product_flat": {
+      "label": "Product Flat",
+      "description": "Sort and route product flat product imagery and related assets.",
+      "examples": [
+        "isolated product",
+        "white background product",
+        "flat lay clothing",
+        "folded clothes",
+        "product only"
+      ],
+      "subcategories": {}
+    },
+    "packaging": {
+      "label": "Packaging",
+      "description": "Sort and route packaging product imagery and related assets.",
+      "examples": [
+        "box",
+        "package",
+        "label",
+        "shipping box",
+        "parcel",
+        "barcode label"
+      ],
+      "subcategories": {}
+    },
+    "documents": {
+      "label": "Documents",
+      "description": "Sort and route documents product imagery and related assets.",
+      "examples": [
+        "receipt",
+        "invoice",
+        "order",
+        "order confirmation",
+        "shipping label",
+        "bill"
+      ],
+      "subcategories": {}
+    }
+  },
+  "groups": {
+    "product": {
+      "label": "Catalog & Products",
+      "description": "Merchandise and product imagery.",
+      "categories": [
+        "tops",
+        "bottoms",
+        "dresses",
+        "outerwear",
+        "shoes",
+        "accessories",
+        "bags",
+        "product_on_model",
+        "product_flat",
+        "packaging"
+      ]
+    },
+    "documents": {
+      "label": "Documents",
+      "description": "Paperwork, forms, and text-heavy records.",
+      "categories": [
+        "documents"
+      ]
+    }
+  }
+}

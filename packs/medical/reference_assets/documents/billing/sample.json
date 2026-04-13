@@ -1,0 +1,6 @@
+{
+  "category": "billing",
+  "patient": "Jane Sample",
+  "document_type": "synthetic_medical_mock",
+  "summary": "Representative text cues for billing."
+}

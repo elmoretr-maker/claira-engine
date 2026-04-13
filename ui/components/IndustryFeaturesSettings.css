@@ -1,0 +1,53 @@
+.industry-features-settings {
+  margin-top: 0.65rem;
+  font-size: 0.82rem;
+}
+
+.industry-features-settings summary {
+  cursor: pointer;
+  color: var(--text-secondary, #a0a8b8);
+}
+
+.ifs-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.ifs-item {
+  margin-bottom: 0.65rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: 6px;
+  background: #12151c;
+  border: 1px solid #2a3140;
+}
+
+.ifs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.ifs-state {
+  font-size: 0.72rem;
+  color: #93c5fd;
+}
+
+.ifs-desc {
+  margin: 0.35rem 0 0.4rem;
+  color: var(--text-secondary, #9aa3b2);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.ifs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+}

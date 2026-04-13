@@ -1,0 +1,26 @@
+{
+  "characters": {
+    "purpose": "Player or NPC art and references; drives animation and rigging pipelines.",
+    "actions": ["Tag rigged vs concept-only", "Keep LOD0 vs LOD1 separated in export jobs"],
+    "priority": "high",
+    "review_required": true
+  },
+  "environment": {
+    "purpose": "World tiles, terrain, and large static meshes for level building.",
+    "actions": ["Validate material slots before batch import", "Mark biome or chapter for streaming"],
+    "priority": "medium",
+    "review_required": false
+  },
+  "props": {
+    "purpose": "Destructible and interactive clutter; high count, medium individual risk.",
+    "actions": ["Apply prop set tags for batching", "Flag hero props for manual polish"],
+    "priority": "low",
+    "review_required": false
+  },
+  "weapons": {
+    "purpose": "Gameplay-critical assets; balance and compliance sensitivity.",
+    "actions": ["Require design-approved naming", "Route variant skins through weapons lead review"],
+    "priority": "high",
+    "review_required": true
+  }
+}

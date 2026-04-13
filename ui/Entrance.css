@@ -157,6 +157,13 @@
   max-width: 20rem;
 }
 
+.entrance-learning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 .entrance-hint {
   font-size: 0.8rem;
   color: #666;

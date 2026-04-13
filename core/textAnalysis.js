@@ -1,68 +1,131 @@
 /**
  * OCR text vs predicted label — additive validation (does not classify).
- * Keyword hints for downstream routing / review only (no ML).
+ * Label hints come from config/structure.json (industry pack), not hardcoded domains.
  */
 
-/** @type {ReadonlyArray<{ keywords: string[], label: string }>} */
-const LABEL_KEYWORD_HINTS = [
-  { keywords: ["invoice", "invoicing"], label: "documents" },
-  { keywords: ["receipt", "statement", "bill to", "purchase order"], label: "documents" },
-  { keywords: ["character", "characters", "npc", "protagonist"], label: "characters" },
-  { keywords: ["terrain", "landscape", "ground tile"], label: "terrain" },
-  { keywords: ["prop", "props", "furniture", "decoration"], label: "prop" },
-  { keywords: ["debris", "rubble", "wreckage"], label: "debris" },
-  { keywords: ["road", "highway", "asphalt"], label: "road" },
-  { keywords: ["obstacle", "barrier", "barricade"], label: "obstacle" },
-];
+import { readStructureCategories } from "../interfaces/referenceLoader.js";
+import { resolveDestination } from "../routing/router.js";
+import { loadEngineConfig } from "../utils/loadConfig.js";
 
 /**
- * First keyword hit wins (order in LABEL_KEYWORD_HINTS).
- * @param {string | null | undefined} text — raw OCR text
- * @returns {string | null} hint label or null
+ * @param {string} s
  */
-export function suggestLabelFromText(text) {
-  if (text == null) return null;
-  const raw = String(text).trim();
-  if (!raw) return null;
-
-  const lower = raw.toLowerCase();
-  for (const { keywords, label } of LABEL_KEYWORD_HINTS) {
-    for (const kw of keywords) {
-      if (lower.includes(kw.toLowerCase())) return label;
-    }
-  }
-  return null;
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** @type {ReadonlyArray<{ keywords: string[], destination: string }>} */
-const DESTINATION_KEYWORD_HINTS = [
-  { keywords: ["invoice", "invoicing"], destination: "assets/finance" },
-  { keywords: ["receipt", "statement", "bill to", "purchase order"], destination: "assets/documents" },
-  { keywords: ["character", "characters", "npc", "protagonist"], destination: "assets/characters" },
-  { keywords: ["terrain", "landscape", "ground tile"], destination: "assets/terrain" },
-  { keywords: ["prop", "props", "furniture", "decoration"], destination: "assets/prop" },
-  { keywords: ["debris", "rubble", "wreckage"], destination: "assets/debris" },
-  { keywords: ["road", "highway", "asphalt"], destination: "assets/road" },
-  { keywords: ["obstacle", "barrier", "barricade"], destination: "assets/obstacle" },
-];
+/**
+ * Match a structure keyword against OCR text (phrase substring or single-token word boundary).
+ * @param {string} textLower — full text lowercased
+ * @param {string} kwRaw
+ */
+function keywordMatchesText(textLower, kwRaw) {
+  const kw = String(kwRaw ?? "").trim().toLowerCase();
+  if (kw.length < 2) return false;
+  if (/\s/.test(kw) || kw.includes("-")) {
+    return textLower.includes(kw);
+  }
+  return new RegExp(`\\b${escapeRegex(kw)}\\b`).test(textLower);
+}
 
 /**
- * Keyword → destination path hints (does not call the router).
- * @param {string | null | undefined} text — raw OCR text
+ * Score categories by structure keywords vs OCR text; return best category key (as in structure.json).
+ * @param {string} lower — lowercased full text
+ * @param {Record<string, string[]>} categories
+ * @param {Set<string> | null} allowedLower — if non-null and non-empty, only these category keys (lowercase)
  * @returns {string | null}
  */
-export function suggestDestinationFromText(text) {
+function bestCategoryFromStructure(lower, categories, allowedLower) {
+  /** @type {{ label: string, score: number, tie: number } | null} */
+  let best = null;
+
+  for (const [category, keywords] of Object.entries(categories)) {
+    if (!Array.isArray(keywords)) continue;
+    const catKey = String(category).trim();
+    if (!catKey) continue;
+    const catLower = catKey.toLowerCase();
+    if (
+      allowedLower != null &&
+      allowedLower.size > 0 &&
+      !allowedLower.has(catLower)
+    ) {
+      continue;
+    }
+
+    let score = 0;
+    let tieBreaker = 0;
+    for (const rawKw of keywords) {
+      if (keywordMatchesText(lower, rawKw)) {
+        const kw = String(rawKw).trim().toLowerCase();
+        const w = kw.length;
+        score += w * w;
+        tieBreaker += w;
+      }
+    }
+
+    if (score <= 0) continue;
+
+    if (
+      best == null ||
+      score > best.score ||
+      (score === best.score && tieBreaker > best.tie)
+    ) {
+      best = { label: catKey, score, tie: tieBreaker };
+    }
+  }
+
+  return best?.label ?? null;
+}
+
+/**
+ * OCR / keyword hint → label using config/structure.json only.
+ * Used when embedding confidence is below threshold (see index.js); does not replace strong embeddings.
+ *
+ * @param {string | null | undefined} text — raw OCR text
+ * @param {{
+ *   allowedLabels?: Set<string> | null,
+ *   categories?: Record<string, string[]> | null,
+ * }} [options] — optional structure override; allowedLabels filters by lowercase category key
+ * @returns {string | null} category key or null
+ */
+export function suggestLabelFromText(text, options = {}) {
   if (text == null) return null;
   const raw = String(text).trim();
   if (!raw) return null;
 
-  const lower = raw.toLowerCase();
-  for (const { keywords, destination } of DESTINATION_KEYWORD_HINTS) {
-    for (const kw of keywords) {
-      if (lower.includes(kw.toLowerCase())) return destination;
-    }
+  const categories =
+    options.categories != null && typeof options.categories === "object"
+      ? options.categories
+      : readStructureCategories();
+
+  if (!categories || typeof categories !== "object" || Object.keys(categories).length === 0) {
+    return null;
   }
-  return null;
+
+  const allowed =
+    options.allowedLabels instanceof Set && options.allowedLabels.size > 0
+      ? options.allowedLabels
+      : null;
+
+  const lower = raw.toLowerCase();
+  return bestCategoryFromStructure(lower, categories, allowed);
+}
+
+/**
+ * OCR → destination path via structure-driven label + {@link resolveDestination}.
+ * @param {string | null | undefined} text
+ * @param {{
+ *   allowedLabels?: Set<string> | null,
+ *   categories?: Record<string, string[]> | null,
+ *   config?: Record<string, unknown>,
+ * }} [options]
+ * @returns {string | null}
+ */
+export function suggestDestinationFromText(text, options = {}) {
+  const label = suggestLabelFromText(text, options);
+  if (!label) return null;
+  const config = options.config ?? loadEngineConfig();
+  return resolveDestination(label, config);
 }
 
 /**

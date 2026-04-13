@@ -1,0 +1,96 @@
+{
+  "characters": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "characters",
+      "soldier",
+      "npc",
+      "person",
+      "character",
+      "enemy"
+    ]
+  },
+  "environment": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "terrain",
+      "grass",
+      "rock",
+      "environment"
+    ]
+  },
+  "props": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "prop",
+      "debris",
+      "object",
+      "props"
+    ]
+  },
+  "weapons": {
+    "expected_elements": [
+      "title or header region",
+      "primary subject block",
+      "readable text or labels"
+    ],
+    "optional_elements": [
+      "footer metadata",
+      "logo or stamp area",
+      "handwritten annotation"
+    ],
+    "visual_traits": [
+      "document-style layout",
+      "mixed print quality",
+      "clinical paperwork styling"
+    ],
+    "keywords": [
+      "gun",
+      "rifle",
+      "bazooka",
+      "weapons"
+    ]
+  }
+}

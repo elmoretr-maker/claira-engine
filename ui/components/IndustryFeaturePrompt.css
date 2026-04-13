@@ -1,0 +1,31 @@
+.industry-feature-prompt {
+  margin: 0.75rem 0 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent, #4f8cff) 35%, #2d3340);
+  background: color-mix(in srgb, var(--accent, #4f8cff) 6%, var(--bg-card, #171a21));
+}
+
+.ifp-lead {
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.ifp-desc {
+  margin: 0 0 0.5rem;
+  font-size: 0.86rem;
+  color: var(--text-secondary, #a0a8b8);
+  line-height: 1.45;
+}
+
+.ifp-privacy {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.ifp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

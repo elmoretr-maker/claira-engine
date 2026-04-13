@@ -1,0 +1,29 @@
+{
+  "fitness": [
+    {
+      "featureKey": "progress_tracking",
+      "title": "Progress Tracking",
+      "description": "Track client transformations over time using images and measurements."
+    },
+    {
+      "featureKey": "measurement_tracking",
+      "title": "Measurement Tracking",
+      "description": "Record numerical metrics (weight, body measurements, goals) on a timeline."
+    }
+  ],
+  "medical": [
+    {
+      "featureKey": "patient_progress_tracking",
+      "title": "Patient Progress Tracking",
+      "description": "Compare visits and imaging over time with structured measurement notes (user-entered only)."
+    }
+  ],
+  "construction": [
+    {
+      "featureKey": "project_progress_tracking",
+      "title": "Project Progress Tracking",
+      "description": "Log site photos and milestones to compare phases and structural progress."
+    }
+  ],
+  "default": []
+}

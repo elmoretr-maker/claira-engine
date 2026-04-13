@@ -1,0 +1,369 @@
+{
+  "tops": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "shirt",
+      "tshirt",
+      "t-shirt",
+      "blouse",
+      "tank top",
+      "crop top",
+      "long sleeve",
+      "polo",
+      "sweater",
+      "hoodie"
+    ]
+  },
+  "bottoms": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "pants",
+      "jeans",
+      "trousers",
+      "shorts",
+      "leggings",
+      "joggers",
+      "sweatpants",
+      "skirt",
+      "mini skirt",
+      "maxi skirt"
+    ]
+  },
+  "dresses": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "dresses",
+      "product",
+      "product dresses",
+      "dresses product",
+      "order dresses",
+      "dresses order",
+      "sku",
+      "sku dresses",
+      "dresses sku",
+      "listing",
+      "listing dresses",
+      "dresses listing",
+      "catalog",
+      "catalog dresses"
+    ]
+  },
+  "outerwear": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "outerwear",
+      "outerwears",
+      "product outerwear",
+      "outerwear product",
+      "order outerwear",
+      "outerwear order",
+      "sku outerwear",
+      "outerwear sku",
+      "listing outerwear",
+      "outerwear listing",
+      "catalog outerwear",
+      "outerwear catalog",
+      "store outerwear",
+      "outerwear store"
+    ]
+  },
+  "shoes": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "product shoes",
+      "shoes product",
+      "order shoes",
+      "shoes order",
+      "sku shoes",
+      "shoes sku",
+      "listing shoes",
+      "shoes listing",
+      "catalog shoes",
+      "shoes catalog",
+      "store shoes",
+      "shoes store",
+      "shop shoes",
+      "shoes shop"
+    ]
+  },
+  "accessories": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "accessories",
+      "product accessories",
+      "accessories product",
+      "order accessories",
+      "accessories order",
+      "sku accessories",
+      "accessories sku",
+      "listing accessories",
+      "accessories listing",
+      "catalog accessories",
+      "accessories catalog",
+      "store accessories",
+      "accessories store",
+      "shop accessories"
+    ]
+  },
+  "bags": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "bags",
+      "product bags",
+      "bags product",
+      "order bags",
+      "bags order",
+      "sku bags",
+      "bags sku",
+      "listing bags",
+      "bags listing",
+      "catalog bags",
+      "bags catalog",
+      "store bags",
+      "bags store",
+      "shop bags"
+    ]
+  },
+  "product_on_model": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "product on model",
+      "product on models",
+      "product product on model",
+      "product on model product",
+      "order product on model",
+      "product on model order",
+      "sku product on model",
+      "product on model sku",
+      "listing product on model",
+      "product on model listing",
+      "catalog product on model",
+      "product on model catalog",
+      "store product on model",
+      "product on model store"
+    ]
+  },
+  "product_flat": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing",
+      "ecommerce photography conventions (angles, shadows, background)"
+    ],
+    "keywords": [
+      "product flat",
+      "product flats",
+      "product product flat",
+      "product flat product",
+      "order product flat",
+      "product flat order",
+      "sku product flat",
+      "product flat sku",
+      "listing product flat",
+      "product flat listing",
+      "catalog product flat",
+      "product flat catalog",
+      "store product flat",
+      "product flat store"
+    ]
+  },
+  "packaging": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "packaging",
+      "packagings",
+      "product packaging",
+      "packaging product",
+      "order packaging",
+      "packaging order",
+      "sku packaging",
+      "packaging sku",
+      "listing packaging",
+      "packaging listing",
+      "catalog packaging",
+      "packaging catalog",
+      "store packaging",
+      "packaging store"
+    ]
+  },
+  "documents": {
+    "expected_elements": [
+      "primary product or document title",
+      "structured fields (price, sku, size, or order metadata)",
+      "clear hero region or dominant subject",
+      "variant or attribute callouts (size, color, material)"
+    ],
+    "optional_elements": [
+      "thumbnail strip or secondary gallery cues",
+      "promotional badge or sale callout",
+      "trust or compliance footer (returns, terms)"
+    ],
+    "visual_traits": [
+      "catalog or PDP-style layout",
+      "consistent lighting for product accuracy",
+      "legible small type for sku and pricing"
+    ],
+    "keywords": [
+      "documents",
+      "product documents",
+      "documents product",
+      "order documents",
+      "documents order",
+      "sku documents",
+      "documents sku",
+      "listing documents",
+      "documents listing",
+      "catalog documents",
+      "documents catalog",
+      "store documents",
+      "documents store",
+      "shop documents"
+    ]
+  }
+}

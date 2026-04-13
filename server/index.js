@@ -213,7 +213,15 @@ async function runProductImagePipeline(entries) {
     processedProducts.push({ name, id, images, analysis: results });
     console.log("Analysis result:");
     console.log("  product name:", name ?? "(not found)");
-    console.log("  image classifications:", results);
+    const labels = results
+      .map((r) =>
+        r && typeof r === "object" && "classification" in r
+          ? /** @type {{ classification?: { predicted_label?: string | null } }} */ (r).classification?.predicted_label ??
+            "?"
+          : "?",
+      )
+      .join(", ");
+    console.log("  predicted labels:", labels);
   }
 }
 

@@ -1,0 +1,2 @@
+Synthetic reference text for documents (ecommerce pack).
+Keywords: receipt, invoice, order, order confirmation, shipping label, bill

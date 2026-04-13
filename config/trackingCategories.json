@@ -1,0 +1,8 @@
+{
+  "matchersByIndustry": {
+    "fitness": ["progress", "before", "after", "body", "client", "transformation", "physique", "composition"],
+    "medical": ["patient", "recovery", "wound", "imaging", "visit", "clinical_progress"],
+    "construction": ["site", "progress", "inspection", "phase", "milestone", "build"]
+  },
+  "default": []
+}

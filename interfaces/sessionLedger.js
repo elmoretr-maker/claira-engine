@@ -5,9 +5,13 @@
 import { mkdirSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { isHighConflictCosineTop2 } from "../core/decision.js";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** Ledger flag: top-2 cosines very close (no label-pair table). */
+function isNarrowMarginAmbiguity(classification) {
+  const m = classification?.margin;
+  return typeof m === "number" && m < 0.012;
+}
 
 let totalProcessed = 0;
 let totalReviewItems = 0;
@@ -46,9 +50,9 @@ function bump(map, key) {
  * @param {{ predicted_label?: string | null, second_label?: string | null }} classification
  */
 function observeHighConflictCosine(classification) {
+  if (!isNarrowMarginAmbiguity(classification)) return;
   const top1 = classification?.predicted_label;
   const top2 = classification?.second_label;
-  if (!isHighConflictCosineTop2(top1, top2)) return;
   const k = normPairKey(top1, top2);
   if (k) bump(highConflictPairHits, k);
 }
@@ -74,10 +78,7 @@ export function recordAnalyzeOutcome(payload) {
   }
 
   if (dec === "review" || dec === "error") {
-    const highCos = isHighConflictCosineTop2(
-      classification?.predicted_label,
-      classification?.second_label,
-    );
+    const highCos = isNarrowMarginAmbiguity(classification);
     unresolvedSnapshots.push({
       at: new Date().toISOString(),
       file: file ?? null,

@@ -1,0 +1,11 @@
+{
+  "patient": "John Doe",
+  "test": "CBC",
+  "result": "Normal",
+  "values": {
+    "WBC": "5.5",
+    "RBC": "4.8",
+    "PLT": "250"
+  },
+  "notes": "Synthetic mock lab report for reference only."
+}

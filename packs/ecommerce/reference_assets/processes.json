@@ -1,0 +1,101 @@
+{
+  "tops": {
+    "purpose": "Upper-body apparel listings and merchandising assets.",
+    "actions": [
+      "Normalize to catalog SKU",
+      "Validate size and color variants on PDP feeds"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "bottoms": {
+    "purpose": "Pants, shorts, and lower-body products for storefront taxonomy.",
+    "actions": [
+      "Check inseam / length attributes when present",
+      "Map to bottoms navigation"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "dresses": {
+    "purpose": "One-piece garments; often high visual variance (formal vs casual).",
+    "actions": [
+      "Tag occasion and length when possible",
+      "Separate kids vs adult if mixed"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "outerwear": {
+    "purpose": "Jackets and coats; seasonal and higher ticket.",
+    "actions": [
+      "Capture insulation or waterproof flags from labels",
+      "Watch for brand logo conflicts"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "shoes": {
+    "purpose": "Footwear with strong size and width requirements.",
+    "actions": [
+      "Require size scale (US/EU) before auto-publish",
+      "Flag mismatched left/right pairs"
+    ],
+    "priority": "high",
+    "review_required": true
+  },
+  "accessories": {
+    "purpose": "Jewelry, watches, and small goods; detail shots dominate.",
+    "actions": [
+      "Enforce material disclosures where regulated",
+      "Deduplicate near-identical angles"
+    ],
+    "priority": "low",
+    "review_required": false
+  },
+  "bags": {
+    "purpose": "Handbags and luggage; dimension and capacity matter for shipping.",
+    "actions": [
+      "Attach volume or linear dimensions when on label",
+      "Route counterfeit-risk hits to review"
+    ],
+    "priority": "medium",
+    "review_required": true
+  },
+  "product_on_model": {
+    "purpose": "Lifestyle imagery for conversion; cropping affects attribute visibility.",
+    "actions": [
+      "Keep paired flat-lay when available for attribute OCR",
+      "Respect brand guidelines on model shots"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "product_flat": {
+    "purpose": "Clean catalog masters; best source for color and SKU extraction.",
+    "actions": [
+      "Prefer for auto-tagging pipelines",
+      "Validate background removal artifacts"
+    ],
+    "priority": "low",
+    "review_required": false
+  },
+  "packaging": {
+    "purpose": "Shipping cartons and labels; ties to fulfillment and compliance.",
+    "actions": [
+      "Read barcode or ASN when possible",
+      "Separate inbound vs outbound packaging"
+    ],
+    "priority": "medium",
+    "review_required": false
+  },
+  "documents": {
+    "purpose": "Invoices, receipts, and order paperwork; financial and support relevance.",
+    "actions": [
+      "Extract order ID and totals for reconciliation",
+      "Redact payment details in customer-visible exports"
+    ],
+    "priority": "high",
+    "review_required": true
+  }
+}

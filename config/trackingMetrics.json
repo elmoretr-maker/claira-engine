@@ -1,0 +1,24 @@
+{
+  "fitness": {
+    "metrics": [
+      { "key": "weight", "label": "Weight", "unit": "kg" },
+      { "key": "waist", "label": "Waist", "unit": "cm" },
+      { "key": "body_fat", "label": "Body fat", "unit": "%" }
+    ]
+  },
+  "medical": {
+    "metrics": [
+      { "key": "pain_score", "label": "Pain score", "unit": "0-10" },
+      { "key": "range_of_motion", "label": "Range of motion", "unit": "deg" }
+    ]
+  },
+  "construction": {
+    "metrics": [
+      { "key": "completion_pct", "label": "Completion", "unit": "%" },
+      { "key": "inspection_notes", "label": "Inspection notes", "unit": "text" }
+    ]
+  },
+  "default": {
+    "metrics": []
+  }
+}

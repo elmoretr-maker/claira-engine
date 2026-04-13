@@ -1,0 +1,2 @@
+Synthetic reference text for props (game-dev pack).
+Keywords: prop, debris, object, props

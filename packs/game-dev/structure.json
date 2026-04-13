@@ -1,0 +1,8 @@
+{
+  "categories": {
+    "characters": ["characters", "soldier", "npc", "person", "character", "enemy"],
+    "environment": ["terrain", "grass", "rock", "environment"],
+    "props": ["prop", "debris", "object", "props"],
+    "weapons": ["gun", "rifle", "bazooka", "weapons"]
+  }
+}

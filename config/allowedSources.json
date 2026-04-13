@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "description": "Approved endpoints for industry research. Only these hosts and URL templates are used — no open web browsing.",
+  "allowedHosts": ["en.wikipedia.org", "www.cloudflare.com", "dns.google"],
+  "pingUrls": [
+    {
+      "id": "cloudflare_trace",
+      "url": "https://www.cloudflare.com/cdn-cgi/trace",
+      "timeoutMs": 5000
+    },
+    {
+      "id": "dns_google",
+      "url": "https://dns.google/resolve?name=example.com&type=A",
+      "timeoutMs": 5000
+    }
+  ],
+  "sources": [
+    {
+      "id": "wikipedia_opensearch",
+      "label": "Wikipedia OpenSearch (read-only JSON)",
+      "method": "GET",
+      "urlTemplate": "https://en.wikipedia.org/w/api.php?action=opensearch&format=json&origin=*&search={{QUERY}}&limit=20"
+    }
+  ]
+}

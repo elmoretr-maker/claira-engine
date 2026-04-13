@@ -11,5 +11,6 @@
   "thresholds": {
     "confidence": 0.85,
     "margin": 0.01
-  }
+  },
+  "classificationFallbackThreshold": 0.75
 }

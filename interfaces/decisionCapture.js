@@ -38,10 +38,14 @@ export async function captureUserDecision(payload) {
     }
     if (type === "learning") {
       if (!predicted) return { ok: false, error: "predicted_label required for learning" };
+      const scopeRaw = /** @type {{ scope?: unknown }} */ (payload).scope;
+      const scope = scopeRaw === "single" ? "single" : "global";
       await applyDecision({
         predicted_label: predicted,
         selected_label: selected,
         confidence: payload.confidence,
+        file: file || null,
+        scope,
       });
       return { ok: true };
     }

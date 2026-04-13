@@ -37,6 +37,12 @@
   gap: var(--space-md);
 }
 
+.app-move-logs-btn {
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .simulation-mode-badge {
   display: inline-flex;
   align-items: center;

@@ -4,13 +4,6 @@ import ExpectationInput from "./components/ExpectationInput.jsx";
 import IntegrationPreview from "./components/IntegrationPreview.jsx";
 import "./Entrance.css";
 
-const INTENT_OPTIONS = [
-  { value: "sort_assets", label: "Sort Assets" },
-  { value: "organize_products", label: "Organize Products" },
-  { value: "analyze_documents", label: "Analyze Documents" },
-  { value: "custom", label: "Custom" },
-];
-
 registerSimulation({
   name: "connect_system_placeholder",
   location: "ui/Entrance.jsx",
@@ -42,6 +35,13 @@ function filterSupportedImageFiles(list) {
 
 /**
  * @param {{
+ *   appMode?: "setup" | "runtime",
+ *   oversightLevel?: "light" | "medium" | "strict",
+ *   industrySlug?: string,
+ *   packDisplayLabel?: string,
+ *   intentOptions?: Array<{ value: string, label: string }>,
+ *   inputButtonLabel?: string,
+ *   onOversightLevelChange?: (level: "light" | "medium" | "strict") => void,
  *   onStartProcessing?: (payload: {
  *     inputKind: "file" | "external_placeholder",
  *     files: File[],
@@ -53,16 +53,39 @@ function filterSupportedImageFiles(list) {
  *   expectedItems?: string[],
  *   onExpectedItemsChange?: (items: string[]) => void,
  *   onApplyIntegrationFix?: (expectedItems: string[]) => void,
+ *   tunnelIncomplete?: boolean,
+ *   onResumeTunnel?: () => void,
+ *   onEnterLearningMode?: () => void,
+ *   onOpenCapabilities?: () => void,
  * }} props
  */
 export default function Entrance({
+  appMode = "setup",
+  oversightLevel = "medium",
+  industrySlug = "",
+  packDisplayLabel = "",
+  intentOptions: intentOptionsProp,
+  inputButtonLabel = "Input",
+  onOversightLevelChange,
   onStartProcessing,
   expectedItems = [],
   onExpectedItemsChange,
   onApplyIntegrationFix,
+  tunnelIncomplete = false,
+  onResumeTunnel,
+  onEnterLearningMode,
+  onOpenCapabilities,
 }) {
+  const intentOptions =
+    Array.isArray(intentOptionsProp) && intentOptionsProp.length > 0
+      ? intentOptionsProp
+      : [
+          { value: "workflow", label: "Sort & route with Claira" },
+          { value: "custom", label: "Custom" },
+        ];
+
   const [files, setFiles] = useState(/** @type {File[]} */ ([]));
-  const [intent, setIntent] = useState("sort_assets");
+  const [intent, setIntent] = useState(() => intentOptions[0]?.value ?? "workflow");
   const [settings, setSettings] = useState({
     autoMove: true,
     strictValidation: false,
@@ -71,7 +94,7 @@ export default function Entrance({
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(/** @type {HTMLInputElement | null} */ (null));
 
-  const intentLabel = INTENT_OPTIONS.find((o) => o.value === intent)?.label ?? intent;
+  const intentLabel = intentOptions.find((o) => o.value === intent)?.label ?? intent;
 
   const mergeFiles = useCallback((incoming) => {
     const png = filterSupportedImageFiles(incoming);
@@ -122,6 +145,11 @@ export default function Entrance({
   }, []);
 
   const handleStart = useCallback(() => {
+    if (tunnelIncomplete && typeof onResumeTunnel === "function") {
+      onResumeTunnel();
+      return;
+    }
+
     const fileSummaries = files.map((f) => ({ name: f.name, size: f.size, type: f.type }));
     const inputKind = files.length > 0 ? "file" : "external_placeholder";
 
@@ -140,17 +168,61 @@ export default function Entrance({
     );
 
     onStartProcessing?.(payload);
-  }, [files, intent, intentLabel, settings, onStartProcessing]);
+  }, [files, intent, intentLabel, settings, onStartProcessing, onResumeTunnel, tunnelIncomplete]);
+
+  const setupSubtitle =
+    appMode === "setup"
+      ? "First time setting up? Upload sample items so Claira can learn your categories."
+      : "Have new files? Run them through your workflow.";
 
   return (
     <div className="entrance">
       <header className="entrance-header">
         <h1>Claira</h1>
-        <p className="subtitle">What are we working with today?</p>
+        <p className="subtitle">{setupSubtitle}</p>
+        {industrySlug ? (
+          <p className="entrance-industry" style={{ fontSize: "0.85rem", color: "#a0a8b8" }}>
+            Pack: {packDisplayLabel || industrySlug}
+            {packDisplayLabel && packDisplayLabel !== industrySlug ? (
+              <span className="mono" style={{ marginLeft: "0.35rem", opacity: 0.85 }}>
+                ({industrySlug})
+              </span>
+            ) : null}
+          </p>
+        ) : null}
       </header>
 
+      <section className="entrance-section" aria-labelledby="oversight-heading">
+        <h2 id="oversight-heading">Review sensitivity</h2>
+        <p className="entrance-oversight-help" style={{ fontSize: "0.9rem", color: "#c4cad4", marginBottom: "0.75rem" }}>
+          How closely should Claira review your items?
+        </p>
+        <div className="entrance-intent" role="radiogroup" aria-label="Oversight level">
+          {(
+            [
+              { value: "light", label: "Light — minimal interruptions" },
+              { value: "medium", label: "Medium — balanced" },
+              { value: "strict", label: "Strict — more prompts; prioritize learning" },
+            ]
+          ).map((opt) => (
+            <label key={opt.value}>
+              <input
+                type="radio"
+                name="oversight"
+                value={opt.value}
+                checked={oversightLevel === opt.value}
+                onChange={() =>
+                  onOversightLevelChange?.(/** @type {"light"|"medium"|"strict"} */ (opt.value))
+                }
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      </section>
+
       <section className="entrance-section" aria-labelledby="input-heading">
-        <h2 id="input-heading">Input</h2>
+        <h2 id="input-heading">{inputButtonLabel}</h2>
 
         <ExpectationInput items={expectedItems} onItemsChange={onExpectedItemsChange} />
 
@@ -200,7 +272,7 @@ export default function Entrance({
       <section className="entrance-section" aria-labelledby="intent-heading">
         <h2 id="intent-heading">Intent</h2>
         <div className="entrance-intent" role="radiogroup" aria-label="Processing intent">
-          {INTENT_OPTIONS.map((opt) => (
+          {intentOptions.map((opt) => (
             <label key={opt.value}>
               <input
                 type="radio"
@@ -254,8 +326,21 @@ export default function Entrance({
       </section>
 
       <button type="button" className="entrance-btn entrance-btn-primary" onClick={handleStart}>
-        Start Processing
+        {inputButtonLabel}
       </button>
+
+      <div className="entrance-learning-actions">
+        {appMode === "runtime" && typeof onEnterLearningMode === "function" ? (
+          <button type="button" className="entrance-btn" onClick={onEnterLearningMode}>
+            Enter Learning Mode
+          </button>
+        ) : null}
+        {typeof onOpenCapabilities === "function" ? (
+          <button type="button" className="entrance-btn" onClick={onOpenCapabilities}>
+            Manage categories
+          </button>
+        ) : null}
+      </div>
 
       <p className="entrance-hint">
         After starting, you&apos;ll continue to the processing view. Intake choices are logged in the console for now.

@@ -112,6 +112,7 @@ function stageHintForRow(row) {
  *     reviewPriorityCounts?: { high: number, medium: number, low: number },
  *   }) => void,
  *   onViewRooms?: () => void,
+ *   runtimeContext?: { appMode?: string, oversightLevel?: string },
  * }} props
  */
 export default function ProcessingScreen({
@@ -126,6 +127,7 @@ export default function ProcessingScreen({
   onBackToEntrance,
   onProcessingComplete,
   onViewRooms,
+  runtimeContext,
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(/** @type {string | null} */ (null));
@@ -212,7 +214,10 @@ export default function ProcessingScreen({
       if (mode === "folder") {
         if (!folderPath?.trim()) throw new Error("folderPath is required for mode=folder");
         setSourceLabel("file");
-        const out = await processFolder(folderPath, effectiveCwd ? { cwd: effectiveCwd } : {});
+        const out = await processFolder(folderPath, {
+          ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+          ...(runtimeContext ? { runtimeContext } : {}),
+        });
         setIngested(out.results?.length ?? 0);
         setResults(Array.isArray(out.results) ? out.results : []);
         setProcessedTotal(typeof out.processed === "number" ? out.processed : out.results?.length ?? 0);
@@ -244,7 +249,10 @@ export default function ProcessingScreen({
           throw new Error("No items to process — provide ingestInput/ingestSource or normalizedItems");
         }
         setIngested(items.length);
-        const out = await processData(items, effectiveCwd ? { cwd: effectiveCwd } : {});
+        const out = await processData(items, {
+          ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+          ...(runtimeContext ? { runtimeContext } : {}),
+        });
         setResults(Array.isArray(out.results) ? out.results : []);
         setProcessedTotal(typeof out.processed === "number" ? out.processed : out.results?.length ?? 0);
         startReplay(Array.isArray(out.results) ? out.results : []);
@@ -271,6 +279,7 @@ export default function ProcessingScreen({
     startReplay,
     stopReplay,
     onProcessingComplete,
+    runtimeContext,
   ]);
 
   return (

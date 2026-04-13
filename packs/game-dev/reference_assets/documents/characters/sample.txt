@@ -1,0 +1,2 @@
+Synthetic reference text for characters (game-dev pack).
+Keywords: characters, soldier, npc, person, character, enemy

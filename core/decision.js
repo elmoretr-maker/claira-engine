@@ -1,26 +1,7 @@
 /**
  * Review vs auto decision from raw cosine confidence and margin (unified-ingest style).
- * Pure — no file I/O. Optional routing gate mirrors smart_catalog when `hasRoutingDestination` is false.
+ * Pure — no I/O. No label-pair tables; only thresholds + routing gate.
  */
-
-/** Pairs where low margin is flagged as high_conflict (same as smart_catalog UNIFIED_HIGH_CONFLICT_COSINE_PAIRS). */
-export const DEFAULT_HIGH_CONFLICT_PAIRS = new Set([
-  ["debris", "prop"].sort().join("|"),
-  ["obstacle", "prop"].sort().join("|"),
-  ["debris", "terrain"].sort().join("|"),
-  ["road", "terrain"].sort().join("|"),
-]);
-
-/**
- * @param {string|null|undefined} top1
- * @param {string|null|undefined} top2
- * @param {Set<string>} [pairSet]
- */
-export function isHighConflictCosineTop2(top1, top2, pairSet = DEFAULT_HIGH_CONFLICT_PAIRS) {
-  if (top1 == null || top2 == null) return false;
-  const k = [String(top1).toLowerCase(), String(top2).toLowerCase()].sort().join("|");
-  return pairSet.has(k);
-}
 
 /**
  * @param {{
@@ -29,18 +10,19 @@ export function isHighConflictCosineTop2(top1, top2, pairSet = DEFAULT_HIGH_CONF
  *   confidence: number,
  *   margin: number,
  *   thresholds: { confidence: number, margin: number },
- *   hasRoutingDestination?: boolean
+ *   hasRoutingDestination?: boolean,
+ *   potential_conflict?: boolean
  * }} input
  * @returns {{ decision: 'auto' | 'review' | 'error', reason: string }}
  */
 export function decide(input) {
   const {
     predicted_label: chosenLabel,
-    second_label: secondLabel,
     confidence: bestC,
     margin: marginCos,
     thresholds,
     hasRoutingDestination = true,
+    potential_conflict = false,
   } = input;
 
   const minConf = thresholds.confidence;
@@ -55,16 +37,11 @@ export function decide(input) {
   }
 
   if (bestC < minConf || marginCos < minMargin) {
-    const marginFail = marginCos < minMargin;
-    const cosFail = bestC < minConf;
-    if (
-      !cosFail &&
-      marginFail &&
-      isHighConflictCosineTop2(chosenLabel, secondLabel)
-    ) {
-      return { decision: "review", reason: "high_conflict_low_margin" };
-    }
     return { decision: "review", reason: "unified_low_confidence_or_ambiguous" };
+  }
+
+  if (potential_conflict === true) {
+    return { decision: "review", reason: "reference_potential_conflict" };
   }
 
   return { decision: "auto", reason: "unified_reference_confident" };

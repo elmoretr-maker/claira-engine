@@ -1,0 +1,9 @@
+{
+  "default": {
+    "framingAspectThreshold": 0.35,
+    "scaleCvThreshold": 0.28
+  },
+  "fitness": {
+    "framingAspectThreshold": 0.4
+  }
+}

@@ -19,6 +19,7 @@ import {
 } from "../index.js";
 import { getImageEmbedding } from "../vision/clipEmbedder.js";
 import { processFolder, getSessionSummary } from "../interfaces/api.js";
+import { parseReferenceEmbeddingsFromJson } from "../interfaces/referenceLoader.js";
 
 const CLI_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -48,6 +49,8 @@ Options:
   --predicted <label>      apply-decision / learning-stats
   --selected <label>       apply-decision / learning-stats
   --confidence <n>         apply-decision optional model confidence
+  --scope global|single    apply-decision: global = learn rule (default), single = one-off
+  --file <path>            apply-decision: local PNG to copy into references/user/<selected>/
 
 Examples:
   node cli/claira.mjs analyze --embedding emb.json --references refs.json --file ./asset.png
@@ -104,31 +107,6 @@ function parseInputEmbedding(data) {
   throw new Error("embedding: expected number[] or { data: number[] }");
 }
 
-/**
- * @param {unknown} obj
- * @returns {Map<string, Float32Array[]>}
- */
-function parseReferenceEmbeddingsByLabel(obj) {
-  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
-    throw new Error("references: expected object of label → vectors");
-  }
-  const m = new Map();
-  for (const [label, val] of Object.entries(obj)) {
-    if (!Array.isArray(val) || val.length === 0) continue;
-    if (typeof val[0] === "number") {
-      m.set(label, [new Float32Array(/** @type {number[]} */ (val))]);
-    } else {
-      const vecs = val.map((row) => {
-        if (!Array.isArray(row)) throw new Error(`references.${label}: expected number[][]`);
-        return new Float32Array(row);
-      });
-      m.set(label, vecs);
-    }
-  }
-  if (m.size === 0) throw new Error("references: no label pools found");
-  return m;
-}
-
 function readAnalyzeResult(flags) {
   if (flags.stdin) {
     if (process.stdin.isTTY) {
@@ -155,7 +133,7 @@ async function cmdAnalyze(flags) {
   const embRaw = readJsonPath(String(embPath));
   const refRaw = readJsonPath(String(refPath));
   const inputEmbedding = parseInputEmbedding(embRaw);
-  const referenceEmbeddingsByLabel = parseReferenceEmbeddingsByLabel(refRaw);
+  const referenceEmbeddingsByLabel = parseReferenceEmbeddingsFromJson(refRaw);
   const file = flags.file != null ? String(flags.file) : null;
   let softmaxTemperature;
   if (flags["softmax-temperature"] != null) {
@@ -184,7 +162,7 @@ async function cmdClassify(flags) {
   const embRaw = readJsonPath(String(embPath));
   const refRaw = readJsonPath(String(refPath));
   const inputEmbedding = parseInputEmbedding(embRaw);
-  const referenceEmbeddingsByLabel = parseReferenceEmbeddingsByLabel(refRaw);
+  const referenceEmbeddingsByLabel = parseReferenceEmbeddingsFromJson(refRaw);
   let softmaxTemperature;
   if (flags["softmax-temperature"] != null) {
     softmaxTemperature = Number(flags["softmax-temperature"]);
@@ -225,7 +203,20 @@ async function cmdApplyDecision(flags) {
     confidence = Number(flags.confidence);
     if (!Number.isFinite(confidence)) throw new Error("invalid --confidence");
   }
-  const r = await applyDecision({ predicted_label: predicted, selected_label: selected, confidence });
+  const file = flags.file != null ? String(flags.file) : undefined;
+  let scope;
+  if (flags.scope != null) {
+    const s = String(flags.scope).toLowerCase();
+    if (s !== "global" && s !== "single") throw new Error("invalid --scope (use global or single)");
+    scope = s;
+  }
+  const r = await applyDecision({
+    predicted_label: predicted,
+    selected_label: selected,
+    confidence,
+    file,
+    scope,
+  });
   outJson(r);
 }
 

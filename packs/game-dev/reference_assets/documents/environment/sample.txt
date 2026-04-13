@@ -1,0 +1,2 @@
+Synthetic reference text for environment (game-dev pack).
+Keywords: terrain, grass, rock, environment

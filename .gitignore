@@ -1,5 +1,6 @@
 node_modules/
 output/
+temp/
 _clip_test.png
 dev/_clip_smoke.png
 
@@ -7,3 +8,18 @@ eng.traineddata
 claira-pdf-*
 *.log
 data/session_report.json
+packs/industryAutogen/cache/
+
+# Runtime / user-local progress tracking (source under tracking/*.js stays tracked)
+tracking/images/
+tracking/snapshots/
+tracking/entities/
+
+# Optional dev/test images
+dev/test-assets/
+test_images/
+*.tmp.png
+*.debug.png
+
+.DS_Store
+Thumbs.db

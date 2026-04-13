@@ -2,7 +2,7 @@
  * Shared process-folder pipeline (no console). Used by interfaces/api.js and cli/claira.mjs.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, renameSync, writeFileSync } from "fs";
 import { readdir, stat } from "fs/promises";
 import { basename, dirname, extname, join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -13,8 +13,11 @@ import {
   resetSessionLedger,
 } from "../index.js";
 import { getImageEmbedding } from "../vision/clipEmbedder.js";
+import { buildClassificationConflictPayload } from "../core/oversightProfile.js";
+import { loadAllReferenceEmbeddings } from "./referenceLoader.js";
 import { loadRooms } from "../rooms/index.js";
 import { validatePlacement } from "../rooms/validator.js";
+import { addUserReference } from "../learning/addUserReference.js";
 import { assignPriority } from "./reviewQueue.js";
 import { isSupportedImageFilename } from "../adapters/supportedImages.js";
 import {
@@ -23,58 +26,9 @@ import {
   suggestDestinationFromText,
   suggestLabelFromText,
 } from "../core/textAnalysis.js";
+import { cleanupTunnelStagingCategoryDir } from "./tunnelStaging.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REF_EMBEDDINGS_JSON = join(__dirname, "..", "references", "reference_embeddings.json");
-
-/**
- * @param {unknown} obj
- * @returns {Map<string, Float32Array[]>}
- */
-function parseReferenceEmbeddingsByLabel(obj) {
-  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
-    throw new Error("references: expected object of label → vectors");
-  }
-  const m = new Map();
-  for (const [label, val] of Object.entries(obj)) {
-    if (!Array.isArray(val) || val.length === 0) continue;
-    if (typeof val[0] === "number") {
-      m.set(label, [new Float32Array(/** @type {number[]} */ (val))]);
-    } else {
-      const vecs = val.map((row) => {
-        if (!Array.isArray(row)) throw new Error(`references.${label}: expected number[][]`);
-        return new Float32Array(row);
-      });
-      m.set(label, vecs);
-    }
-  }
-  if (m.size === 0) throw new Error("references: no label pools found");
-  return m;
-}
-
-export function loadProcessFolderReferenceEmbeddings() {
-  if (!existsSync(REF_EMBEDDINGS_JSON)) {
-    throw new Error(
-      "process-folder: missing references/reference_embeddings.json — add PNGs to references/<category>/ and run: node vision/buildReferences.js",
-    );
-  }
-  const raw = readFileSync(REF_EMBEDDINGS_JSON, "utf8");
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`process-folder: invalid references/reference_embeddings.json (${msg})`);
-  }
-  try {
-    return parseReferenceEmbeddingsByLabel(parsed);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(
-      `process-folder: ${msg}. Add PNGs under references/terrain|prop|debris/, then run: node vision/buildReferences.js`,
-    );
-  }
-}
 
 async function collectRasterImageFilesRecursive(rootDir) {
   /** @type {string[]} */
@@ -93,6 +47,14 @@ async function collectRasterImageFilesRecursive(rootDir) {
 
 function displayRelative(inputRootResolved, absolutePath) {
   return relative(inputRootResolved, absolutePath).replace(/\\/g, "/");
+}
+
+/**
+ * @param {unknown} raw
+ */
+function normalizeExpectedCategory(raw) {
+  if (typeof raw !== "string") return "";
+  return String(raw).trim().toLowerCase();
 }
 
 function normalizePathForCompare(p) {
@@ -302,15 +264,16 @@ function textReviewFieldsForAutoPath(parts) {
 /**
  * Run the same classify / route / validate / move pipeline as process-folder for a prepared item list.
  * @param {ProcessPipelineItem[]} items
- * @param {{ cwd?: string }} [options]
+ * @param {{ cwd?: string, runtimeContext?: { appMode?: string, oversightLevel?: string, expectedCategory?: string } }} [options]
  */
 export async function runProcessItemsPipeline(items, options = {}) {
   const cwd = options.cwd ?? process.cwd();
+  const runtimeContext = options.runtimeContext ?? {};
 
   resetSessionLedger();
 
   const rooms = loadRooms();
-  const referenceEmbeddingsByLabel = loadProcessFolderReferenceEmbeddings();
+  const referenceEmbeddingsByLabel = await loadAllReferenceEmbeddings();
   /** @type {Array<Record<string, unknown>>} */
   const resultsArray = [];
   const reviewPriorityCounts = { high: 0, medium: 0, low: 0 };
@@ -330,10 +293,12 @@ export async function runProcessItemsPipeline(items, options = {}) {
       continue;
     }
     const inputEmbedding = new Float32Array(embRes.embedding);
-    const result = await analyze({
+    let result = await analyze({
       inputEmbedding,
       referenceEmbeddingsByLabel,
       file: absPath,
+      extractedText: item.extractedText,
+      runtimeContext,
     });
 
     if (result.error) {
@@ -343,6 +308,17 @@ export async function runProcessItemsPipeline(items, options = {}) {
       reviewCount += 1;
       resultsArray.push({ rel, place_card: null, priority, reason });
       continue;
+    }
+
+    const expectedCat = normalizeExpectedCategory(runtimeContext.expectedCategory);
+    if (expectedCat) {
+      const predicted = normalizeExpectedCategory(result.classification?.predicted_label);
+      if (!predicted || predicted === "unknown" || predicted !== expectedCat) {
+        result = {
+          ...result,
+          decision: { decision: "review", reason: "tunnel_expected_category_mismatch" },
+        };
+      }
     }
 
     const textParts = textAwareParts(item, result);
@@ -379,6 +355,12 @@ export async function runProcessItemsPipeline(items, options = {}) {
         ...textParts,
       });
     } else if (dec === "auto") {
+      if (expectedCat) {
+        const pred = normalizeExpectedCategory(result.classification?.predicted_label);
+        if (pred === expectedCat) {
+          addUserReference(absPath, expectedCat);
+        }
+      }
       /** @type {string | null} */
       let movedTo = null;
       /** @type {string | null} */
@@ -413,7 +395,11 @@ export async function runProcessItemsPipeline(items, options = {}) {
       const { priority } = assignPriority({ reason: String(reason) });
       bumpPriorityCount(reviewPriorityCounts, priority);
       reviewCount += 1;
-      resultsArray.push({ rel, place_card: placeCard ?? null, priority, reason, ...textParts });
+      /** @type {Record<string, unknown>} */
+      const reviewRow = { rel, place_card: placeCard ?? null, priority, reason, ...textParts };
+      const cc = buildClassificationConflictPayload(result, absPath, runtimeContext);
+      if (cc) reviewRow.classification_conflict = cc;
+      resultsArray.push(reviewRow);
     }
   }
 
@@ -437,7 +423,7 @@ export async function runProcessItemsPipeline(items, options = {}) {
 
 /**
  * @param {string} inputRootAbsolute — resolved absolute path to folder
- * @param {{ cwd?: string }} [options]
+ * @param {{ cwd?: string, runtimeContext?: { appMode?: string, oversightLevel?: string, expectedCategory?: string } }} [options]
  */
 export async function runProcessFolderPipeline(inputRootAbsolute, options = {}) {
   const cwd = options.cwd ?? process.cwd();
@@ -457,5 +443,9 @@ export async function runProcessFolderPipeline(inputRootAbsolute, options = {}) 
     absPath,
     rel: displayRelative(inputRoot, absPath),
   }));
-  return runProcessItemsPipeline(items, { cwd });
+  try {
+    return await runProcessItemsPipeline(items, { cwd, runtimeContext: options.runtimeContext });
+  } finally {
+    cleanupTunnelStagingCategoryDir(inputRoot);
+  }
 }

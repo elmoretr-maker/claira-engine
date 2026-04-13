@@ -1,0 +1,15 @@
+{
+  "categories": {
+    "tops": ["shirt", "tshirt", "blouse", "hoodie"],
+    "bottoms": ["pants", "jeans", "shorts", "skirt"],
+    "dresses": ["dress"],
+    "outerwear": ["jacket", "coat"],
+    "shoes": ["shoes", "sneakers", "boots"],
+    "accessories": ["jewelry", "watch", "sunglasses"],
+    "bags": ["bag", "purse", "backpack"],
+    "product_on_model": ["person wearing clothing", "model wearing outfit"],
+    "product_flat": ["isolated product", "white background product"],
+    "packaging": ["box", "package", "label"],
+    "documents": ["receipt", "invoice", "order"]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "pack": {
+    "label": "Game development",
+    "inputVerb": "Add game art or assets",
+    "intents": [
+      { "value": "sort_assets", "label": "Sort game assets" },
+      { "value": "organize_products", "label": "Organize content library" },
+      { "value": "custom", "label": "Custom" }
+    ]
+  },
+  "categories": {
+    "characters": {
+      "label": "Characters",
+      "description": "Manage characters content for this industry pack.",
+      "examples": [
+        "characters",
+        "soldier",
+        "npc",
+        "person",
+        "character",
+        "enemy"
+      ],
+      "subcategories": {}
+    },
+    "environment": {
+      "label": "Environment",
+      "description": "Manage environment content for this industry pack.",
+      "examples": [
+        "terrain",
+        "grass",
+        "rock",
+        "environment"
+      ],
+      "subcategories": {}
+    },
+    "props": {
+      "label": "Props",
+      "description": "Manage props content for this industry pack.",
+      "examples": [
+        "prop",
+        "debris",
+        "object",
+        "props"
+      ],
+      "subcategories": {}
+    },
+    "weapons": {
+      "label": "Weapons",
+      "description": "Manage weapons content for this industry pack.",
+      "examples": [
+        "gun",
+        "rifle",
+        "bazooka",
+        "weapons"
+      ],
+      "subcategories": {}
+    }
+  }
+}
