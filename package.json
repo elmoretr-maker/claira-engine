@@ -14,7 +14,7 @@
     "generate:pack-system": "node dev/generate_pack_system.mjs",
     "ui:dev": "vite --config ui/vite.config.mjs",
     "ui:build": "vite build --config ui/vite.config.mjs",
-    "start:server": "node server/index.js",
+    "start:server": "node --env-file=.env server/index.js",
     "watch": "node server/watcher.js"
   },
   "dependencies": {

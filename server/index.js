@@ -1,5 +1,8 @@
 import express from "express";
 import { analyzeImage } from "./clairaImagePipeline.js";
+import { loadRootEnv } from "./loadRootEnv.mjs";
+
+loadRootEnv();
 
 /** Last POST /run body + extracted fields (in-memory only; resets on process restart). */
 let lastWixWebhook = null;
@@ -267,6 +270,27 @@ app.get("/health", (req, res) => {
     status: "ok",
     service: "claira",
   });
+});
+
+/**
+ * Claira TTS — same path the UI uses (`fetch("/__claira/tts")`).
+ * Proxied from Vite in dev; call this server directly in production or serve static UI behind the same host.
+ */
+app.post("/__claira/tts", async (req, res) => {
+  try {
+    const text = typeof req.body?.text === "string" ? req.body.text : "";
+    if (!text.trim()) {
+      return res.status(400).json({ error: "text required" });
+    }
+    const { synthesizeClairaSpeech } = await import("../lib/clairaElevenLabsVoice.mjs");
+    const buf = await synthesizeClairaSpeech(text);
+    res.setHeader("Content-Type", "audio/mpeg");
+    return res.status(200).send(buf);
+  } catch (e) {
+    return res.status(503).json({
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
 });
 
 app.post("/run", (req, res) => {
