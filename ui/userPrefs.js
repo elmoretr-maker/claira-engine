@@ -7,6 +7,49 @@ import { fingerprintSelectedCaps } from "./tunnelSteps.js";
 export const STORAGE_APP_MODE = "claira.appMode";
 export const STORAGE_OVERSIGHT = "claira.oversightLevel";
 export const STORAGE_INDUSTRY = "claira.selectedIndustry";
+/** Set only after the final industry confirmation step (select-only); not when a pack is merely loaded mid-flow. */
+export const STORAGE_INDUSTRY_GATE_COMPLETE = "claira.industryGateComplete";
+const STORAGE_INDUSTRY_GATE_BOOTSTRAP = "claira.industryGateBootstrapV1";
+
+/**
+ * One-time migration: before the gate flag existed, persisting an industry implied the gate was done.
+ * Runs once per browser profile, then only {@link STORAGE_INDUSTRY_GATE_COMPLETE} is authoritative.
+ */
+function bootstrapIndustryGatePersistence() {
+  try {
+    if (localStorage.getItem(STORAGE_INDUSTRY_GATE_BOOTSTRAP) === "1") return;
+    if (localStorage.getItem(STORAGE_INDUSTRY) && !localStorage.getItem(STORAGE_INDUSTRY_GATE_COMPLETE)) {
+      localStorage.setItem(STORAGE_INDUSTRY_GATE_COMPLETE, "1");
+    }
+    localStorage.setItem(STORAGE_INDUSTRY_GATE_BOOTSTRAP, "1");
+  } catch {
+    /* private mode */
+  }
+}
+
+/**
+ * @returns {boolean}
+ */
+export function getIndustryGateComplete() {
+  bootstrapIndustryGatePersistence();
+  try {
+    return localStorage.getItem(STORAGE_INDUSTRY_GATE_COMPLETE) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * @param {boolean} done
+ */
+export function setIndustryGateComplete(done) {
+  try {
+    if (done) localStorage.setItem(STORAGE_INDUSTRY_GATE_COMPLETE, "1");
+    else localStorage.removeItem(STORAGE_INDUSTRY_GATE_COMPLETE);
+  } catch {
+    /* private mode */
+  }
+}
 export const STORAGE_SETUP_CONFLICTS = "claira.setupConflictsResolved";
 export const STORAGE_CAPABILITIES = "claira.capabilitiesSelected";
 export const STORAGE_TUNNEL_STEP = "claira.tunnelStepIndex";
@@ -14,6 +57,12 @@ export const STORAGE_TUNNEL_SKIPPED = "claira.tunnelSkipped";
 export const STORAGE_TUNNEL_EXAMPLES = "claira.tunnelExamplesCount";
 export const STORAGE_TUNNEL_MANIFEST = "claira.tunnelManifest";
 export const STORAGE_TUNNEL_GRANULAR = "claira.tunnelGranular";
+
+/** Setup wizard: user completed “structure / intake” questions (UI-only; not used by engine). */
+export const STORAGE_STRUCTURE_SETUP = "claira.structureSetupComplete";
+
+/** UI-only answers for intake structure prompts (JSON). */
+export const STORAGE_INTAKE_STRUCTURE = "claira.intakeStructure";
 
 /** Minimum user conflict resolutions before auto transition setup → runtime */
 export const MIN_SETUP_CONFLICTS_RESOLVED = 3;
@@ -126,6 +175,79 @@ export function clearTunnelState() {
     localStorage.removeItem(STORAGE_TUNNEL_EXAMPLES);
     localStorage.removeItem(STORAGE_TUNNEL_MANIFEST);
     localStorage.removeItem(STORAGE_TUNNEL_GRANULAR);
+    localStorage.removeItem(STORAGE_STRUCTURE_SETUP);
+    localStorage.removeItem(STORAGE_INTAKE_STRUCTURE);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Full onboarding reset (UI persistence only): tunnel/caps, structure intake, industry selection,
+ * setup conflict counter, oversight, app mode — does not touch industry feature toggles or external systems.
+ */
+export function clearAllOnboardingLocalStorage() {
+  clearTunnelState();
+  try {
+    localStorage.removeItem(STORAGE_SETUP_CONFLICTS);
+    localStorage.removeItem(STORAGE_INDUSTRY);
+    localStorage.removeItem(STORAGE_INDUSTRY_GATE_COMPLETE);
+    localStorage.removeItem(STORAGE_OVERSIGHT);
+    localStorage.removeItem(STORAGE_APP_MODE);
+  } catch {
+    /* ignore */
+  }
+  setAppMode("setup");
+}
+
+/**
+ * @returns {boolean}
+ */
+export function getStructureSetupComplete() {
+  try {
+    return localStorage.getItem(STORAGE_STRUCTURE_SETUP) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * @param {boolean} done
+ */
+export function setStructureSetupComplete(done) {
+  try {
+    if (done) localStorage.setItem(STORAGE_STRUCTURE_SETUP, "1");
+    else localStorage.removeItem(STORAGE_STRUCTURE_SETUP);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * @returns {{ multipleSizes: boolean | null, usesSkus: boolean | null, hasVariations: boolean | null } | null}
+ */
+export function getIntakeStructureAnswers() {
+  try {
+    const raw = localStorage.getItem(STORAGE_INTAKE_STRUCTURE);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (!p || typeof p !== "object") return null;
+    return {
+      multipleSizes: p.multipleSizes === true ? true : p.multipleSizes === false ? false : null,
+      usesSkus: p.usesSkus === true ? true : p.usesSkus === false ? false : null,
+      hasVariations: p.hasVariations === true ? true : p.hasVariations === false ? false : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {{ multipleSizes: boolean | null, usesSkus: boolean | null, hasVariations: boolean | null }} answers
+ */
+export function setIntakeStructureAnswers(answers) {
+  try {
+    localStorage.setItem(STORAGE_INTAKE_STRUCTURE, JSON.stringify(answers));
   } catch {
     /* ignore */
   }

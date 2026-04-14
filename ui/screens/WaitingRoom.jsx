@@ -1,5 +1,7 @@
 import "./WaitingRoom.css";
 import { useState } from "react";
+import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
+import "../voice/ClairaVoiceChrome.css";
 
 /**
  * @typedef {"high" | "medium" | "low"} ReviewPriority
@@ -47,6 +49,7 @@ function normalizePriority(p) {
  *   }) => void,
  *   onContinueToRooms?: () => void,
  *   categoryUi?: Record<string, { label?: string, description?: string }>,
+ *   guidedStep?: number,
  * }} props
  */
 export default function WaitingRoom({
@@ -54,6 +57,7 @@ export default function WaitingRoom({
   onConflictResolved,
   onContinueToRooms,
   categoryUi = {},
+  guidedStep,
 }) {
   const items = Array.isArray(reviewItems) ? reviewItems : [];
   const hasItems = items.length > 0;
@@ -76,7 +80,11 @@ export default function WaitingRoom({
   }
 
   return (
-    <div className="waiting-room">
+    <>
+      {typeof guidedStep === "number" ? (
+        <GuidedStepChrome step={guidedStep} phaseLabel="Learning" />
+      ) : null}
+      <div className="waiting-room">
       {hasItems ? (
         <div className="waiting-room-alert" role="status">
           <span className="dot" aria-hidden="true" />
@@ -87,11 +95,15 @@ export default function WaitingRoom({
       ) : null}
 
       <header className="waiting-room-header">
-        <h1>Your review queue</h1>
-        <p>
-          I’ve sorted what needs you by priority. If I’m not sure where something belongs, I’ll ask you to pick the right
-          category.
-        </p>
+        <div className="claira-screen-heading-row">
+          <div>
+            <h1>Your review queue</h1>
+            <p>
+              I’ve sorted what needs you by priority. If I’m not sure where something belongs, I’ll ask you to pick the
+              right category.
+            </p>
+          </div>
+        </div>
       </header>
 
       {typeof onContinueToRooms === "function" ? (
@@ -153,6 +165,7 @@ export default function WaitingRoom({
         </div>
       )}
     </div>
+    </>
   );
 }
 

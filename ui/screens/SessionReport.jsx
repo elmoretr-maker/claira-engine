@@ -1,5 +1,7 @@
 import "./SessionReport.css";
 import { compareSessionWorkflow } from "../sessionWorkflowCompare.js";
+import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
+import "../voice/ClairaVoiceChrome.css";
 
 /** @typedef {{ processed?: number, moved?: number, review?: number }} SessionSummary */
 
@@ -150,6 +152,27 @@ function workflowItemLabel(x) {
   return t.length ? t : "—";
 }
 
+/** @param {unknown} row */
+function rowQuickLabel(row) {
+  const r = rowRecord(row);
+  if (!r) return "—";
+  if (typeof r.rel === "string" && r.rel.trim()) return r.rel.trim();
+  if (typeof r.file === "string" && r.file.trim()) return r.file.trim();
+  return "—";
+}
+
+/** @param {unknown} row */
+function rowStatusHint(row) {
+  const r = rowRecord(row);
+  if (!r) return "—";
+  if (typeof r.reason === "string" && r.reason) return r.reason;
+  if (r.room_validation != null) return "room review";
+  if (r.priority != null) return `priority: ${String(r.priority)}`;
+  if (r.moved_to != null) return "moved";
+  if (r.place_card != null) return "routed";
+  return "ok";
+}
+
 /**
  * @param {{
  *   summary?: SessionSummary | null,
@@ -159,6 +182,8 @@ function workflowItemLabel(x) {
  *   onBackToRooms?: () => void,
  *   onContinueToWaiting?: () => void,
  *   waitingItemCount?: number,
+ *   guidedStep?: number,
+ *   onOpenWorkspace?: () => void,
  * }} props
  */
 export default function SessionReport({
@@ -169,6 +194,8 @@ export default function SessionReport({
   onBackToRooms,
   onContinueToWaiting,
   waitingItemCount = 0,
+  guidedStep,
+  onOpenWorkspace,
 }) {
   const list = Array.isArray(results) ? results : [];
   const s = summary != null && typeof summary === "object" && !Array.isArray(summary) ? summary : {};
@@ -224,10 +251,18 @@ export default function SessionReport({
   }
 
   return (
-    <div className="session-report">
+    <>
+      {typeof guidedStep === "number" ? (
+        <GuidedStepChrome step={guidedStep} phaseLabel="Review" />
+      ) : null}
+      <div className="session-report">
       <header className="session-report-header">
-        <h1>{title}</h1>
-        <p>Summary of the last processing run — counts, review reasons, and notable signals.</p>
+        <div className="claira-screen-heading-row">
+          <div>
+            <h1>{title}</h1>
+            <p>Summary of the last processing run — counts, review reasons, and notable signals.</p>
+          </div>
+        </div>
       </header>
 
       {showEmpty ? (
@@ -236,6 +271,47 @@ export default function SessionReport({
         </div>
       ) : (
         <>
+          {hasRows ? (
+            <section className="session-report-section" aria-labelledby="session-items">
+              <h2 id="session-items">Items from this run</h2>
+              <div className="card session-report-table-card">
+                <div className="session-report-table-wrap">
+                  <table className="session-report-table">
+                    <thead>
+                      <tr>
+                        <th>File / path</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.slice(0, 200).map((row, i) => (
+                        <tr key={`${rowQuickLabel(row)}-${i}`}>
+                          <td className="session-report-table-mono">{rowQuickLabel(row)}</td>
+                          <td>{rowStatusHint(row)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {list.length > 200 ? (
+                  <p className="session-report-muted session-report-muted--flush">
+                    Showing first 200 of {list.length} rows.
+                  </p>
+                ) : null}
+                {typeof onOpenWorkspace === "function" ? (
+                  <div className="session-report-workspace-cta">
+                    <button type="button" className="btn btn-secondary" onClick={onOpenWorkspace}>
+                      Edit product list in workspace
+                    </button>
+                    <span className="session-report-muted">
+                      Spreadsheet-style edits apply to files on disk when you sync from Workspace.
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
           <section className="session-report-section" aria-labelledby="session-overview">
             <h2 id="session-overview">Overview</h2>
             <div className="session-report-overview">
@@ -348,15 +424,16 @@ export default function SessionReport({
       <footer className="session-report-footer">
         {typeof onContinueToWaiting === "function" && waitingItemCount > 0 ? (
           <button type="button" className="btn btn-secondary" onClick={onContinueToWaiting}>
-            Review queue ({waitingItemCount})
+            Next: help me with items ({waitingItemCount})
           </button>
         ) : null}
         {typeof onBackToRooms === "function" ? (
           <button type="button" className="btn btn-primary" onClick={onBackToRooms}>
-            Back to Rooms
+            Continue to rooms
           </button>
         ) : null}
       </footer>
     </div>
+    </>
   );
 }

@@ -9,6 +9,8 @@ const uiDir = path.dirname(fileURLToPath(import.meta.url));
 const engineRoot = path.resolve(uiDir, "..");
 const apiJs = path.join(engineRoot, "interfaces", "api.js");
 
+const CLAIRA_API_PORT = Number(process.env.PORT) || 3000;
+
 /**
  * @param {string} name
  */
@@ -26,6 +28,14 @@ function contentTypeForBasename(name) {
 
 export default {
   root: uiDir,
+  server: {
+    proxy: {
+      "/__claira/tts": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+      },
+    },
+  },
   plugins: [
     {
       name: "claira-api-browser-stub",

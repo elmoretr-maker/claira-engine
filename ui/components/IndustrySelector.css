@@ -1,3 +1,13 @@
+.industry-selector-guided-hint {
+  width: 100%;
+  max-width: 52rem;
+  margin: 0 auto var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
 .industry-selector {
   min-height: 100vh;
   display: flex;
@@ -55,8 +65,23 @@
   color: var(--text-primary);
 }
 
+.industry-selector-intro-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  align-items: stretch;
+}
+
 .industry-selector-intro-cta {
   width: 100%;
+}
+
+.industry-selector-continuation-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  justify-content: space-between;
 }
 
 .industry-selector--setup {
@@ -171,4 +196,137 @@
   margin: var(--space-md) 0 0;
   color: var(--danger);
   font-size: 0.95rem;
+}
+
+/* --- Category pick (after Welcome): two equal columns; parent was capped at 40rem and forced stacking --- */
+
+.welcome-screen-inner--category-wide {
+  max-width: min(72rem, 100%);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/*
+ * WelcomeScreen.css gives .welcome-screen-inner .guided-step-wrap a frosted slab behind * the *entire* guided step (toolbar + both cards). That reads as a heavy “middle layer.”
+ * On the category step, drop it—the page backdrop should show; only the top bar stays filled.
+ */
+.welcome-screen-inner--category-wide .guided-step-wrap {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.welcome-screen-inner--category-wide .industry-selector.industry-selector--setup {
+  min-height: auto;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.welcome-screen-inner--category-wide .industry-selector-columns--split {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+.welcome-screen-inner--category-wide .industry-selector-columns--split > .industry-selector-card--choose {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+}
+
+.welcome-screen-inner--category-wide .industry-selector-columns--split > .create-industry-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+  margin-top: 0;
+}
+
+@media (max-width: 860px) {
+  .welcome-screen-inner--category-wide .industry-selector-columns--split {
+    flex-wrap: wrap;
+  }
+
+  .welcome-screen-inner--category-wide .industry-selector-columns--split > .industry-selector-card--choose,
+  .welcome-screen-inner--category-wide .industry-selector-columns--split > .create-industry-panel {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+}
+
+/*
+ * Glass cards: beat designSystem .card (opaque --bg-card) + hover lift.
+ * Smaller footprint, translucent; text shadows keep copy readable.
+ */
+.welcome-screen-inner--category-wide .industry-selector-columns--split > .industry-selector-card--choose.card.category-glass-panel,
+.welcome-screen-inner--category-wide .industry-selector-columns--split > .create-industry-panel.card.category-glass-panel {
+  flex: 0 1 17rem;
+  max-width: 18.5rem;
+  padding: 1rem 1.15rem;
+  background: color-mix(in srgb, var(--welcome-card-surface, #1e222b) 26%, transparent);
+  backdrop-filter: blur(10px) saturate(1.06);
+  -webkit-backdrop-filter: blur(10px) saturate(1.06);
+  border: 1px solid color-mix(in srgb, var(--welcome-card-border, #3d4450) 32%, transparent);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    background 0.22s ease;
+}
+
+.welcome-screen-inner--category-wide .category-glass-panel.card:hover {
+  transform: translateY(-12px);
+  background: color-mix(in srgb, var(--welcome-card-surface, #1e222b) 32%, transparent);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.34);
+  border-color: color-mix(in srgb, var(--welcome-card-border, #5c6574) 55%, transparent);
+}
+
+.welcome-screen-inner--category-wide .category-glass-panel .industry-selector-title,
+.welcome-screen-inner--category-wide .category-glass-panel .create-industry-title {
+  color: #f6f8fc;
+  text-shadow:
+    0 0 12px rgba(0, 0, 0, 0.55),
+    0 1px 4px rgba(0, 0, 0, 0.85);
+}
+
+.welcome-screen-inner--category-wide .category-glass-panel .industry-selector-desc--prose p,
+.welcome-screen-inner--category-wide .category-glass-panel .create-industry-intro p {
+  margin: 0 0 0.55rem;
+  color: #eef1f7;
+  font-size: 0.9rem;
+  line-height: 1.52;
+  text-shadow:
+    0 0 10px rgba(0, 0, 0, 0.5),
+    0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.welcome-screen-inner--category-wide .category-glass-panel .industry-selector-desc--prose p:last-child,
+.welcome-screen-inner--category-wide .category-glass-panel .create-industry-intro p:last-child {
+  margin-bottom: 0;
+}
+
+.welcome-screen-inner--category-wide .category-glass-panel .industry-selector-label,
+.welcome-screen-inner--category-wide .category-glass-panel .create-industry-net-label,
+.welcome-screen-inner--category-wide .category-glass-panel .create-industry-label {
+  color: #d6dce8;
+  text-shadow:
+    0 0 8px rgba(0, 0, 0, 0.45),
+    0 1px 2px rgba(0, 0, 0, 0.75);
+}
+
+@media (hover: none) {
+  .welcome-screen-inner--category-wide .category-glass-panel.card:hover {
+    transform: none;
+    background: color-mix(in srgb, var(--welcome-card-surface, #1e222b) 26%, transparent);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  }
 }

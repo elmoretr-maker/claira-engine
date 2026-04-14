@@ -13,9 +13,10 @@ import "./CreateIndustryPanel.css";
  *   reloadPacks: (preferSlug?: string) => Promise<void>,
  *   activatePack?: (slug: string) => Promise<unknown>,
  *   onCreated?: (slug: string) => void,
+ *   className?: string,
  * }} props
  */
-export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreated }) {
+export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreated, className = "" }) {
   const [net, setNet] = useState(/** @type {{ connected: boolean, detail: string } | null} */ (null));
   const [netBusy, setNetBusy] = useState(false);
   const [name, setName] = useState("");
@@ -180,39 +181,35 @@ export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreat
     }
   }, [qualityGate?.slug, handleConfirmActivation]);
 
+  const panelClass = ["create-industry-panel", "card", className].filter(Boolean).join(" ");
+
   return (
-    <section className="create-industry-panel card" aria-labelledby="create-industry-heading">
+    <section className={panelClass} aria-labelledby="create-industry-heading">
       <h2 id="create-industry-heading" className="create-industry-title">
-        Create industry (autopilot)
+        Make your category
       </h2>
 
       <div className="create-industry-intro">
         <p>
-          <strong>What I’ll do:</strong> I check connectivity, run <strong>controlled research</strong> (only URLs in{" "}
-          <span className="mono">config/allowedSources.json</span>), <strong>structure categories</strong> (dedupe +
-          merge similar), then create <span className="mono">templates/&lt;slug&gt;.js</span> when needed, run{" "}
-          <span className="mono">dev/generate_pack_system.mjs</span> per category (normal template mode—no forced generic
-          mode), <strong>validate</strong> the pack, and <strong>load</strong> it into <span className="mono">config/</span>.
+          If you don’t have a category yet—or you want a fresh one shaped around what you do—I’ll build one from the
+          name you give me.
         </p>
         <p>
-          <strong>Progress:</strong> (1) Checking connection → (2) Researching industry → (3) Structuring categories
-          → (4) Generating references → (5) Building system → (6) Finalizing.
+          I’ll gather context that fits your line of work, group things in a way that makes sense for you, and add
+          supporting detail so nothing feels thrown together.
+        </p>
+        <p>You get a real starting point you can refine anytime, instead of staring at a blank page.</p>
+        <p>
+          First I’ll check that we’re online, then you tell me what you’re aiming for and I’ll take it from there.
         </p>
         <p>
-          <strong>Compared to a hand-built pack:</strong> what I build here mixes public research snippets with synthetic
-          assets and auto-templates. It’s a <strong>starting point</strong>, not a finished playbook—you’ll still want to
-          tune <span className="mono">structure.json</span>, <span className="mono">reference.json</span>, and{" "}
-          <span className="mono">templates/&lt;slug&gt;.js</span> for production quality.
-        </p>
-        <p className="create-industry-disclaimer">
-          <strong>Limitations:</strong> Research is limited to approved APIs (no open web browsing). Results are not
-          legal, medical, or compliance advice. If a build fails, I roll back auto-created packs and auto-templates so
-          you’re not stuck with a broken partial pack.
+          Think of me as your launchpad—not as legal, medical, or compliance advice, where your own experts still need
+          the final say.
         </p>
       </div>
 
       <div className="create-industry-net">
-        <p className="create-industry-net-label">Internet (required for research)</p>
+        <p className="create-industry-net-label">Connection</p>
         <div className="create-industry-net-row">
           <button type="button" className="btn btn-secondary" disabled={netBusy} onClick={() => void runNetCheck()}>
             {netBusy ? "Checking…" : net?.connected ? "Re-check connection" : "Check connection"}

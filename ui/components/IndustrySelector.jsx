@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { listIndustryPacks } from "../../interfaces/api.js";
 import { useIndustry } from "../IndustryContext.jsx";
+import { afterCurrentClairaUtteranceOrNow, primeClairaVoicePlayback } from "../voice/clairaSpeech.js";
+import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
+import { ONBOARDING_STEP } from "../onboarding/onboardingFlowMeta.js";
 import CreateIndustryPanel from "./CreateIndustryPanel.jsx";
+import ClairaClaritySignature from "./ClairaClaritySignature.jsx";
+import "../screens/WelcomeScreen.css";
 import "./IndustrySelector.css";
 
 /**
- * @param {{ onLoaded: (industry: string) => void }} props
+ * @param {{
+ *   onLoaded: (industry: string) => void,
+ *   variant?: "full" | "selectOnly",
+ * }} props
  */
-export default function IndustrySelector({ onLoaded }) {
+export default function IndustrySelector({ onLoaded, variant = "full" }) {
   const { loadIndustryPack } = useIndustry();
-  const [welcomePhase, setWelcomePhase] = useState(/** @type {"intro" | "setup"} */ ("intro"));
   const [packs, setPacks] = useState(/** @type {Array<{ slug: string, label: string, inputVerb?: string }>} */ ([]));
   const [value, setValue] = useState("");
   const [listError, setListError] = useState(/** @type {string | null} */ (null));
@@ -48,14 +55,15 @@ export default function IndustrySelector({ onLoaded }) {
     setError(null);
     setStatus(null);
     if (!value) {
-      setError("Pick a pack first—I need to know which industry we’re using.");
+      setError("Pick a category first—I need to know which configuration we’re loading.");
       return;
     }
     setBusy(true);
     try {
       await loadIndustryPack(value);
       setStatus(`Loaded: ${value}`);
-      window.setTimeout(() => onLoaded(value), 500);
+      await afterCurrentClairaUtteranceOrNow();
+      onLoaded(value);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -63,108 +71,180 @@ export default function IndustrySelector({ onLoaded }) {
     }
   }, [value, loadIndustryPack, onLoaded]);
 
-  if (welcomePhase === "intro") {
+  const activatePackWithAck = useCallback(
+    async (slug) => {
+      await loadIndustryPack(slug);
+    },
+    [loadIndustryPack],
+  );
+
+  if (variant === "selectOnly") {
     return (
-      <main className="industry-selector industry-selector--intro">
-        <div className="industry-selector-intro-card card">
-          <p className="industry-selector-intro-kicker">Welcome</p>
-          <h1 className="industry-selector-intro-title">Hi, I&apos;m Claira</h1>
-          <div className="industry-selector-intro-body">
-            <p>
-              I help you work with <strong>industry packs</strong> in this workspace—organizing categories, references,
-              and the flow around your documents so things stay consistent.
+      <div className="industry-selector industry-selector--setup">
+        <p className="industry-selector-guided-hint card">
+          Pick the industry pack that matches this workspace. I read from your <span className="mono">packs/</span>{" "}
+          folder.
+        </p>
+        <div className="industry-selector-columns">
+          <div className="industry-selector-card card">
+            <h1 className="industry-selector-title">Which pack should I load?</h1>
+            <p className="industry-selector-desc">
+              I read packs from your workspace <span className="mono">packs/</span> folder—any folder with a{" "}
+              <span className="mono">structure.json</span> shows up here automatically.
             </p>
-            <p>
-              I&apos;ll stay beside you step by step: whether you&apos;re loading a pack you already have or shaping a
-              new one, we&apos;ll do it together.
-            </p>
+            <label className="industry-selector-label" htmlFor="industry-select">
+              Industry pack
+            </label>
+            {listBusy ? (
+              <p className="industry-selector-status">I’m scanning your workspace for packs…</p>
+            ) : listError ? (
+              <p className="industry-selector-error" role="alert">
+                Could not list packs: {listError}
+              </p>
+            ) : packs.length === 0 ? (
+              <p className="industry-selector-error" role="alert">
+                No packs found. Add a folder under <span className="mono">packs/&lt;slug&gt;/</span> with{" "}
+                <span className="mono">structure.json</span>.
+              </p>
+            ) : (
+              <select
+                id="industry-select"
+                className="industry-selector-select"
+                value={value}
+                disabled={busy}
+                onChange={(e) => setValue(e.target.value)}
+              >
+                {packs.map((o) => (
+                  <option key={o.slug} value={o.slug}>
+                    {o.label} ({o.slug})
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary industry-selector-cta"
+              disabled={busy || listBusy || packs.length === 0 || !value}
+              onClick={() => void handleApply()}
+            >
+              {busy ? "Loading…" : "Continue"}
+            </button>
+            {status ? (
+              <p className="industry-selector-status" role="status">
+                {status}
+              </p>
+            ) : null}
+            {error ? (
+              <p className="industry-selector-error" role="alert">
+                {error}
+              </p>
+            ) : null}
           </div>
-          <p className="industry-selector-intro-ask">How can I help you today?</p>
-          <button type="button" className="btn btn-primary industry-selector-intro-cta" onClick={() => setWelcomePhase("setup")}>
-            Continue
-          </button>
+          <CreateIndustryPanel reloadPacks={loadPackList} activatePack={activatePackWithAck} />
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <div className="industry-selector industry-selector--setup">
-      <section className="industry-selector-continuation card" aria-labelledby="claira-setup-continuation-heading">
-        <h2 id="claira-setup-continuation-heading" className="industry-selector-continuation-title">
-          Let&apos;s get you set up
-        </h2>
-        <p className="industry-selector-continuation-desc">
-          I&apos;m glad you&apos;re here. Next, we&apos;ll choose how you want to begin: load an industry pack that&apos;s
-          already in your <span className="mono">packs/</span> folder, or have me walk through creating a new one on
-          autopilot. Pick the path that fits you—I&apos;ll take it from there.
-        </p>
-        <button type="button" className="industry-selector-back-to-intro" onClick={() => setWelcomePhase("intro")}>
-          Back to introduction
-        </button>
-      </section>
+    <main className="welcome-screen">
+      <ClairaClaritySignature className="claira-clarity-signature--corner" />
+      <div className="welcome-screen-inner welcome-screen-inner--category-wide">
+        <GuidedStepChrome
+          step={ONBOARDING_STEP.packPick}
+          phaseLabel="Choose category"
+          hideBack
+          hideHome
+          hideStartOver={false}
+        >
+          <div className="industry-selector industry-selector--setup">
+            <div className="industry-selector-columns industry-selector-columns--split">
+              <div className="industry-selector-card industry-selector-card--choose card category-glass-panel">
+                <h1 className="industry-selector-title">Choose your category</h1>
+                <div className="industry-selector-desc industry-selector-desc--prose">
+                  <p>
+                    This path is for when you already have a category you trust—something you or your team set up
+                    earlier and want to keep using.
+                  </p>
+                  <p>
+                    I’ll load it so the way I sort, label, and think about your items matches that world, without you
+                    rebuilding everything from scratch.
+                  </p>
+                  <p>
+                    You keep consistency, save time, and avoid the small mismatches that show up when every tool invents
+                    its own system.
+                  </p>
+                  <p>You stay in charge—I’m aligning with what you chose, not replacing your judgment.</p>
+                  <p>
+                    Pick what fits what you’re doing now, then press Continue when you want me to bring it in.
+                  </p>
+                </div>
 
-      <div className="industry-selector-columns">
-        <div className="industry-selector-card card">
-          <h1 className="industry-selector-title">Which pack should I load?</h1>
-          <p className="industry-selector-desc">
-            I read packs from your workspace <span className="mono">packs/</span> folder—any folder with a{" "}
-            <span className="mono">structure.json</span> shows up here automatically.
-          </p>
+                <label className="industry-selector-label" htmlFor="industry-select-full">
+                  Category
+                </label>
+                {listBusy ? (
+                  <p className="industry-selector-status">Scanning your workspace…</p>
+                ) : listError ? (
+                  <p className="industry-selector-error" role="alert">
+                    Could not list packs: {listError}
+                  </p>
+                ) : packs.length === 0 ? (
+                  <p className="industry-selector-error" role="alert">
+                    Nothing to choose yet—create one with Make your category on the right, or come back when a category
+                    has been added for you.
+                  </p>
+                ) : (
+                  <select
+                    id="industry-select-full"
+                    className="industry-selector-select"
+                    value={value}
+                    disabled={busy}
+                    onChange={(e) => setValue(e.target.value)}
+                  >
+                    {packs.map((o) => (
+                      <option key={o.slug} value={o.slug}>
+                        {o.label} ({o.slug})
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-          <label className="industry-selector-label" htmlFor="industry-select">
-            Industry pack
-          </label>
-          {listBusy ? (
-            <p className="industry-selector-status">I’m scanning your workspace for packs…</p>
-          ) : listError ? (
-            <p className="industry-selector-error" role="alert">
-              Could not list packs: {listError}
-            </p>
-          ) : packs.length === 0 ? (
-            <p className="industry-selector-error" role="alert">
-              No packs found. Add a folder under <span className="mono">packs/&lt;slug&gt;/</span> with{" "}
-              <span className="mono">structure.json</span>.
-            </p>
-          ) : (
-            <select
-              id="industry-select"
-              className="industry-selector-select"
-              value={value}
-              disabled={busy}
-              onChange={(e) => setValue(e.target.value)}
-            >
-              {packs.map((o) => (
-                <option key={o.slug} value={o.slug}>
-                  {o.label} ({o.slug})
-                </option>
-              ))}
-            </select>
-          )}
+                <button
+                  type="button"
+                  className="btn btn-primary industry-selector-cta"
+                  disabled={busy || listBusy || packs.length === 0 || !value}
+                  onClick={() =>
+                    void (async () => {
+                      await primeClairaVoicePlayback();
+                      void handleApply();
+                    })()
+                  }
+                >
+                  {busy ? "Loading…" : "Continue"}
+                </button>
 
-          <button
-            type="button"
-            className="btn btn-primary industry-selector-cta"
-            disabled={busy || listBusy || packs.length === 0 || !value}
-            onClick={() => void handleApply()}
-          >
-            {busy ? "Loading…" : "Continue"}
-          </button>
+                {status ? (
+                  <p className="industry-selector-status" role="status">
+                    {status}
+                  </p>
+                ) : null}
+                {error ? (
+                  <p className="industry-selector-error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+              </div>
 
-          {status ? (
-            <p className="industry-selector-status" role="status">
-              {status}
-            </p>
-          ) : null}
-          {error ? (
-            <p className="industry-selector-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-        </div>
-
-        <CreateIndustryPanel reloadPacks={loadPackList} activatePack={loadIndustryPack} />
+              <CreateIndustryPanel
+                reloadPacks={loadPackList}
+                activatePack={activatePackWithAck}
+                className="category-glass-panel"
+              />
+            </div>
+          </div>
+        </GuidedStepChrome>
       </div>
-    </div>
+    </main>
   );
 }

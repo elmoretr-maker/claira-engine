@@ -1,4 +1,5 @@
 import "./RoomsDashboard.css";
+import "../voice/ClairaVoiceChrome.css";
 
 /**
  * @param {unknown} p
@@ -145,8 +146,12 @@ export default function RoomsDashboard({
       ) : null}
 
       <header className="rooms-dashboard-header">
-        <h1>Rooms</h1>
-        <p>Where items landed — grouped from pipeline results (display only).</p>
+        <div className="claira-screen-heading-row">
+          <div>
+            <h1>Rooms</h1>
+            <p>Where items landed — grouped from pipeline results (display only).</p>
+          </div>
+        </div>
       </header>
 
       <div className="rooms-dashboard-grid">

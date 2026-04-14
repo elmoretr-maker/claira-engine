@@ -20,6 +20,8 @@ import {
 } from "../userPrefs.js";
 import CategoryReferencePanel from "../components/CategoryReferencePanel.jsx";
 import ProcessIntel from "../components/ProcessIntel.jsx";
+import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
+import "../voice/ClairaVoiceChrome.css";
 import "./TunnelScreen.css";
 
 /**
@@ -80,6 +82,7 @@ function packDefinesGroups(groups, groupOrder) {
  *   onStepCategoryKeys?: (keys: string[] | null) => void,
  *   progressTrackingEnabled?: boolean,
  *   onOpenProgressTracker?: (categoryKey: string) => void,
+ *   guidedStep?: number,
  * }} props
  */
 export default function TunnelScreen({
@@ -96,6 +99,7 @@ export default function TunnelScreen({
   onStepCategoryKeys,
   progressTrackingEnabled = false,
   onOpenProgressTracker,
+  guidedStep,
 }) {
   const [stepIndex, setStepIndex] = useState(0);
   /** @type {"reference" | "live"} */
@@ -318,12 +322,17 @@ export default function TunnelScreen({
 
   if (!steps.length) {
     return (
-      <div className="tunnel-screen card">
-        <p>No categories selected.</p>
-        <button type="button" className="btn btn-primary" onClick={onExitToEntrance}>
-          Back
-        </button>
-      </div>
+      <>
+        {typeof guidedStep === "number" ? (
+          <GuidedStepChrome step={guidedStep} phaseLabel="Reference learning" />
+        ) : null}
+        <div className="tunnel-screen card">
+          <p>No categories selected.</p>
+          <button type="button" className="btn btn-primary" onClick={onExitToEntrance}>
+            Back
+          </button>
+        </div>
+      </>
     );
   }
 
@@ -331,12 +340,18 @@ export default function TunnelScreen({
   const total = steps.length;
 
   return (
-    <div className="tunnel-screen card">
+    <>
+      {typeof guidedStep === "number" ? (
+        <GuidedStepChrome step={guidedStep} phaseLabel="Reference learning" />
+      ) : null}
+      <div className="tunnel-screen card">
       <header className="tunnel-header">
         <p className="tunnel-step-label">
-          Step {stepNum} of {total}
+          Reference round {stepNum} of {total}
         </p>
-        <h1>Upload — {uploadTargetLabel}</h1>
+        <div className="claira-screen-heading-row">
+          <h1>Upload — {uploadTargetLabel}</h1>
+        </div>
         {displayDescription ? <p className="tunnel-category-desc">{displayDescription}</p> : null}
         {categoryKeys.length > 1 ? (
           <details className="tunnel-includes">
@@ -499,5 +514,6 @@ export default function TunnelScreen({
         </button>
       </div>
     </div>
+    </>
   );
 }

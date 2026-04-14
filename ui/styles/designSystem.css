@@ -1,5 +1,6 @@
-:root {
-  /* Colors */
+/* Default / standard workspace (toggle “Standard” in UI) */
+:root,
+[data-theme="standard"] {
   --bg-main: #0f1115;
   --bg-card: #171a21;
   --bg-hover: #1f2430;
@@ -10,24 +11,91 @@
   --accent: #4f8cff;
   --accent-hover: #6aa3ff;
 
+  /* Logo gradient anchors (Claira Engine wordmark) */
+  --brand-neon-blue: #00d2ff;
+  --brand-neon-magenta: #ff007f;
+  --brand-neon-purple: #bf5af2;
+  --brand-neon-purple-border: color-mix(in srgb, var(--brand-neon-purple) 92%, #ffffff 8%);
+  --brand-neon-purple-glow: color-mix(in srgb, var(--brand-neon-purple) 50%, transparent);
+  --brand-neon-purple-glow-outer: color-mix(in srgb, var(--brand-neon-purple) 22%, transparent);
+
+  --hero-backdrop-base: #0a0c10;
+  --hero-vignette-inner: rgba(10, 12, 16, 0.35);
+  --hero-vignette-mid: rgba(10, 12, 16, 0.82);
+  --hero-vignette-edge: rgba(10, 12, 16, 0.94);
+
+  --chrome-bar-bg: #161a22;
+  --chrome-bar-border: #2d3340;
+  --progress-track: #2d3340;
+  --progress-fill: #5b8def;
+
+  --welcome-card-surface: rgba(22, 26, 34, 0.92);
+  --welcome-card-border: rgba(45, 51, 64, 0.95);
+  --welcome-chrome-surface: rgba(22, 26, 34, 0.88);
+  --welcome-chrome-border: rgba(45, 51, 64, 0.92);
+
+  --card-accent-glow: transparent;
+
   --success: #4caf50;
   --warning: #ffb020;
   --danger: #ff4d4f;
 
-  /* Spacing */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
   --space-lg: 24px;
   --space-xl: 32px;
 
-  /* Radius */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  /* Shadows */
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  --tagline-fg: rgba(154, 163, 178, 0.9);
+  --tagline-fg-hover: rgba(184, 192, 208, 0.95);
+  --tagline-bg-start: rgba(10, 12, 16, 0.94);
+  --tagline-bg-mid: rgba(10, 12, 16, 0.45);
+}
+
+/* Cinematic dark — true black base + hero / logo neon (toggle “Cinematic”) */
+[data-theme="cinematic"] {
+  --bg-main: #020203;
+  --bg-card: #0a0b10;
+  --bg-hover: #12141c;
+
+  --text-primary: #f4f6fa;
+  --text-secondary: #9aa3b2;
+
+  --accent: #00bfe6;
+  --accent-hover: #3dd9ff;
+
+  --brand-neon-purple: #d278f7;
+  --brand-neon-purple-border: color-mix(in srgb, var(--brand-neon-purple) 88%, var(--brand-neon-blue) 12%);
+  --brand-neon-purple-glow: color-mix(in srgb, var(--brand-neon-purple) 45%, transparent);
+  --brand-neon-purple-glow-outer: color-mix(in srgb, var(--brand-neon-magenta) 18%, transparent);
+
+  --hero-backdrop-base: #000000;
+  --hero-vignette-inner: rgba(0, 0, 0, 0.25);
+  --hero-vignette-mid: rgba(4, 2, 12, 0.78);
+  --hero-vignette-edge: rgba(0, 0, 0, 0.92);
+
+  --chrome-bar-bg: rgba(6, 7, 12, 0.92);
+  --chrome-bar-border: color-mix(in srgb, var(--brand-neon-blue) 22%, #1a1e2a 78%);
+  --progress-track: #1a1f2e;
+  --progress-fill: linear-gradient(90deg, var(--brand-neon-blue), var(--brand-neon-magenta));
+
+  --welcome-card-surface: rgba(6, 7, 11, 0.94);
+  --welcome-card-border: color-mix(in srgb, var(--brand-neon-purple) 32%, #1e2230 68%);
+  --welcome-chrome-surface: rgba(6, 7, 11, 0.9);
+  --welcome-chrome-border: color-mix(in srgb, var(--brand-neon-blue) 18%, #252a38 82%);
+
+  --card-accent-glow: 0 0 0 1px color-mix(in srgb, var(--brand-neon-blue) 14%, transparent);
+
+  --tagline-fg: rgba(160, 170, 190, 0.92);
+  --tagline-fg-hover: rgba(200, 210, 230, 0.96);
+  --tagline-bg-start: rgba(0, 0, 0, 0.92);
+  --tagline-bg-mid: rgba(0, 0, 0, 0.4);
 }
 
 body {
@@ -42,14 +110,15 @@ body {
   transition:
     background 0.2s ease,
     transform 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .card {
   background: var(--bg-card);
   border-radius: var(--radius-md);
   padding: var(--space-md);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card), var(--card-accent-glow);
 }
 
 .card:hover {
@@ -62,7 +131,7 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
   border: none;
-  transition: transform 0.1s ease, background 0.2s ease;
+  transition: transform 0.1s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .btn:active {
@@ -71,7 +140,12 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: white;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+[data-theme="cinematic"] .btn-primary {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--brand-neon-blue) 35%, transparent);
 }
 
 .btn-primary:hover {
@@ -82,6 +156,17 @@ body {
   background: transparent;
   border: 1px solid var(--text-secondary);
   color: var(--text-secondary);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+
+.btn-ghost:hover {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--text-secondary) 35%, transparent);
 }
 
 /* Screen change (see also .app-screen-fade keyframes) */
@@ -122,4 +207,27 @@ body {
   100% {
     opacity: 1;
   }
+}
+
+/* Suggestions strip (main.jsx) */
+.app-suggestions-strip {
+  padding: 0 1.5rem 2rem;
+  background: var(--bg-main);
+  border-top: 1px solid var(--chrome-bar-border);
+}
+
+.app-suggestions-refresh {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 40%, transparent);
+  background: var(--progress-track);
+  color: var(--text-primary);
+}
+
+.app-suggestions-refresh:hover {
+  background: var(--bg-hover);
 }

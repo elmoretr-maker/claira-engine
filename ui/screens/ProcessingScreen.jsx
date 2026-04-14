@@ -6,6 +6,8 @@ import { registerSimulation } from "../../core/simulationRegistry.js";
 import "./ProcessingScreen.css";
 import { formatPipelineErrorForDisplay } from "../formatPipelineError.js";
 import { ingestData, processData, processFolder } from "../../interfaces/api.js";
+import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
+import "../voice/ClairaVoiceChrome.css";
 
 registerSimulation({
   name: "processing_replay_ui",
@@ -113,6 +115,7 @@ function stageHintForRow(row) {
  *   }) => void,
  *   onViewRooms?: () => void,
  *   runtimeContext?: { appMode?: string, oversightLevel?: string },
+ *   guidedStep?: number,
  * }} props
  */
 export default function ProcessingScreen({
@@ -128,6 +131,7 @@ export default function ProcessingScreen({
   onProcessingComplete,
   onViewRooms,
   runtimeContext,
+  guidedStep,
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(/** @type {string | null} */ (null));
@@ -283,19 +287,25 @@ export default function ProcessingScreen({
   ]);
 
   return (
-    <div className="processing-screen">
+    <>
+      {typeof guidedStep === "number" ? (
+        <GuidedStepChrome step={guidedStep} phaseLabel="Processing" />
+      ) : null}
+      <div className="processing-screen">
       <header className="processing-header">
-        <div>
-          <h1>I’m processing your items</h1>
-          {entranceContext?.intentLabel ? (
-            <p className="processing-subtitle">
-              From intake: {entranceContext.intentLabel}
-              {entranceContext.settings?.autoMove === false ? " · Auto-move off" : null}
-            </p>
-          ) : null}
+        <div className="claira-screen-heading-row" style={{ flex: "1 1 auto", minWidth: 0 }}>
+          <div>
+            <h1>I’m processing your items</h1>
+            {entranceContext?.intentLabel ? (
+              <p className="processing-subtitle">
+                From intake: {entranceContext.intentLabel}
+                {entranceContext.settings?.autoMove === false ? " · Auto-move off" : null}
+              </p>
+            ) : null}
+          </div>
         </div>
         <div className="processing-actions">
-          {typeof onBackToEntrance === "function" ? (
+          {typeof onBackToEntrance === "function" && typeof guidedStep !== "number" ? (
             <button type="button" className="btn btn-secondary" onClick={onBackToEntrance}>
               Back to intake
             </button>
@@ -428,6 +438,7 @@ export default function ProcessingScreen({
         stages: {STAGES.map((s) => (s === highlight ? `[${s}]` : s)).join(" → ")}
       </footer>
     </div>
+    </>
   );
 }
 

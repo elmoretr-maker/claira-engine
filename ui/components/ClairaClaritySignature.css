@@ -1,0 +1,101 @@
+/* Script face loaded in index.html (Great Vibes) */
+
+.claira-clarity-signature {
+  pointer-events: none;
+  user-select: none;
+  z-index: 4;
+}
+
+.claira-clarity-signature--corner,
+.claira-clarity-signature--corner-bottom {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right, 0px) + 0.75rem);
+  max-width: min(17.5rem, 42vw);
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--brand-neon-purple) 35%, transparent));
+}
+
+/* Upper-right — category / flows that share the header band */
+.claira-clarity-signature--corner {
+  top: max(4.75rem, env(safe-area-inset-top, 0px) + 3.5rem);
+  transform-origin: 70% 0%;
+}
+
+/* Lower-right — welcome / home; clear fixed .app-brand-tagline footer + breathe */
+.claira-clarity-signature--corner-bottom {
+  top: auto;
+  bottom: max(7rem, env(safe-area-inset-bottom, 0px) + 5.75rem);
+  transform-origin: 88% 100%;
+}
+
+.claira-clarity-signature__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* Bright white script — primary focal word */
+.claira-clarity-signature__name {
+  font-family: "Great Vibes", "Segoe Script", "Brush Script MT", cursive;
+  font-size: clamp(2.35rem, 5.5vw, 3.6rem);
+  font-weight: 400;
+  line-height: 0.88;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+  text-shadow:
+    0 0 28px color-mix(in srgb, var(--brand-neon-blue) 28%, transparent),
+    0 0 40px color-mix(in srgb, var(--brand-neon-magenta) 12%, transparent),
+    0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/*
+ * Interlock: tuck the caps line under the script baseline so they meet visually.
+ * Gradient matches Engine wordmark neon (theme tokens).
+ */
+.claira-clarity-signature__tagline {
+  display: block;
+  margin-top: -0.2em;
+  padding-top: 0.12em;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: clamp(0.52rem, 1.35vw, 0.68rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: linear-gradient(
+    105deg,
+    var(--brand-neon-blue) 0%,
+    var(--brand-neon-magenta) 45%,
+    var(--brand-neon-purple) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (max-width: 520px) {
+  .claira-clarity-signature--corner {
+    top: max(4rem, env(safe-area-inset-top, 0px) + 3rem);
+    right: 0.5rem;
+    max-width: min(11rem, 52vw);
+    transform: rotate(-6deg);
+  }
+
+  .claira-clarity-signature--corner-bottom {
+    right: 0.5rem;
+    bottom: max(6rem, env(safe-area-inset-bottom, 0px) + 4.75rem);
+    max-width: min(11rem, 52vw);
+    transform: rotate(-6deg);
+    transform-origin: 92% 100%;
+  }
+
+  .claira-clarity-signature__name {
+    font-size: clamp(1.85rem, 9vw, 2.6rem);
+  }
+
+  .claira-clarity-signature__tagline {
+    font-size: clamp(0.45rem, 2.6vw, 0.58rem);
+    letter-spacing: 0.12em;
+  }
+}

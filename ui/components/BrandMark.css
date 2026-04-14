@@ -1,0 +1,35 @@
+.brand-mark {
+  display: block;
+  object-fit: contain;
+  height: auto;
+  flex-shrink: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.brand-mark--sm {
+  width: auto;
+  max-height: 26px;
+  max-width: min(118px, 28vw);
+}
+
+.brand-mark--md {
+  width: auto;
+  max-height: 34px;
+  max-width: min(150px, 36vw);
+}
+
+.brand-mark--lg {
+  width: auto;
+  max-height: 52px;
+  max-width: min(220px, 70vw);
+}
+
+/* Welcome card corner: sized in WelcomeScreen.css */
+
+.brand-mark--icon-only.brand-mark--sm {
+  max-height: 24px;
+  max-width: 28px;
+  object-fit: cover;
+  object-position: left center;
+}

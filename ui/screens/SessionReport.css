@@ -20,6 +20,41 @@
   color: var(--text-secondary);
 }
 
+.session-report-table-card {
+  padding: var(--space-md);
+}
+
+.session-report-table-wrap {
+  overflow-x: auto;
+  margin-bottom: var(--space-sm);
+}
+
+.session-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.session-report-table th,
+.session-report-table td {
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--border-subtle, #2d3340);
+}
+
+.session-report-table-mono {
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+
+.session-report-workspace-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-top: var(--space-md);
+}
+
 .session-report-section {
   margin-bottom: var(--space-xl);
 }

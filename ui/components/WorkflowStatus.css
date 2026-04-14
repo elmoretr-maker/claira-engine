@@ -3,7 +3,9 @@
   flex-direction: column;
   align-items: stretch;
   padding: var(--space-sm) var(--space-md);
-  background: var(--bg-card);
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid color-mix(in srgb, var(--text-secondary) 18%, transparent);
   box-sizing: border-box;
 }
@@ -23,6 +25,14 @@
   gap: var(--space-md);
   flex-wrap: wrap;
   width: 100%;
+}
+
+.app-workflow-top-bar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .app-workflow-top-bar-row .app-workflow-top-bar-tools {
@@ -55,6 +65,12 @@
   color: var(--bg-main);
   background: var(--warning);
   white-space: nowrap;
+}
+
+[data-theme="cinematic"] .simulation-mode-badge--live {
+  background: color-mix(in srgb, var(--brand-neon-blue) 22%, #1a2330);
+  color: var(--brand-neon-blue);
+  border: 1px solid color-mix(in srgb, var(--brand-neon-blue) 45%, transparent);
 }
 
 .real-integration-gap-banner {

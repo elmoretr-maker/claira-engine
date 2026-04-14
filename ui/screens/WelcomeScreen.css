@@ -1,0 +1,125 @@
+/* Welcome: content stacks above global app backdrop (see appBrandLayer.css). */
+
+.welcome-screen {
+  position: relative;
+  width: 100%;
+  overflow-x: hidden;
+  padding: 0;
+  margin: 0;
+}
+
+.welcome-screen-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.welcome-screen-inner .guided-step-wrap {
+  background: var(--welcome-chrome-surface);
+  border: 1px solid var(--welcome-chrome-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.welcome-card {
+  position: relative;
+  padding: 2rem 1.75rem;
+  padding-top: 2.75rem;
+  padding-right: 2rem;
+  background: var(--welcome-card-surface);
+  border: 1px solid var(--welcome-card-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.welcome-brand-mark {
+  position: absolute;
+  top: 0.85rem;
+  right: 1rem;
+  max-height: 100px;
+  max-width: min(380px, 82vw);
+  width: auto;
+}
+
+.welcome-page-title {
+  text-align: center;
+  font-size: clamp(2rem, 5.2vw, 2.85rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.5rem;
+  padding-inline: 0.5rem;
+  color: #f6f8fc;
+  text-shadow: 0 0 40px color-mix(in srgb, var(--brand-neon-blue) 18%, transparent);
+}
+
+.welcome-kicker {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7c8799;
+  margin: 0 0 0.35rem;
+}
+
+.welcome-title {
+  font-size: 1.85rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  color: #f0f2f5;
+}
+
+.welcome-lead {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: #d8dce4;
+  margin: 0 0 1rem;
+}
+
+.welcome-body {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #a8b0bf;
+  margin: 0 0 1.5rem;
+}
+
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.welcome-start {
+  min-width: 8rem;
+}
+
+@media (max-width: 520px) {
+  .welcome-brand-mark {
+    position: static;
+    display: block;
+    margin: 0 0 0.85rem auto;
+    max-height: 80px;
+    max-width: min(320px, 92vw);
+  }
+
+  .welcome-page-title {
+    font-size: clamp(1.75rem, 7vw, 2.35rem);
+  }
+
+  .welcome-card {
+    padding-top: 2rem;
+    padding-right: 1.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .welcome-screen-inner {
+    padding: 1.25rem 1rem 2rem;
+  }
+}

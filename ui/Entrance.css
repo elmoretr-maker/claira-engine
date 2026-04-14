@@ -130,6 +130,22 @@
   font-size: 0.95rem;
 }
 
+.entrance-details-body {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.entrance-details-sub {
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0.35rem;
+}
+
+.entrance-settings--spaced {
+  margin-top: 0.5rem;
+}
+
 .entrance-details summary {
   cursor: pointer;
   font-weight: 600;

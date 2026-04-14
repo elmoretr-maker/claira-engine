@@ -13,6 +13,9 @@ import {
   setTunnelGranular,
 } from "../userPrefs.js";
 import ProcessIntel from "../components/ProcessIntel.jsx";
+import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
+import { setStructureSetupComplete } from "../userPrefs.js";
+import "../voice/ClairaVoiceChrome.css";
 import "./CapabilityScreen.css";
 
 /**
@@ -44,9 +47,10 @@ function ungroupedCategoryKeys(groups, groupOrder, allKeys) {
  *   packProcesses?: Record<string, unknown>,
  *   onContinue: (selected: string[]) => void,
  *   onBack?: () => void,
+ *   guidedStep?: number,
  * }} props
  */
-export default function CapabilityScreen({ packProcesses = {}, onContinue, onBack }) {
+export default function CapabilityScreen({ packProcesses = {}, onContinue, onBack, guidedStep }) {
   const { industrySlug } = useIndustry();
   /** @type {Array<{ key: string, label: string, description: string }>} */
   const [flatEntries, setFlatEntries] = useState([]);
@@ -202,6 +206,7 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
       setTunnelStepIndex(0);
       setTunnelSkippedMap({});
       clearTunnelExampleCounts();
+      setStructureSetupComplete(false);
       maybeCompleteSetupWithZeroCapabilities();
       onContinue([]);
       return;
@@ -213,6 +218,7 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
 
     setSelectedCapabilities(list);
     if (!same) {
+      setStructureSetupComplete(false);
       setTunnelStepIndex(0);
       setTunnelSkippedMap({});
       clearTunnelExampleCounts();
@@ -221,16 +227,24 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
   }, [onContinue, selected, groups, groupOrder, categoryUi]);
 
   return (
-    <div className="capability-screen card">
+    <>
+      {typeof guidedStep === "number" ? (
+        <GuidedStepChrome step={guidedStep} phaseLabel="Capabilities" />
+      ) : null}
+      <div className="capability-screen card">
       <header className="capability-screen-header">
-        <h1>What would you like me to focus on?</h1>
-        <p className="capability-screen-desc">
-          I’ve grouped what your pack can handle—tick the areas you want me to help with. Open a group anytime to see the
-          exact categories I’ll watch.
-        </p>
+        <div className="claira-screen-heading-row">
+          <div>
+            <h1>What would you like me to focus on?</h1>
+            <p className="capability-screen-desc">
+              I’ve grouped what your pack can handle—tick the areas you want me to help with. Open a group anytime to see
+              the exact categories I’ll watch.
+            </p>
+          </div>
+        </div>
       </header>
 
-      {onBack ? (
+      {onBack && typeof guidedStep !== "number" ? (
         <button type="button" className="btn btn-secondary capability-back" onClick={onBack}>
           Back
         </button>
@@ -360,12 +374,13 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
 
       <div className="capability-actions">
         <button type="button" className="btn btn-primary" disabled={busy} onClick={handleContinue}>
-          Continue
+          Next
         </button>
         <p className="capability-hint">
           You can continue with nothing selected—I’ll skip guided setup and leave learning mode for now.
         </p>
       </div>
     </div>
+    </>
   );
 }

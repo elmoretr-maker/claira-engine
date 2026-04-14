@@ -1,4 +1,5 @@
 import "./styles/designSystem.css";
+import "./styles/appBrandLayer.css";
 import "../adapters/mockExternalAdapter.js";
 import { isRealExternalIntegrationReady } from "../core/integrationAvailability.js";
 import { REAL_MODE_INTEGRATION_REQUIRED_MESSAGE } from "./formatPipelineError.js";
@@ -17,7 +18,9 @@ import {
   getRooms,
   getSuggestions,
 } from "../interfaces/api.js";
+import BrandMark from "./components/BrandMark.jsx";
 import SimulationPanel from "./components/SimulationPanel.jsx";
+import ThemeToggle from "./components/ThemeToggle.jsx";
 import WorkflowStatus from "./components/WorkflowStatus.jsx";
 import Entrance from "./Entrance.jsx";
 import ProcessingScreen from "./screens/ProcessingScreen.jsx";
@@ -27,6 +30,10 @@ import SessionReport from "./screens/SessionReport.jsx";
 import { compareSessionWorkflow } from "./sessionWorkflowCompare.js";
 import WaitingRoom from "./screens/WaitingRoom.jsx";
 import IndustrySelector from "./components/IndustrySelector.jsx";
+import GuidedStepChrome from "./onboarding/GuidedStepChrome.jsx";
+import { computeOnboardingCanGoBack } from "./onboarding/computeOnboardingCanGoBack.js";
+import { OnboardingNavProvider } from "./onboarding/OnboardingNavContext.jsx";
+import { ONBOARDING_STEP } from "./onboarding/onboardingFlowMeta.js";
 import IndustryFeaturePrompt from "./components/IndustryFeaturePrompt.jsx";
 import IndustryFeaturesSettings from "./components/IndustryFeaturesSettings.jsx";
 import ProgressTracker from "./components/ProgressTracker.jsx";
@@ -35,9 +42,16 @@ import ProductWorkspacePanel from "./components/ProductWorkspacePanel.jsx";
 import RiskInsightsBanner from "./components/RiskInsightsBanner.jsx";
 import CapabilityScreen from "./screens/CapabilityScreen.jsx";
 import TunnelScreen from "./screens/TunnelScreen.jsx";
+import StructureSetupScreen from "./screens/StructureSetupScreen.jsx";
+import WelcomeScreen from "./screens/WelcomeScreen.jsx";
 import { IndustryProvider, useIndustry } from "./IndustryContext.jsx";
+import { VoiceOnboardingProvider, useVoiceOnboarding } from "./voice/VoiceOnboardingContext.jsx";
+import OnboardingVoiceSync from "./voice/OnboardingVoiceSync.jsx";
+import { VoiceGuidanceTools } from "./voice/VoiceGuidanceTools.jsx";
+import { deriveOnboardingVoiceStep, deriveVoiceReplayStep } from "./voice/deriveOnboardingVoiceStep.js";
 import { isReviewPipelineRow } from "./pipelineRowUtils.js";
 import { buildTunnelSteps, fingerprintSelectedCaps, normalizeStoredTunnelSteps } from "./tunnelSteps.js";
+import { UiThemeProvider } from "./theme/UiThemeContext.jsx";
 import {
   bumpSetupConflictsResolved,
   getAppMode,
@@ -47,9 +61,14 @@ import {
   getResolvedTunnelStepCount,
   getTunnelGranular,
   getTunnelStepIndex,
+  getStructureSetupComplete,
+  clearAllOnboardingLocalStorage,
   maybeCompleteSetupAfterSession,
   setAppMode,
   setOversightLevel,
+  setTunnelStepIndex,
+  getIndustryGateComplete,
+  setIndustryGateComplete,
   STORAGE_INDUSTRY,
   isProgressTrackingUiEnabled,
 } from "./userPrefs.js";
@@ -73,22 +92,25 @@ function formatPackDisplayTitle(slug, packLabel) {
     .join(" ");
 }
 
-function getIndustryGateInitiallyDone() {
+function getInitialPreAppPhase() {
+  if (getIndustryGateComplete()) return "welcome";
   try {
-    return Boolean(localStorage.getItem(STORAGE_INDUSTRY));
+    if (localStorage.getItem(STORAGE_INDUSTRY)) return "packEntry";
   } catch {
-    return false;
+    /* ignore */
   }
+  return "welcome";
 }
 
 /**
- * @returns {"capabilities" | "tunnel" | "entrance"}
+ * @returns {"capabilities" | "structure" | "tunnel" | "entrance"}
  */
 function getSetupEntryScreen() {
   if (getAppMode() !== "setup") return "entrance";
   const sel = getSelectedCapabilities();
   const step = getTunnelStepIndex();
   if (sel.length === 0) return "capabilities";
+  if (!getStructureSetupComplete()) return "structure";
   if (step < getResolvedTunnelStepCount(sel)) return "tunnel";
   return "entrance";
 }
@@ -104,24 +126,6 @@ function hasWorkflowMonitorInputs(expectedItems, pipelineResults) {
   const hasRows = Array.isArray(pipelineResults) && pipelineResults.length > 0;
   return userExp || hasRows;
 }
-
-const suggestionsStripStyle = {
-  padding: "0 1.5rem 2rem",
-  background: "#0f1115",
-  borderTop: "1px solid #2d3340",
-};
-
-const refreshSuggestionsBtnStyle = {
-  marginBottom: "0.75rem",
-  padding: "0.5rem 1rem",
-  borderRadius: "8px",
-  fontSize: "0.88rem",
-  fontWeight: 600,
-  cursor: "pointer",
-  border: "1px solid #4b5563",
-  background: "#2d3340",
-  color: "#e8eaed",
-};
 
 /**
  * @param {unknown} row
@@ -174,8 +178,8 @@ function pipelineRowToWaitingRoomItem(row) {
  */
 function SuggestionsStrip({ suggestions, onRefresh }) {
   return (
-    <div style={suggestionsStripStyle}>
-      <button type="button" style={refreshSuggestionsBtnStyle} onClick={() => void onRefresh()}>
+    <div className="app-suggestions-strip">
+      <button type="button" className="app-suggestions-refresh" onClick={() => void onRefresh()}>
         Refresh Suggestions
       </button>
       <SuggestionsPanel suggestions={suggestions} />
@@ -183,26 +187,31 @@ function SuggestionsStrip({ suggestions, onRefresh }) {
   );
 }
 
+const START_OVER_CONFIRM = "Are you sure you want to start over? This will reset your setup.";
+
 function App() {
-  const { industrySlug } = useIndustry();
-  const [industryGateDone, setIndustryGateDone] = useState(getIndustryGateInitiallyDone);
+  const { cancelAllSpeech } = useVoiceOnboarding();
+  const { industrySlug, setIndustrySlug } = useIndustry();
+  const [industryGateDone, setIndustryGateDone] = useState(() => getIndustryGateComplete());
+  const [preAppPhase, setPreAppPhase] = useState(/** @type {"packEntry" | "welcome"} */ () => getInitialPreAppPhase());
+  const [industryHomeKey, setIndustryHomeKey] = useState(0);
 
   const [appMode, setAppModeState] = useState(getAppMode);
   const [oversightLevel, setOversightLevelState] = useState(getOversightLevel);
 
   const returnFromLogsRef = useRef(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "capabilities" | "tunnel" | "progress" | "workspace"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace"} */ (
       "entrance"
     ),
   );
   const workspaceReturnRef = useRef(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "progress"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress"} */ (
       "entrance"
     ),
   );
 
   const [screen, setScreen] = useState(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "progress" | "workspace"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace"} */ (
       "entrance"
     ),
   );
@@ -375,13 +384,194 @@ function App() {
 
   const showRealIntegrationGap = SYSTEM_MODE === "real" && !isRealExternalIntegrationReady();
 
-  if (!industryGateDone) {
+  const canGoBack = useMemo(
+    () =>
+      computeOnboardingCanGoBack({
+        industryGateDone,
+        preAppPhase,
+        screen,
+        appMode,
+      }),
+    [industryGateDone, preAppPhase, screen, appMode],
+  );
+
+  const goBack = useCallback(() => {
+    if (
+      !computeOnboardingCanGoBack({
+        industryGateDone,
+        preAppPhase,
+        screen,
+        appMode,
+      })
+    ) {
+      return;
+    }
+
+    cancelAllSpeech();
+
+    if (!industryGateDone) {
+      if (preAppPhase === "packEntry") {
+        setPreAppPhase("welcome");
+        setIndustryHomeKey((k) => k + 1);
+      }
+      return;
+    }
+
+    switch (screen) {
+      case "capabilities":
+        if (appMode === "runtime") {
+          setScreen("entrance");
+        } else {
+          setIndustryGateDone(false);
+          setIndustryGateComplete(false);
+          setPreAppPhase("packEntry");
+        }
+        break;
+      case "structure":
+        setScreen("capabilities");
+        break;
+      case "tunnel":
+        setScreen("structure");
+        break;
+      case "entrance":
+        if (tunnelSteps.length > 0) {
+          setTunnelStepIndex(Math.max(0, tunnelSteps.length - 1));
+        }
+        setScreen("tunnel");
+        break;
+      case "processing":
+        setScreen("entrance");
+        break;
+      case "report":
+        setScreen("processing");
+        break;
+      case "waiting":
+        setScreen("report");
+        break;
+      case "rooms":
+        setScreen(reviewItems.length > 0 ? "waiting" : "report");
+        break;
+      case "workspace":
+        setScreen(workspaceReturnRef.current);
+        break;
+      case "progress":
+        setProgressFocusCategory("");
+        setScreen("entrance");
+        break;
+      case "logs":
+        setScreen(returnFromLogsRef.current);
+        break;
+      default:
+        break;
+    }
+  }, [
+    industryGateDone,
+    preAppPhase,
+    screen,
+    appMode,
+    reviewItems.length,
+    tunnelSteps.length,
+    setIndustryGateDone,
+    setScreen,
+    setTunnelStepIndex,
+    cancelAllSpeech,
+  ]);
+
+  const startOver = useCallback(() => {
+    if (!window.confirm(START_OVER_CONFIRM)) return;
+    cancelAllSpeech();
+    clearAllOnboardingLocalStorage();
+    setIndustrySlug("");
+    setIndustryGateDone(false);
+    setPreAppPhase("welcome");
+    setIndustryHomeKey((k) => k + 1);
+    setScreen("entrance");
+    setIntakePayload(null);
+    setPipelineResults([]);
+    setSessionSummary(null);
+    setReviewItems([]);
+    setSuggestions([]);
+    setRooms([]);
+    setExpectedItems([]);
+    setProgressFocusCategory("");
+    setAppModeState(getAppMode());
+    setOversightLevelState(getOversightLevel());
+    setTunnelPlanRev((n) => n + 1);
+  }, [cancelAllSpeech, setIndustrySlug]);
+
+  const goToWelcome = useCallback(() => {
+    cancelAllSpeech();
+    setIndustryGateDone(false);
+    setIndustryGateComplete(false);
+    setPreAppPhase("welcome");
+  }, [cancelAllSpeech]);
+
+  const onboardingNavValue = useMemo(
+    () => ({
+      goBack,
+      startOver,
+      goToWelcome,
+      canGoBack,
+    }),
+    [goBack, startOver, goToWelcome, canGoBack],
+  );
+
+  const onboardingVoiceStep = useMemo(
+    () =>
+      deriveOnboardingVoiceStep({
+        industryGateDone,
+        preAppPhase,
+        screen,
+      }),
+    [industryGateDone, preAppPhase, screen],
+  );
+
+  const voiceReplayStep = useMemo(
+    () =>
+      deriveVoiceReplayStep({
+        industryGateDone,
+        preAppPhase,
+        screen,
+      }),
+    [industryGateDone, preAppPhase, screen],
+  );
+
+  /**
+   * @param {import("react").ReactNode} el
+   * @param {{ voiceSyncKey?: string }} [opts]
+   */
+  const shell = (el, opts = {}) => {
+    const { voiceSyncKey = "app" } = opts;
     return (
+      <OnboardingNavProvider value={onboardingNavValue}>
+        <OnboardingVoiceSync key={voiceSyncKey} voiceSyncKey={voiceSyncKey} step={onboardingVoiceStep} />
+        {el}
+      </OnboardingNavProvider>
+    );
+  };
+
+  if (!industryGateDone && preAppPhase === "welcome") {
+    return shell(
+      <WelcomeScreen
+        onStart={() => {
+          setPreAppPhase("packEntry");
+        }}
+      />,
+      { voiceSyncKey: `welcome-${industryHomeKey}` },
+    );
+  }
+
+  if (!industryGateDone && preAppPhase === "packEntry") {
+    return shell(
       <IndustrySelector
+        key={industryHomeKey}
+        variant="full"
         onLoaded={() => {
+          setIndustryGateComplete(true);
           setIndustryGateDone(true);
         }}
-      />
+      />,
+      { voiceSyncKey: `pack-${industryHomeKey}` },
     );
   }
 
@@ -389,14 +579,28 @@ function App() {
     <header className="app-workflow-top-bar">
       <div className="app-workflow-top-bar-inner">
         <div className="app-workflow-top-bar-row">
-          {SYSTEM_MODE === "simulation" ? (
-            <span className="simulation-mode-badge">Simulation Mode Active</span>
-          ) : showRealIntegrationGap ? (
-            <span className="real-integration-gap-banner" role="status">
-              {REAL_MODE_INTEGRATION_REQUIRED_MESSAGE}
-            </span>
-          ) : null}
+          <div className="app-workflow-top-bar-brand">
+            <BrandMark size="sm" />
+            {SYSTEM_MODE === "simulation" ? (
+              <span className="simulation-mode-badge">Practice</span>
+            ) : showRealIntegrationGap ? (
+              <span className="real-integration-gap-banner" role="status">
+                {REAL_MODE_INTEGRATION_REQUIRED_MESSAGE}
+              </span>
+            ) : (
+              <span className="simulation-mode-badge simulation-mode-badge--live">Live</span>
+            )}
+          </div>
           <div className="app-workflow-top-bar-tools">
+            <ThemeToggle />
+            {industryGateDone && appMode === "runtime" ? <VoiceGuidanceTools step={voiceReplayStep} /> : null}
+            <button
+              type="button"
+              className="btn btn-ghost app-onboarding-start-over"
+              onClick={() => onboardingNavValue.startOver()}
+            >
+              Start over
+            </button>
             {screen !== "workspace" ? (
               <button
                 type="button"
@@ -443,7 +647,7 @@ function App() {
           <summary>Simulated features (audit)</summary>
           <SimulationPanel />
         </details>
-        {screen !== "logs" && screen !== "capabilities" && screen !== "workspace" ? (
+        {screen !== "logs" && screen !== "capabilities" && screen !== "structure" && screen !== "workspace" ? (
           <RiskInsightsBanner
             insights={riskInsights}
             categoryFilter={screen === "tunnel" ? tunnelCategoryScope : null}
@@ -459,9 +663,12 @@ function App() {
   );
 
   if (screen === "workspace") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
+        {appMode === "setup" ? (
+          <GuidedStepChrome step={ONBOARDING_STEP.complete} phaseLabel="Workspace" />
+        ) : null}
         <div key={screen} className="app-screen-fade">
           <ProductWorkspacePanel
             industrySlug={industrySlug}
@@ -469,12 +676,12 @@ function App() {
             onBack={() => setScreen(workspaceReturnRef.current)}
           />
         </div>
-      </>
+      </>,
     );
   }
 
   if (screen === "progress") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
         <div key={screen} className="app-screen-fade">
@@ -488,17 +695,34 @@ function App() {
             }}
           />
         </div>
-      </>
+      </>,
+    );
+  }
+
+  if (screen === "structure") {
+    return shell(
+      <>
+        {workflowTopBar}
+        <div key={screen} className="app-screen-fade">
+          <StructureSetupScreen
+            onContinue={() => {
+              setOversightLevelState(getOversightLevel());
+              setScreen("tunnel");
+            }}
+          />
+        </div>
+      </>,
     );
   }
 
   if (screen === "capabilities") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
         <div key={screen} className="app-screen-fade">
           <CapabilityScreen
             packProcesses={packProcesses}
+            guidedStep={appMode === "setup" ? ONBOARDING_STEP.capabilities : undefined}
             onContinue={(selected) => {
               setAppModeState(getAppMode());
               if (selected.length === 0) {
@@ -506,17 +730,17 @@ function App() {
                 return;
               }
               void ensureCapabilityOutputFolders(selected).catch(() => {});
-              setScreen("tunnel");
+              setScreen("structure");
             }}
-            onBack={() => setScreen("entrance")}
+            onBack={getAppMode() === "runtime" ? () => setScreen("entrance") : undefined}
           />
         </div>
-      </>
+      </>,
     );
   }
 
   if (screen === "tunnel") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
         <div key={screen} className="app-screen-fade">
@@ -539,18 +763,19 @@ function App() {
               setAppModeState(getAppMode());
               setScreen("entrance");
             }}
+            guidedStep={appMode === "setup" ? ONBOARDING_STEP.tunnel : undefined}
             onProcessingResults={(results) => {
               const derived = results.filter(isReviewPipelineRow).map(pipelineRowToWaitingRoomItem);
               setReviewItems((prev) => [...prev, ...derived]);
             }}
           />
         </div>
-      </>
+      </>,
     );
   }
 
   if (screen === "entrance") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
         <div key={screen} className="app-screen-fade">
@@ -570,14 +795,12 @@ function App() {
               const sel = getSelectedCapabilities();
               const step = getTunnelStepIndex();
               if (sel.length === 0) setScreen("capabilities");
+              else if (!getStructureSetupComplete()) setScreen("structure");
               else if (step < getResolvedTunnelStepCount(sel)) setScreen("tunnel");
               else setScreen("entrance");
             }}
             onOpenCapabilities={() => setScreen("capabilities")}
-            onOversightLevelChange={(level) => {
-              setOversightLevel(level);
-              setOversightLevelState(level);
-            }}
+            guidedStep={appMode === "setup" ? ONBOARDING_STEP.upload : undefined}
             expectedItems={expectedItems}
             onExpectedItemsChange={setExpectedItems}
             onApplyIntegrationFix={setExpectedItems}
@@ -592,12 +815,12 @@ function App() {
             }}
           />
         </div>
-      </>
+      </>,
     );
   }
 
   if (screen === "report") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
         <div key={screen} className="app-screen-fade">
@@ -605,23 +828,30 @@ function App() {
             summary={sessionSummary}
             results={pipelineResults}
             expectedItems={expectedItems}
+            title="Review results"
             onBackToRooms={() => void loadRoomsAndGoToRooms()}
             onContinueToWaiting={reviewItems.length > 0 ? () => setScreen("waiting") : undefined}
             waitingItemCount={reviewItems.length}
+            guidedStep={appMode === "setup" ? ONBOARDING_STEP.review : undefined}
+            onOpenWorkspace={() => {
+              workspaceReturnRef.current = "report";
+              setScreen("workspace");
+            }}
           />
         </div>
-      </>
+      </>,
     );
   }
 
   if (screen === "waiting") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
         <div key={screen} className="app-screen-fade">
           <WaitingRoom
             reviewItems={reviewItems}
             categoryUi={packCategoryUi}
+            guidedStep={appMode === "setup" ? ONBOARDING_STEP.learning : undefined}
             onConflictResolved={(detail) => {
               void (async () => {
                 try {
@@ -664,23 +894,23 @@ function App() {
           />
           <SuggestionsStrip suggestions={suggestions} onRefresh={refreshSuggestions} />
         </div>
-      </>
+      </>,
     );
   }
 
   if (screen === "logs") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
         <div key={screen} className="app-screen-fade app-screen-fade--logs">
           <LogsView onBack={() => setScreen(returnFromLogsRef.current)} />
         </div>
-      </>
+      </>,
     );
   }
 
   if (screen === "rooms") {
-    return (
+    return shell(
       <>
         {workflowTopBar}
         <div key={screen} className="app-screen-fade">
@@ -701,7 +931,7 @@ function App() {
           />
           <SuggestionsStrip suggestions={suggestions} onRefresh={refreshSuggestions} />
         </div>
-      </>
+      </>,
     );
   }
 
@@ -712,7 +942,7 @@ function App() {
       ? /** @type {Record<string, unknown>} */ (intakePayload.settings)
       : undefined;
 
-  return (
+  return shell(
     <>
       {workflowTopBar}
       <div key={screen} className="app-screen-fade">
@@ -723,6 +953,7 @@ function App() {
           ingestInput="references"
           entranceContext={{ intentLabel, settings }}
           runtimeContext={{ appMode, oversightLevel }}
+          guidedStep={appMode === "setup" ? ONBOARDING_STEP.processing : undefined}
           onBackToEntrance={() => {
             setScreen("entrance");
             setIntakePayload(null);
@@ -759,12 +990,29 @@ function App() {
           }}
         />
       </div>
-    </>
+    </>,
   );
 }
 
 createRoot(root).render(
-  <IndustryProvider>
-    <App />
-  </IndustryProvider>,
+  <UiThemeProvider>
+    <IndustryProvider>
+      <VoiceOnboardingProvider>
+        <div className="app-brand-backdrop">
+          <div className="app-brand-main">
+            <App />
+          </div>
+          <footer
+            className="app-brand-tagline"
+            title="Classification, Learning, and Intelligent Resource Assistant — clarity for your work, files, and folders."
+          >
+            <span className="app-brand-tagline-line">
+              Claira Engine — Classification, Learning, and Intelligent Resource Assistant
+            </span>
+            <span className="app-brand-tagline-line app-brand-tagline-line--sub">Claira is clarity for your work.</span>
+          </footer>
+        </div>
+      </VoiceOnboardingProvider>
+    </IndustryProvider>
+  </UiThemeProvider>,
 );

@@ -1,0 +1,29 @@
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  opacity: 0.92;
+}
+
+.theme-toggle:hover {
+  opacity: 1;
+}
+
+.theme-toggle__swatch {
+  width: 1.1rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand-neon-blue), var(--brand-neon-magenta));
+  flex-shrink: 0;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--brand-neon-blue) 35%, transparent);
+}
+
+.theme-toggle__label {
+  color: var(--text-secondary);
+}

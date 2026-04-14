@@ -5,6 +5,7 @@ import {
   workspaceSimulationIngest,
   workspaceSync,
 } from "../clairaApiClient.js";
+import "../voice/ClairaVoiceChrome.css";
 import "./ProductWorkspacePanel.css";
 
 /**
@@ -41,9 +42,17 @@ function formatSyncSuccessToast(r) {
 }
 
 /**
- * @param {{ industrySlug: string, packLabel: string, onBack: () => void }} props
+ * @param {{
+ *   industrySlug: string,
+ *   packLabel: string,
+ *   onBack: () => void,
+ * }} props
  */
-export default function ProductWorkspacePanel({ industrySlug, packLabel, onBack }) {
+export default function ProductWorkspacePanel({
+  industrySlug,
+  packLabel,
+  onBack,
+}) {
   /** @type {"simulation" | "live"} */
   const [mode, setMode] = useState("simulation");
   const [items, setItems] = useState(/** @type {ScanItem[]} */ ([]));
@@ -273,9 +282,11 @@ export default function ProductWorkspacePanel({ industrySlug, packLabel, onBack 
             {packLabel || industrySlug} —             I build this list from your files on disk only. I’ll save your edits when you tap Update.
           </p>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={onBack}>
-          Back
-        </button>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flexShrink: 0 }}>
+          <button type="button" className="btn btn-secondary" onClick={onBack}>
+            Back
+          </button>
+        </div>
       </header>
 
       {toast ? (
@@ -436,12 +447,37 @@ export default function ProductWorkspacePanel({ industrySlug, packLabel, onBack 
                         className="pw-input"
                         disabled={!it.id}
                         value={pe.moveCategory ?? it.category ?? ""}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const newCat = e.target.value;
+                          const origCat = it.category ?? "";
+                          const prevEffective = pe.moveCategory ?? origCat;
                           setPending((p) => ({
                             ...p,
-                            [pathKey]: { ...p[pathKey], moveCategory: e.target.value },
-                          }))
-                        }
+                            [pathKey]: { ...p[pathKey], moveCategory: newCat },
+                          }));
+                          if (!it.id || !newCat || newCat === prevEffective || !origCat) return;
+                          const peerPaths = items
+                            .filter(
+                              (x) =>
+                                x.id &&
+                                x.relPath !== pathKey &&
+                                (x.category ?? "") === origCat &&
+                                ((pending[x.relPath]?.moveCategory ?? x.category ?? "") === origCat),
+                            )
+                            .map((x) => x.relPath);
+                          if (peerPaths.length === 0) return;
+                          const ok = window.confirm(
+                            `Apply this category to ${peerPaths.length} other item(s) in the same category (${origCat})?`,
+                          );
+                          if (!ok) return;
+                          setPending((p) => {
+                            const next = { ...p };
+                            for (const rp of peerPaths) {
+                              next[rp] = { ...next[rp], moveCategory: newCat };
+                            }
+                            return next;
+                          });
+                        }}
                       >
                         <option value="">—</option>
                         {categories.map((c) => (

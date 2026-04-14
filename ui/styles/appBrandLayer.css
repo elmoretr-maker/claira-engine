@@ -1,0 +1,91 @@
+/* Global Claira hero backdrop + subtle brand tagline (UI only). */
+
+.app-brand-backdrop {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.app-brand-backdrop::before {
+  content: "";
+  position: fixed;
+  inset: -5%;
+  z-index: 0;
+  background-color: var(--hero-backdrop-base);
+  background-image: url("/claira-welcome-hero.png");
+  background-repeat: no-repeat;
+  background-position: center 40%;
+  background-size: clamp(140vw, 165vmin, 220vw);
+  pointer-events: none;
+}
+
+.app-brand-backdrop::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 95% 85% at 50% 42%,
+    var(--hero-vignette-inner) 0%,
+    var(--hero-vignette-mid) 55%,
+    var(--hero-vignette-edge) 100%
+  );
+  pointer-events: none;
+}
+
+.app-brand-main {
+  position: relative;
+  z-index: 1;
+  padding-bottom: 2.75rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 480px) {
+  .app-brand-backdrop::before {
+    background-position: center 35%;
+    background-size: clamp(160vw, 200vmin, 260vw);
+  }
+}
+
+.app-brand-tagline {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 0.4rem 1rem max(0.55rem, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  letter-spacing: 0.045em;
+  color: var(--tagline-fg);
+  text-align: center;
+  font-weight: 400;
+  background: linear-gradient(
+    to top,
+    var(--tagline-bg-start) 0%,
+    var(--tagline-bg-mid) 50%,
+    transparent 100%
+  );
+  border: none;
+  cursor: default;
+  user-select: none;
+}
+
+.app-brand-tagline:hover,
+.app-brand-tagline:focus-visible {
+  color: var(--tagline-fg-hover);
+}
+
+.app-brand-tagline-line {
+  display: block;
+}
+
+.app-brand-tagline-line--sub {
+  font-size: 0.94em;
+  opacity: 0.9;
+  margin-top: 0.2em;
+  letter-spacing: 0.03em;
+}
