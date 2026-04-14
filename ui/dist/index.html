@@ -3,9 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Claira — Processing</title>
-    <script type="module" crossorigin src="/assets/index-sfpLmpUW.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-ByZBJVol.css">
+    <meta name="theme-color" content="#020203" />
+    <link rel="icon" href="/claira-engine-logo.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap"
+      rel="stylesheet"
+    />
+    <title>Claira Engine</title>
+    <script>
+      try {
+        var k = "claira_ui_theme";
+        var t = localStorage.getItem(k);
+        if (t !== "standard" && t !== "cinematic") t = "cinematic";
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "cinematic");
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DmpIeKMO.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B02uXZXI.css">
   </head>
   <body>
     <div id="root"></div>
