@@ -19,8 +19,10 @@ import "./GuidedStepChrome.css";
  *   hidePhaseLabel?: boolean,
  *   showHome?: boolean,
  *   onHome?: () => void,
+ *   voiceReplayStep?: number | null,
  *   children?: import("react").ReactNode,
  * }} props
+ * If `voiceReplayStep` is a number, “Hear it again” uses that voice line index instead of `step`.
  */
 export default function GuidedStepChrome({
   step,
@@ -34,6 +36,7 @@ export default function GuidedStepChrome({
   hidePhaseLabel = false,
   showHome = false,
   onHome,
+  voiceReplayStep = null,
   children,
 }) {
   const modeLabel = SYSTEM_MODE === "simulation" ? "Practice" : "Live";
@@ -110,7 +113,7 @@ export default function GuidedStepChrome({
               Start over
             </button>
           ) : null}
-          <VoiceGuidanceTools step={step} />
+          <VoiceGuidanceTools step={typeof voiceReplayStep === "number" ? voiceReplayStep : step} />
         </div>
       </div>
       {children}

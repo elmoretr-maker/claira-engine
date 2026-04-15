@@ -7,14 +7,24 @@ import { useVoiceOnboarding } from "./VoiceOnboardingContext.jsx";
  * Onboarding phase: auto line from `step` only. `voiceSyncKey` remounts the sync when re-entering
  * the same step from outside (e.g. pack → welcome again).
  *
- * @param {{ step: number | null, voiceSyncKey?: string }} props
+ * @param {{
+ *   step: number | null,
+ *   voiceSyncKey?: string,
+ *   suppressAutoSpeakForSteps?: number[],
+ * }} props
  */
-export default function OnboardingVoiceSync({ step, voiceSyncKey = "default" }) {
+export default function OnboardingVoiceSync({ step, voiceSyncKey = "default", suppressAutoSpeakForSteps }) {
+  const suppressed =
+    Array.isArray(suppressAutoSpeakForSteps) &&
+    typeof step === "number" &&
+    suppressAutoSpeakForSteps.includes(step);
   const { speakOnboardingLine, cancelAllSpeech, voiceEnabled } = useVoiceOnboarding();
   const speakRef = useRef(speakOnboardingLine);
   speakRef.current = speakOnboardingLine;
   const cancelRef = useRef(cancelAllSpeech);
   cancelRef.current = cancelAllSpeech;
+  /** Collapses React Strict Mode double-invoke: only the latest scheduled speak runs. */
+  const speakSeqRef = useRef(0);
 
   useEffect(() => {
     if (!voiceEnabled) {
@@ -27,7 +37,14 @@ export default function OnboardingVoiceSync({ step, voiceSyncKey = "default" }) 
       console.log("[Claira] OnboardingVoiceSync step triggered:", step, voiceSyncKey, {
         voiceEnabled,
         maxStep: ONBOARDING_TOTAL_STEPS,
+        suppressed,
       });
+    }
+    if (suppressed) {
+      return () => {
+        speakSeqRef.current += 1;
+        cancelRef.current();
+      };
     }
     if (!voiceEnabled) {
       if (import.meta.env?.DEV) console.log("[Claira] OnboardingVoiceSync: voice off, skip speak");
@@ -49,11 +66,16 @@ export default function OnboardingVoiceSync({ step, voiceSyncKey = "default" }) 
     if (import.meta.env?.DEV) {
       console.log("[Claira] OnboardingVoiceSync: speaking step", step, "len", text.length);
     }
-    speakRef.current(text, { interrupt: true });
+    const id = ++speakSeqRef.current;
+    queueMicrotask(() => {
+      if (id !== speakSeqRef.current) return;
+      speakRef.current(text, { interrupt: true });
+    });
     return () => {
+      speakSeqRef.current += 1;
       cancelRef.current();
     };
-  }, [step, voiceEnabled, voiceSyncKey]);
+  }, [step, voiceEnabled, voiceSyncKey, suppressed]);
 
   return null;
 }

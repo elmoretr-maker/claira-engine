@@ -10,8 +10,9 @@
 function resolveVoiceStepForShell(p, opts = {}) {
   const replayForRooms = opts.replayForRooms === true;
   if (!p.industryGateDone) {
-    if (p.preAppPhase === "welcome") return 1;
-    if (p.preAppPhase === "packEntry") return 0;
+    /* Step 0 = Welcome copy; step 1 = Industry (packEntry). */
+    if (p.preAppPhase === "welcome") return 0;
+    if (p.preAppPhase === "packEntry") return 1;
     return null;
   }
   switch (p.screen) {
@@ -39,7 +40,7 @@ function resolveVoiceStepForShell(p, opts = {}) {
 }
 
 /**
- * Maps app navigation state to onboarding voice step (1–9), or null when no auto-play line applies.
+ * Maps app navigation state to onboarding voice step (0–9), or null when no auto-play line applies.
  *
  * @param {{
  *   industryGateDone: boolean,

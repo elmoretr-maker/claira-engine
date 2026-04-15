@@ -154,7 +154,6 @@ export default function IndustrySelector({ onLoaded, variant = "full" }) {
           step={ONBOARDING_STEP.packPick}
           phaseLabel="Choose category"
           hideBack
-          hideHome
           hideStartOver={false}
         >
           <div className="industry-selector industry-selector--setup">

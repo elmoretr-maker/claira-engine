@@ -69,7 +69,6 @@ import {
   setTunnelStepIndex,
   getIndustryGateComplete,
   setIndustryGateComplete,
-  STORAGE_INDUSTRY,
   isProgressTrackingUiEnabled,
 } from "./userPrefs.js";
 
@@ -93,12 +92,7 @@ function formatPackDisplayTitle(slug, packLabel) {
 }
 
 function getInitialPreAppPhase() {
-  if (getIndustryGateComplete()) return "welcome";
-  try {
-    if (localStorage.getItem(STORAGE_INDUSTRY)) return "packEntry";
-  } catch {
-    /* ignore */
-  }
+  /* Always Welcome first until the user taps Start; do not skip via stored industry. */
   return "welcome";
 }
 
@@ -541,10 +535,15 @@ function App() {
    * @param {{ voiceSyncKey?: string }} [opts]
    */
   const shell = (el, opts = {}) => {
-    const { voiceSyncKey = "app" } = opts;
+    const { voiceSyncKey = "app", suppressAutoSpeakForSteps } = opts;
     return (
       <OnboardingNavProvider value={onboardingNavValue}>
-        <OnboardingVoiceSync key={voiceSyncKey} voiceSyncKey={voiceSyncKey} step={onboardingVoiceStep} />
+        <OnboardingVoiceSync
+          key={voiceSyncKey}
+          voiceSyncKey={voiceSyncKey}
+          step={onboardingVoiceStep}
+          suppressAutoSpeakForSteps={suppressAutoSpeakForSteps}
+        />
         {el}
       </OnboardingNavProvider>
     );
@@ -557,7 +556,7 @@ function App() {
           setPreAppPhase("packEntry");
         }}
       />,
-      { voiceSyncKey: `welcome-${industryHomeKey}` },
+      { voiceSyncKey: `welcome-${industryHomeKey}`, suppressAutoSpeakForSteps: [0] },
     );
   }
 
