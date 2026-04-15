@@ -28,13 +28,83 @@
 
 .welcome-card {
   position: relative;
+  z-index: 0;
   padding: 2rem 1.75rem;
   padding-top: 2.75rem;
+  padding-bottom: 2.35rem;
   padding-right: 2rem;
   background: var(--welcome-card-surface);
   border: 1px solid var(--welcome-card-border);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+/* In-card video: sits on top of card surface, grows with card width */
+.welcome-card__video-shell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0.65rem 0 0.35rem;
+  border-radius: 0.65rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--hero-backdrop-base, #0a0c10) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--welcome-card-border) 75%, transparent);
+  aspect-ratio: 16 / 9;
+  max-height: min(44vh, 24rem);
+}
+
+.welcome-card__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  border: none;
+  outline: none;
+}
+
+.welcome-card__video-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.welcome-card__video-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.5rem;
+  background: linear-gradient(to top, color-mix(in srgb, #05070c 88%, transparent), transparent);
+  pointer-events: auto;
+}
+
+.welcome-card__ctrl {
+  font-size: 0.72rem;
+  padding: 0.28rem 0.55rem;
+   min-height: 0;
+  line-height: 1.2;
+}
+
+.welcome-card__video-hint {
+  margin: 0 0 1.1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, #a8b0bf 92%, transparent);
 }
 
 .welcome-brand-mark {
@@ -44,6 +114,7 @@
   max-height: 100px;
   max-width: min(380px, 82vw);
   width: auto;
+  z-index: 2;
 }
 
 .welcome-page-title {
@@ -52,7 +123,7 @@
   font-weight: 700;
   line-height: 1.12;
   letter-spacing: 0.02em;
-  margin: 0 0 0.5rem;
+   margin: 0 0 0.15rem;
   padding-inline: 0.5rem;
   color: #f6f8fc;
   text-shadow: 0 0 40px color-mix(in srgb, var(--brand-neon-blue) 18%, transparent);
@@ -115,6 +186,11 @@
   .welcome-card {
     padding-top: 2rem;
     padding-right: 1.75rem;
+  }
+
+  .welcome-card__video-shell {
+    margin: 0.5rem 0 1.15rem;
+    max-height: min(38vh, 18rem);
   }
 }
 
