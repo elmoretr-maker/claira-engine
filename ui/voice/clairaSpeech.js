@@ -1,8 +1,9 @@
 /**
- * Claira speech: ElevenLabs via `/__claira/tts` only.
+ * Claira voice — **single controller**: Edge TTS via `/__claira/tts` only (`provider: edge`).
+ * All playback uses one `HTMLAudioElement` slot (`currentAudio`).
  *
- * - **interrupt: true** — cancel current audio, then play.
- * - **interrupt: false** — queue after current clip if playing.
+ * - **interrupt: true** (default for `speakClaira`) — stop everything, then play.
+ * - **interrupt: false** — queue after current clip if one is playing.
  */
 
 /** @type {Set<() => void>} */
@@ -143,7 +144,7 @@ const SILENT_WAV =
 /**
  * @returns {boolean}
  */
-export function isClairaElevenLabsPlaying() {
+export function isClairaVoicePlaying() {
   try {
     return Boolean(currentAudio && !currentAudio.paused && !currentAudio.ended);
   } catch {
@@ -151,13 +152,16 @@ export function isClairaElevenLabsPlaying() {
   }
 }
 
+/** @deprecated Use {@link isClairaVoicePlaying}. */
+export const isClairaElevenLabsPlaying = isClairaVoicePlaying;
+
 /**
- * Resolves after the current ElevenLabs clip ends, or immediately if idle.
+ * Resolves after the current clip ends, or immediately if idle.
  * @returns {Promise<void>}
  */
 export function afterCurrentClairaUtteranceOrNow() {
   return new Promise((resolve) => {
-    if (typeof window === "undefined" || !isClairaElevenLabsPlaying()) {
+    if (typeof window === "undefined" || !isClairaVoicePlaying()) {
       resolve();
       return;
     }
@@ -181,7 +185,7 @@ async function tryDrainQueuedUtterance() {
   const next = queuedNonInterruptText;
   if (!next) return;
   queuedNonInterruptText = null;
-  if (isClairaElevenLabsPlaying()) {
+  if (isClairaVoicePlaying()) {
     queuedNonInterruptText = next;
     return;
   }
@@ -253,8 +257,26 @@ export function cancelClairaSpeech() {
  * @param {number} myGen
  * @returns {Promise<boolean>}
  */
-async function playElevenLabsUtterance(t, myGen) {
-  voiceDbg("playElevenLabsUtterance called", { gen: myGen, textLen: t.length, preview: t.slice(0, 72) + (t.length > 72 ? "…" : "") });
+/**
+ * Edge-only fetch — server must synthesize with Microsoft neural TTS (see lib/clairaEdgeTtsVoice.mjs).
+ *
+ * @param {string} t
+ * @returns {Promise<Response>}
+ */
+async function fetchClairaEdgeTts(t) {
+  console.log("[Claira] requesting TTS… (Edge only)");
+  return fetch("/__claira/tts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Claira-TTS-Provider": "edge",
+    },
+    body: JSON.stringify({ text: t, provider: "edge" }),
+  });
+}
+
+async function playClairaTtsUtterance(t, myGen) {
+  voiceDbg("playClairaTtsUtterance", { gen: myGen, textLen: t.length, preview: t.slice(0, 72) + (t.length > 72 ? "…" : "") });
 
   let audio = null;
   let url = null;
@@ -283,20 +305,15 @@ async function playElevenLabsUtterance(t, myGen) {
   };
 
   try {
-    console.log("[Claira] requesting ElevenLabs...");
-    const res = await fetch("/__claira/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: t }),
-    });
+    const res = await fetchClairaEdgeTts(t);
 
     console.log("[Claira] response status:", res.status);
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      const msg = typeof errBody?.error === "string" ? errBody.error : `HTTP ${res.status}`;
-      console.error("[Claira] ElevenLabs failed:", res.status, res.statusText, import.meta.env?.DEV ? errBody : "");
-      throw new Error(msg);
+      const failureMessage = typeof errBody?.error === "string" ? errBody.error : `HTTP ${res.status}`;
+      console.error("[Claira] TTS failed:", res.status, res.statusText, import.meta.env?.DEV ? errBody : "");
+      throw new Error(failureMessage || `HTTP ${res.status}`);
     }
 
     voiceDbg("fetch succeeded", { status: res.status, contentType: res.headers.get("content-type") });
@@ -313,7 +330,7 @@ async function playElevenLabsUtterance(t, myGen) {
     logIfUnexpectedAudioMime(headerCt, blob.type, blob.size);
 
     if (!blob.size || blob.type.includes("json") || headerCt.includes("application/json")) {
-      throw new Error("TTS response was not audio — check dev server / .env (ELEVENLABS_API_KEY).");
+      throw new Error("TTS response was not audio — check API server on PORT and /__claira/tts (Edge).");
     }
 
     if (myGen !== playbackGeneration) {
@@ -400,13 +417,25 @@ async function playElevenLabsUtterance(t, myGen) {
     dropLocals();
     if (myGen !== playbackGeneration) return false;
     if (import.meta.env?.DEV) {
-      console.error("[Claira] playElevenLabsUtterance error (full):", err);
+      console.error("[Claira] playClairaTtsUtterance error (full):", err);
     } else {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error("[Claira] playElevenLabsUtterance error:", msg);
+      console.error("[Claira] playClairaTtsUtterance error:", msg);
     }
     return false;
   }
+}
+
+/**
+ * Primary API — all Claira voice should go through this or {@link speakClairaByMode}.
+ *
+ * @param {string} text
+ * @param {{ interrupt?: boolean }} [options] — default `interrupt: true` (hard-stop then speak).
+ * @returns {Promise<void>}
+ */
+export async function speakClaira(text, options = {}) {
+  const interrupt = options.interrupt !== false;
+  await speakClairaByMode(text, { interrupt });
 }
 
 /**
@@ -422,7 +451,7 @@ export async function speakClairaByMode(text, options = {}) {
 
   if (!t) return;
 
-  if (!interrupt && isClairaElevenLabsPlaying()) {
+  if (!interrupt && isClairaVoicePlaying()) {
     voiceDbg("queue non-interrupt line (audio playing)");
     queuedNonInterruptText = t;
     return;
@@ -434,9 +463,9 @@ export async function speakClairaByMode(text, options = {}) {
 
   cancelClairaSpeech();
   const myGen = playbackGeneration;
-  const ok = await playElevenLabsUtterance(t, myGen);
+  const ok = await playClairaTtsUtterance(t, myGen);
   if (ok) {
-    voiceDbg("speakClairaByMode: ElevenLabs path finished OK");
+    voiceDbg("speakClairaByMode: TTS playback finished OK");
     return;
   }
   if (myGen !== playbackGeneration) {
@@ -444,7 +473,7 @@ export async function speakClairaByMode(text, options = {}) {
     return;
   }
   if (import.meta.env?.DEV) {
-    console.warn("[Claira] speakClairaByMode: ElevenLabs did not complete playback");
+    console.warn("[Claira] speakClairaByMode: TTS did not complete playback");
   }
 }
 
@@ -453,7 +482,7 @@ export async function speakClairaByMode(text, options = {}) {
  * @returns {Promise<void>}
  */
 export async function speakLiveVoice(text) {
-  await speakClairaByMode(text, { interrupt: true });
+  await speakClaira(text, { interrupt: true });
 }
 
 /**
@@ -461,5 +490,5 @@ export async function speakLiveVoice(text) {
  * @returns {Promise<void>}
  */
 export async function speakClairaUtterance(text) {
-  await speakClairaByMode(text, { interrupt: true });
+  await speakClaira(text, { interrupt: true });
 }

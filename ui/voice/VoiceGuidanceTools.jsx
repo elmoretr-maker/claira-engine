@@ -1,4 +1,4 @@
-import { primeClairaVoicePlayback } from "./clairaSpeech.js";
+import { primeClairaVoicePlayback, speakClaira } from "./clairaSpeech.js";
 import { ClairaVoiceReplay } from "./ClairaVoiceReplay.jsx";
 import { VoiceToggleButton } from "./VoiceToggleButton.jsx";
 import { useVoiceOnboarding } from "./VoiceOnboardingContext.jsx";
@@ -9,7 +9,7 @@ import { useVoiceOnboarding } from "./VoiceOnboardingContext.jsx";
  * @param {{ step?: number | null, replayScript?: string }} props
  */
 export function VoiceGuidanceTools({ step, replayScript }) {
-  const { voiceSupported, speakOnboardingLine, voiceEnabled } = useVoiceOnboarding();
+  const { voiceSupported, voiceEnabled } = useVoiceOnboarding();
   if (!voiceSupported) return null;
 
   const hasScript = typeof replayScript === "string" && replayScript.trim().length > 0;
@@ -28,7 +28,7 @@ export function VoiceGuidanceTools({ step, replayScript }) {
           onClick={() =>
             void (async () => {
               await primeClairaVoicePlayback();
-              speakOnboardingLine("Test voice working", { interrupt: true });
+              await speakClaira("Test voice working", { interrupt: true });
             })()
           }
         >

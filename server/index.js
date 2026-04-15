@@ -282,13 +282,30 @@ app.post("/__claira/tts", async (req, res) => {
     if (!text.trim()) {
       return res.status(400).json({ error: "text required" });
     }
-    const { synthesizeClairaSpeech } = await import("../lib/clairaElevenLabsVoice.mjs");
-    const buf = await synthesizeClairaSpeech(text);
+    const headerEdge =
+      String(req.headers["x-claira-tts-provider"] ?? "").toLowerCase() === "edge";
+    const forceEdge = req.body?.provider === "edge" || headerEdge;
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        "[Claira TTS] forceEdge=%s textLen=%s bodyProvider=%s headerEdge=%s",
+        forceEdge,
+        text.length,
+        req.body?.provider ?? "(none)",
+        headerEdge,
+      );
+    }
+    const { synthesizeClairaSpeech } = await import("../lib/clairaTts.mjs");
+    const { synthesizeClairaSpeechEdge } = await import("../lib/clairaEdgeTtsVoice.mjs");
+    const buf = forceEdge ? await synthesizeClairaSpeechEdge(text) : await synthesizeClairaSpeech(text);
     res.setHeader("Content-Type", "audio/mpeg");
     return res.status(200).send(buf);
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[Claira TTS] error:", msg);
+    }
     return res.status(503).json({
-      error: e instanceof Error ? e.message : String(e),
+      error: msg,
     });
   }
 });

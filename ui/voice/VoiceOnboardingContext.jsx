@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   cancelClairaSpeech,
   primeClairaVoicePlayback,
+  speakClaira,
   speakClairaByMode,
 } from "./clairaSpeech.js";
 
@@ -15,7 +16,7 @@ const VoiceOnboardingContext = createContext(null);
  */
 export function VoiceOnboardingProvider({ children }) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  /** ElevenLabs-only: controls are shown whenever output is enabled (no browser TTS). */
+  /** Voice output uses server Edge TTS only (no browser speechSynthesis). */
   const [voiceSupported] = useState(() => typeof window !== "undefined");
 
   const voiceEnabledRef = useRef(voiceEnabled);
@@ -107,7 +108,7 @@ export function VoiceOnboardingProvider({ children }) {
       cancelClairaSpeech();
       const t = String(text ?? "").trim();
       if (!t || !voiceEnabledRef.current) return;
-      void speakClairaByMode(t, { interrupt: true });
+      void speakClaira(t, { interrupt: true });
     },
     [clearSchedule],
   );

@@ -28,6 +28,8 @@ function contentTypeForBasename(name) {
 
 export default {
   root: uiDir,
+  /** Load `VITE_*` from repo root `.env` next to `server/` and `package.json`. */
+  envDir: engineRoot,
   server: {
     proxy: {
       "/__claira/tts": {
