@@ -21,6 +21,16 @@ tracking/images/
 tracking/snapshots/
 tracking/entities/
 
+# Phase 7+ workflow runtime data (implementation will use this path)
+workflow/trainer/data/
+
+# User reference images (learning) — never commit
+references/user/
+
+# Local test drops / validation fixtures (not part of source tree)
+New_Arrival/
+_phase*/
+
 # Optional dev/test images
 dev/test-assets/
 test_images/
