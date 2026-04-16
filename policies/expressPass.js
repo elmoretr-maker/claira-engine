@@ -1,6 +1,7 @@
 /**
- * Express Pass — records manual user corrections (predicted label → selected room) for future learning.
- * Does not change routing or decisions; persistence only.
+ * Express Pass — audit log of manual corrections (predicted → selected) with counts.
+ * Does not affect classification, decisions, or execution. For behavioral rules use
+ * {@link ./userControl.js} (force_review / bypass_review).
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from "fs";

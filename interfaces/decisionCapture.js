@@ -1,10 +1,9 @@
 /**
- * User decision capture for learning vs Express Pass vs exemptions (no routing changes).
+ * Bridges submitDecision payloads to {@link applyDecision} — Express Pass, exemptions, and
+ * learning share one engine entry (no duplicate policy writes).
  */
 
 import { applyDecision } from "../index.js";
-import { recordExpressPass } from "../policies/expressPass.js";
-import { recordExemption } from "../policies/exemptions.js";
 
 /**
  * @param {{
@@ -12,7 +11,9 @@ import { recordExemption } from "../policies/exemptions.js";
  *   selected_room: string,
  *   decision_type: "learning" | "express_pass" | "exemption",
  *   predicted_label?: string | null,
- *   confidence?: number }} payload
+ *   confidence?: number,
+ *   scope?: "global" | "single",
+ * }} payload
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 export async function captureUserDecision(payload) {
@@ -28,26 +29,43 @@ export async function captureUserDecision(payload) {
   try {
     if (type === "express_pass") {
       if (!predicted) return { ok: false, error: "predicted_label required for express_pass" };
-      recordExpressPass(file, predicted, selected);
-      return { ok: true };
+      const r = await applyDecision({
+        decision_type: "express_pass",
+        predicted_label: predicted || null,
+        selected_label: selected,
+        selected_room: selected,
+        file: file || null,
+        filePath: file || null,
+      });
+      return r.applied ? { ok: true } : { ok: false, error: r.error ?? "express_pass failed" };
     }
     if (type === "exemption") {
       if (!predicted) return { ok: false, error: "predicted_label required for exemption" };
-      recordExemption(file, predicted, selected);
-      return { ok: true };
+      const r = await applyDecision({
+        decision_type: "exemption",
+        predicted_label: predicted || null,
+        selected_label: selected,
+        selected_room: selected,
+        file: file || null,
+        filePath: file || null,
+      });
+      return r.applied ? { ok: true } : { ok: false, error: r.error ?? "exemption failed" };
     }
     if (type === "learning") {
       if (!predicted) return { ok: false, error: "predicted_label required for learning" };
       const scopeRaw = /** @type {{ scope?: unknown }} */ (payload).scope;
       const scope = scopeRaw === "single" ? "single" : "global";
-      await applyDecision({
+      const r = await applyDecision({
+        decision_type: "learning",
         predicted_label: predicted,
         selected_label: selected,
+        selected_room: selected,
         confidence: payload.confidence,
         file: file || null,
+        filePath: file || null,
         scope,
       });
-      return { ok: true };
+      return r.applied ? { ok: true } : { ok: false, error: r.error ?? "learning failed" };
     }
     return { ok: false, error: `unknown decision_type: ${type}` };
   } catch (e) {

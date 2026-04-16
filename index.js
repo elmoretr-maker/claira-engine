@@ -11,12 +11,14 @@ import { augmentClassificationWithReferenceContext } from "./core/referenceAugme
 import {
   getEffectiveDecisionThresholds,
   normalizeAppMode,
-  normalizeOversightLevel,
+  effectiveOversightLevelFromRuntime,
 } from "./core/oversightProfile.js";
 import { suggestLabelFromText } from "./core/textAnalysis.js";
-import { addUserReference } from "./learning/addUserReference.js";
+import { persistReferenceLearning } from "./learning/addUserReference.js";
 import { getLearningStats, recordCorrection } from "./learning/learningStore.js";
 import { addRiskSignal, applyRiskAdjustment } from "./learning/riskStore.js";
+import { recordExemption } from "./policies/exemptions.js";
+import { recordExpressPass } from "./policies/expressPass.js";
 import {
   generateSessionReport,
   recordAnalyzeOutcome,
@@ -115,6 +117,20 @@ function pickClassificationSource(r) {
 }
 
 /**
+ * Softmax probability for `label` from classifier output (same space as Entrance review threshold).
+ * @param {object | null | undefined} cls
+ * @param {string | null | undefined} label
+ */
+function softmaxConfidenceForPredictedLabel(cls, label) {
+  if (!cls || typeof cls !== "object" || label == null || String(label).trim() === "") return null;
+  const top = /** @type {{ softmaxTop3?: unknown }} */ (cls).softmaxTop3;
+  if (!Array.isArray(top)) return null;
+  const row = top.find((r) => r && typeof r === "object" && /** @type {{ id?: unknown }} */ (r).id === label);
+  const c = row && typeof row === "object" ? /** @type {{ confidence?: unknown }} */ (row).confidence : null;
+  return typeof c === "number" && Number.isFinite(c) ? c : null;
+}
+
+/**
  * Full pass: embedding vs reference pools → classification → routing → decision.
  * @param {{
  *   inputEmbedding: Float32Array,
@@ -123,7 +139,13 @@ function pickClassificationSource(r) {
  *   file?: string | null,
  *   filePath?: string | null,
  *   extractedText?: string | null,
- *   runtimeContext?: { appMode?: string, oversightLevel?: string, expectedCategory?: string },
+ *   runtimeContext?: {
+ *     appMode?: string,
+ *     oversightLevel?: string,
+ *     expectedCategory?: string,
+ *     strictValidation?: boolean,
+ *     reviewThreshold?: number,
+ *   },
  * }} input
  */
 export async function analyze(input) {
@@ -139,7 +161,7 @@ export async function analyze(input) {
   const config = loadEngineConfig();
   const thresholds = config.thresholds;
   const runtimeCtx = input.runtimeContext ?? {};
-  const oversightLevel = normalizeOversightLevel(runtimeCtx.oversightLevel);
+  const oversightLevel = effectiveOversightLevelFromRuntime(runtimeCtx);
   const appMode = normalizeAppMode(runtimeCtx.appMode);
 
   let classification = classifyFromReferenceEmbeddings({
@@ -196,7 +218,7 @@ export async function analyze(input) {
     classification.reference_context && typeof classification.reference_context === "object"
       ? classification.reference_context
       : null;
-  const decision = decide({
+  let decision = decide({
     predicted_label: classification.predicted_label,
     second_label: classification.second_label,
     confidence: classification.confidence,
@@ -205,6 +227,24 @@ export async function analyze(input) {
     hasRoutingDestination: routing.proposed_destination != null,
     potential_conflict: refCtx?.potential_conflict === true,
   });
+
+  const rtRaw = runtimeCtx.reviewThreshold;
+  if (typeof rtRaw === "number" && Number.isFinite(rtRaw)) {
+    const floor = Math.min(1, Math.max(0, rtRaw));
+    if (decision.decision === "auto") {
+      let visSoft = softmaxConfidenceForPredictedLabel(classification, classification.predicted_label);
+      if (visSoft == null) {
+        visSoft = softmaxConfidenceForPredictedLabel(
+          classificationPreFallback,
+          classification.predicted_label,
+        );
+      }
+      if (visSoft != null && visSoft < floor) {
+        decision = { decision: "review", reason: "entrance_review_threshold" };
+      }
+    }
+  }
+
   lastDecision = decision;
 
   const file = lastFile;
@@ -283,9 +323,10 @@ export async function getSuggestions(result) {
 
 /**
  * Place-card shaped summary (in-memory; no files written).
- * @param {{ classification?: object, routing?: object, decision?: object, file?: string | null } | null | undefined} [result]
+ * @param {{ classification?: object, routing?: object, decision?: object, file?: string | null, execution?: object, user_control?: object } | null | undefined} [result]
+ * @param {{ autoMove?: boolean }} [options] — when `autoMove === false` and decision is auto, sets `execution_mode: "confirm"` (distinct from review).
  */
-export async function generatePlaceCard(result) {
+export async function generatePlaceCard(result, options = {}) {
   const cls = pickClassificationSource(result);
   if (!cls) {
     return { placeCard: null };
@@ -322,6 +363,21 @@ export async function generatePlaceCard(result) {
     placeCard.classification_pre_fallback = preFb;
   }
 
+  const exec = bundle?.execution;
+  if (exec && typeof exec === "object") {
+    if (exec.execution_intent != null) placeCard.execution_intent = exec.execution_intent;
+    if (exec.user_override != null) placeCard.user_override = exec.user_override;
+  }
+
+  const uc = bundle?.user_control;
+  if (uc && typeof uc === "object") {
+    placeCard.user_control = { ...uc };
+  }
+
+  if (dec?.decision === "auto" && options.autoMove === false) {
+    placeCard.execution_mode = "confirm";
+  }
+
   if (stats && stats.count > 0) {
     placeCard.learning_hint = {
       seen: stats.count,
@@ -333,12 +389,18 @@ export async function generatePlaceCard(result) {
 }
 
 /**
- * Acknowledge user decision when selected label ≠ predicted (no routing changes).
- * Global scope: recordCorrection + copy into references/user for future embeddings.
- * Single scope: logs only — no learning stats and no reference copy (true one-off).
+ * Unified decision API: durable reference learning via {@link persistReferenceLearning} only;
+ * session-only behavior via riskStore (single-scope corrections); Express Pass / exemptions are audit-only.
+ * User execution control: {@link ./policies/userControl.js}.
+ *
+ * learningStore holds in-session correction stats for hints — not embedding/classifier state.
+ * riskStore adjusts scores in-session only — not persistent reference learning.
+ *
  * @param {{
+ *   decision_type?: "learning" | "express_pass" | "exemption",
  *   predicted_label?: string | null,
  *   selected_label?: string | null,
+ *   selected_room?: string | null,
  *   confidence?: number,
  *   file?: string | null,
  *   filePath?: string | null,
@@ -351,53 +413,193 @@ export async function generatePlaceCard(result) {
  * }} [input]
  */
 export async function applyDecision(input = {}) {
+  const decisionType = String(input.decision_type ?? "learning").trim().toLowerCase();
+  const fileForPolicy = input.file ?? input.filePath ?? null;
+  const selected =
+    input.selected_label != null && String(input.selected_label).trim() !== ""
+      ? input.selected_label
+      : input.selected_room;
+
+  if (decisionType === "express_pass") {
+    const pred = String(input.predicted_label ?? "").trim();
+    const sel = String(selected ?? "").trim();
+    if (!pred) {
+      return { applied: false, error: "predicted_label required for express_pass" };
+    }
+    if (!sel) {
+      return { applied: false, error: "selected_label or selected_room required for express_pass" };
+    }
+    recordExpressPass(
+      typeof fileForPolicy === "string" ? fileForPolicy : null,
+      pred,
+      sel,
+    );
+    return { applied: true, decision_type: "express_pass" };
+  }
+
+  if (decisionType === "exemption") {
+    const pred = String(input.predicted_label ?? "").trim();
+    const sel = String(selected ?? "").trim();
+    if (!pred) {
+      return { applied: false, error: "predicted_label required for exemption" };
+    }
+    if (!sel) {
+      return { applied: false, error: "selected_label or selected_room required for exemption" };
+    }
+    recordExemption(
+      typeof fileForPolicy === "string" ? fileForPolicy : null,
+      pred,
+      sel,
+    );
+    return { applied: true, decision_type: "exemption" };
+  }
+
   const pred = input.predicted_label;
-  const sel = input.selected_label;
+  const sel = selected;
   const scope = input.scope === "single" ? "single" : "global";
 
-  if (pred != null && sel != null && String(sel) !== String(pred)) {
-    const learnGlobally = scope === "global";
-    if (learnGlobally) {
-      recordCorrection(pred, sel, { confidence: input.confidence });
-    } else {
-      let ctx = input.extractedText != null ? String(input.extractedText).trim() : "";
-      if (!ctx) {
-        const fp = input.file ?? input.filePath ?? lastFile;
-        if (typeof fp === "string" && fp.trim()) ctx = basename(fp.trim());
-      }
-      addRiskSignal({
-        predicted_label: pred,
-        selected_label: sel,
-        context: ctx || null,
-        classification: input.classification ?? lastClassification,
-        severity: input.mismatchSeverity,
-        fingerprint: input.mismatchFingerprint,
-        reason: input.mismatchReason,
-      });
+  if (pred == null || sel == null) {
+    return { applied: true, correctionRecorded: false, scope: "none" };
+  }
+
+  const predStr = String(pred);
+  const selStr = String(sel);
+
+  if (predStr === selStr) {
+    if (scope === "single") {
+      return {
+        applied: true,
+        correctionRecorded: false,
+        scope: "confirm",
+        kind: "confirmed_single_no_reference",
+      };
     }
-    recordApplyDecisionOutcome({
-      correctionRecorded: learnGlobally,
-      predicted_label: pred,
-      selected_label: sel,
-    });
     const filePath = input.file ?? input.filePath ?? lastFile ?? null;
-    if (learnGlobally && typeof filePath === "string" && filePath.trim()) {
-      addUserReference(filePath.trim(), sel);
+    if (typeof filePath !== "string" || !filePath.trim()) {
+      console.error("[learning] confirmation requires a local filePath");
+      return {
+        applied: false,
+        error: "no_local_file",
+        scope: "confirm",
+        referenceLearning: { ok: false, reason: "no_local_file" },
+      };
     }
-    console.log(`User decision: ${pred} → ${sel} (${learnGlobally ? "global" : "single"})`);
+    const ref = persistReferenceLearning(filePath.trim(), predStr);
+    if (!ref.ok) {
+      console.error(`[learning] confirmation persistReferenceLearning failed: ${ref.reason}`);
+      return { applied: false, error: ref.reason, referenceLearning: ref, scope: "confirm" };
+    }
+    if (ref.skipped) {
+      console.log(`[learning] confirmation deduped (${ref.reason})`);
+    }
     try {
       mkdirSync(join(__dirname, "logs"), { recursive: true });
       appendFileSync(
         CONFLICT_LOG,
-        `User resolved conflict: ${pred} → ${sel} [${learnGlobally ? "global" : "single"}]${typeof filePath === "string" && filePath.trim() ? ` (${filePath.trim()})` : ""}\n`,
+        `User confirmed label: ${predStr} (${filePath.trim()})\n`,
+        "utf8",
+      );
+    } catch {
+      /* ignore */
+    }
+    return {
+      applied: true,
+      correctionRecorded: false,
+      scope: "confirm",
+      referenceLearning: ref,
+    };
+  }
+
+  const learnGlobally = scope === "global";
+  if (!learnGlobally) {
+    let ctx = input.extractedText != null ? String(input.extractedText).trim() : "";
+    if (!ctx) {
+      const fp = input.file ?? input.filePath ?? lastFile;
+      if (typeof fp === "string" && fp.trim()) ctx = basename(fp.trim());
+    }
+    addRiskSignal({
+      predicted_label: pred,
+      selected_label: sel,
+      context: ctx || null,
+      classification: input.classification ?? lastClassification,
+      severity: input.mismatchSeverity,
+      fingerprint: input.mismatchFingerprint,
+      reason: input.mismatchReason,
+    });
+    recordApplyDecisionOutcome({
+      correctionRecorded: false,
+      predicted_label: pred,
+      selected_label: sel,
+    });
+    console.log(`User decision: ${predStr} → ${selStr} (single)`);
+    try {
+      mkdirSync(join(__dirname, "logs"), { recursive: true });
+      appendFileSync(
+        CONFLICT_LOG,
+        `User resolved conflict: ${predStr} → ${selStr} [single]${typeof input.file === "string" && input.file.trim() ? ` (${input.file.trim()})` : ""}\n`,
         "utf8",
       );
     } catch {
       /* ignore logging failures */
     }
-    return { applied: true, correctionRecorded: learnGlobally, scope };
+    return { applied: true, correctionRecorded: false, scope };
   }
-  return { applied: true, correctionRecorded: false, scope: "none" };
+
+  const filePath = input.file ?? input.filePath ?? lastFile ?? null;
+  if (typeof filePath !== "string" || !filePath.trim()) {
+    console.error("[learning] global correction requires a local filePath");
+    return {
+      applied: false,
+      error: "no_local_file",
+      scope,
+      referenceLearning: { ok: false, reason: "no_local_file" },
+    };
+  }
+
+  const ref = persistReferenceLearning(filePath.trim(), selStr);
+  if (!ref.ok) {
+    console.error(`[learning] correction persistReferenceLearning failed: ${ref.reason}`);
+    try {
+      mkdirSync(join(__dirname, "logs"), { recursive: true });
+      appendFileSync(
+        CONFLICT_LOG,
+        `User resolved conflict: ${predStr} → ${selStr} [global] (${filePath.trim()}) REFERENCE_FAILED ${ref.reason}\n`,
+        "utf8",
+      );
+    } catch {
+      /* ignore */
+    }
+    return {
+      applied: false,
+      error: ref.reason,
+      correctionRecorded: false,
+      scope,
+      referenceLearning: ref,
+    };
+  }
+  if (ref.skipped) {
+    console.log(`[learning] correction reference deduped (${ref.reason})`);
+  }
+
+  recordCorrection(pred, sel, { confidence: input.confidence });
+  recordApplyDecisionOutcome({
+    correctionRecorded: true,
+    predicted_label: pred,
+    selected_label: sel,
+  });
+
+  console.log(`User decision: ${predStr} → ${selStr} (global)`);
+  try {
+    mkdirSync(join(__dirname, "logs"), { recursive: true });
+    appendFileSync(
+      CONFLICT_LOG,
+      `User resolved conflict: ${predStr} → ${selStr} [global] (${filePath.trim()})\n`,
+      "utf8",
+    );
+  } catch {
+    /* ignore logging failures */
+  }
+  return { applied: true, correctionRecorded: true, scope, referenceLearning: ref };
 }
 
 export const engine = {

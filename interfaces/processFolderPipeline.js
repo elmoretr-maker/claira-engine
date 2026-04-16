@@ -17,7 +17,7 @@ import { buildClassificationConflictPayload } from "../core/oversightProfile.js"
 import { loadAllReferenceEmbeddings } from "./referenceLoader.js";
 import { loadRooms } from "../rooms/index.js";
 import { validatePlacement } from "../rooms/validator.js";
-import { addUserReference } from "../learning/addUserReference.js";
+import { persistReferenceLearning } from "../learning/addUserReference.js";
 import { assignPriority } from "./reviewQueue.js";
 import { isSupportedImageFilename } from "../adapters/supportedImages.js";
 import {
@@ -27,6 +27,10 @@ import {
   suggestLabelFromText,
 } from "../core/textAnalysis.js";
 import { cleanupTunnelStagingCategoryDir } from "./tunnelStaging.js";
+import {
+  applyUserControlAfterDecision,
+  appendBypassReviewLogEntry,
+} from "../policies/userControl.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -264,11 +268,20 @@ function textReviewFieldsForAutoPath(parts) {
 /**
  * Run the same classify / route / validate / move pipeline as process-folder for a prepared item list.
  * @param {ProcessPipelineItem[]} items
- * @param {{ cwd?: string, runtimeContext?: { appMode?: string, oversightLevel?: string, expectedCategory?: string } }} [options]
+ * @param {{ cwd?: string, runtimeContext?: {
+ *   appMode?: string,
+ *   oversightLevel?: string,
+ *   expectedCategory?: string,
+ *   autoMove?: boolean,
+ *   strictValidation?: boolean,
+ *   reviewThreshold?: number,
+ * } }} [options]
  */
 export async function runProcessItemsPipeline(items, options = {}) {
   const cwd = options.cwd ?? process.cwd();
   const runtimeContext = options.runtimeContext ?? {};
+  const autoMove = runtimeContext.autoMove !== false;
+  const roomStrict = runtimeContext.strictValidation === true;
 
   resetSessionLedger();
 
@@ -289,7 +302,7 @@ export async function runProcessItemsPipeline(items, options = {}) {
     const { absPath, rel } = item;
     const embRes = await getImageEmbedding(absPath);
     if (embRes.error) {
-      resultsArray.push({ rel, place_card: null, error: "embedding_failed" });
+      resultsArray.push({ rel, filePath: absPath, place_card: null, error: "embedding_failed" });
       continue;
     }
     const inputEmbedding = new Float32Array(embRes.embedding);
@@ -306,7 +319,7 @@ export async function runProcessItemsPipeline(items, options = {}) {
       const { priority } = assignPriority({ reason });
       bumpPriorityCount(reviewPriorityCounts, priority);
       reviewCount += 1;
-      resultsArray.push({ rel, place_card: null, priority, reason });
+      resultsArray.push({ rel, filePath: absPath, place_card: null, priority, reason });
       continue;
     }
 
@@ -321,22 +334,32 @@ export async function runProcessItemsPipeline(items, options = {}) {
       }
     }
 
+    applyUserControlAfterDecision(result);
+
     const textParts = textAwareParts(item, result);
 
-    const { placeCard } = await generatePlaceCard(result);
+    const { placeCard } = await generatePlaceCard(result, { autoMove });
     const dec = result.decision?.decision;
-    Object.assign(textParts, textRoutingAwareParts(item, placeCard, dec));
+    const bypassAuto =
+      dec === "review" &&
+      result.execution?.user_override === "bypass_review" &&
+      result.execution?.execution_intent === "auto";
+    const treatAsAutoPath = dec === "auto" || bypassAuto;
+    const decForText = treatAsAutoPath ? "auto" : dec;
+    Object.assign(textParts, textRoutingAwareParts(item, placeCard, decForText));
 
     let roomValidation = null;
     let rejectedByRoom = false;
     /** @type {{ config: object, referencePath: string } | null} */
     let matchedRoom = null;
-    if (dec === "auto" && placeCard?.proposed_destination) {
+    if (treatAsAutoPath && placeCard?.proposed_destination) {
       matchedRoom = findRoomByDestination(rooms, placeCard.proposed_destination);
       if (matchedRoom) {
         const label =
           result.routing?.routing_label ?? result.classification?.predicted_label ?? "";
-        roomValidation = await validatePlacement(label, inputEmbedding, matchedRoom);
+        roomValidation = await validatePlacement(label, inputEmbedding, matchedRoom, {
+          strictValidation: roomStrict,
+        });
         if (!roomValidation.accepted) {
           rejectedByRoom = true;
         }
@@ -349,23 +372,46 @@ export async function runProcessItemsPipeline(items, options = {}) {
       reviewCount += 1;
       resultsArray.push({
         rel,
+        filePath: absPath,
         place_card: placeCard ?? null,
         priority,
         room_validation: roomValidation,
         ...textParts,
       });
-    } else if (dec === "auto") {
+    } else if (treatAsAutoPath) {
+      if (bypassAuto) {
+        appendBypassReviewLogEntry({
+          original_decision: "review",
+          user_override: "bypass_review",
+          predicted_label: String(result.classification?.predicted_label ?? ""),
+          destination: String(result.routing?.proposed_destination ?? ""),
+          timestamp: Date.now(),
+        });
+      }
+      /** @type {Record<string, unknown> | undefined} */
+      let reference_learning;
       if (expectedCat) {
         const pred = normalizeExpectedCategory(result.classification?.predicted_label);
         if (pred === expectedCat) {
-          addUserReference(absPath, expectedCat);
+          const lr = persistReferenceLearning(absPath, expectedCat);
+          reference_learning = { ...lr };
+          if (!lr.ok) {
+            console.error(`[learning] expectedCategory auto-learn failed: ${lr.reason} (${rel})`);
+          } else if (lr.skipped) {
+            console.log(`[learning] expectedCategory auto-learn deduped: ${lr.reason} (${rel})`);
+          }
         }
       }
       /** @type {string | null} */
       let movedTo = null;
       /** @type {string | null} */
       let moveError = null;
-      if (matchedRoom && roomValidation?.accepted && matchedRoom.config?.destination != null) {
+      if (
+        autoMove &&
+        matchedRoom &&
+        roomValidation?.accepted &&
+        matchedRoom.config?.destination != null
+      ) {
         try {
           const destRoot = resolve(cwd, String(matchedRoom.config.destination));
           mkdirSync(destRoot, { recursive: true });
@@ -380,9 +426,18 @@ export async function runProcessItemsPipeline(items, options = {}) {
       }
       /** @type {Record<string, unknown>} */
       const textReview = textReviewFieldsForAutoPath(textParts);
-      const okRow = { rel, place_card: placeCard ?? null, ...textParts, ...textReview };
+      const finalPath = movedTo ?? absPath;
+      /** @type {Record<string, unknown>} */
+      const okRow = {
+        rel,
+        filePath: finalPath,
+        place_card: placeCard ?? null,
+        ...textParts,
+        ...textReview,
+      };
       if (movedTo != null) okRow.moved_to = movedTo;
       if (moveError != null) okRow.move_error = moveError;
+      if (reference_learning != null) okRow.reference_learning = reference_learning;
       if (textReview.priority != null) {
         bumpPriorityCount(
           reviewPriorityCounts,
@@ -396,7 +451,7 @@ export async function runProcessItemsPipeline(items, options = {}) {
       bumpPriorityCount(reviewPriorityCounts, priority);
       reviewCount += 1;
       /** @type {Record<string, unknown>} */
-      const reviewRow = { rel, place_card: placeCard ?? null, priority, reason, ...textParts };
+      const reviewRow = { rel, filePath: absPath, place_card: placeCard ?? null, priority, reason, ...textParts };
       const cc = buildClassificationConflictPayload(result, absPath, runtimeContext);
       if (cc) reviewRow.classification_conflict = cc;
       resultsArray.push(reviewRow);
@@ -423,7 +478,14 @@ export async function runProcessItemsPipeline(items, options = {}) {
 
 /**
  * @param {string} inputRootAbsolute — resolved absolute path to folder
- * @param {{ cwd?: string, runtimeContext?: { appMode?: string, oversightLevel?: string, expectedCategory?: string } }} [options]
+ * @param {{ cwd?: string, runtimeContext?: {
+ *   appMode?: string,
+ *   oversightLevel?: string,
+ *   expectedCategory?: string,
+ *   autoMove?: boolean,
+ *   strictValidation?: boolean,
+ *   reviewThreshold?: number,
+ * } }} [options]
  */
 export async function runProcessFolderPipeline(inputRootAbsolute, options = {}) {
   const cwd = options.cwd ?? process.cwd();

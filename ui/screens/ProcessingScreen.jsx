@@ -29,6 +29,10 @@ function rowRel(row) {
 function isReviewRow(row) {
   if (row == null || typeof row !== "object") return false;
   const r = /** @type {Record<string, unknown>} */ (row);
+  const pc0 = r.place_card;
+  if (pc0 && typeof pc0 === "object" && /** @type {Record<string, unknown>} */ (pc0).user_override === "bypass_review") {
+    return false;
+  }
   if (r.room_validation != null) return true;
   if (r.priority != null) return true;
   if (typeof r.move_error === "string" && r.move_error.length) return true;
@@ -114,7 +118,13 @@ function stageHintForRow(row) {
  *     reviewPriorityCounts?: { high: number, medium: number, low: number },
  *   }) => void,
  *   onViewRooms?: () => void,
- *   runtimeContext?: { appMode?: string, oversightLevel?: string },
+ *   runtimeContext?: {
+ *     appMode?: string,
+ *     oversightLevel?: string,
+ *     autoMove?: boolean,
+ *     strictValidation?: boolean,
+ *     reviewThreshold?: number,
+ *   },
  *   guidedStep?: number,
  * }} props
  */

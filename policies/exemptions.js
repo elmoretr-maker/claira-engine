@@ -1,6 +1,6 @@
 /**
- * Exemptions — one-time / override tracking separate from Express Pass learning rules.
- * Does not read or write expressPass.json; does not affect routing.
+ * Exemptions — audit log separate from Express Pass. Does not affect routing, decisions,
+ * or execution. Behavioral control is {@link ./userControl.js} only.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from "fs";

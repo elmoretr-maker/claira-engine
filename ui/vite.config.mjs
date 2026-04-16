@@ -190,8 +190,10 @@ export default {
               out = await api.processData(body.items, opts);
             } else if (body.kind === "applyDecision") {
               out = await api.applyDecision({
+                decision_type: body.decision_type,
                 predicted_label: body.predicted_label,
-                selected_label: body.selected_label,
+                selected_label: body.selected_label ?? body.selected_room,
+                selected_room: body.selected_room,
                 confidence: body.confidence,
                 filePath: body.filePath,
                 file: body.filePath ?? body.file,
@@ -210,6 +212,15 @@ export default {
               out = api.getRooms();
             } else if (body.kind === "getSuggestions") {
               out = api.getSuggestions();
+            } else if (body.kind === "getUserControlState") {
+              out = api.getUserControlState();
+            } else if (body.kind === "setUserControlRule") {
+              out = api.setUserControlRuleApi({
+                predicted_label: typeof body.predicted_label === "string" ? body.predicted_label : "",
+                effect: body.effect,
+                enabled: body.enabled,
+                remove: body.remove === true,
+              });
             } else if (body.kind === "loadIndustryPack") {
               out = await api.loadIndustryPack(body.industry);
             } else if (body.kind === "listIndustryPacks") {

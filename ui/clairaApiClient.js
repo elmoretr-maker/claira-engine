@@ -22,7 +22,14 @@ async function post(body) {
 
 /**
  * @param {string} inputPath
- * @param {{ cwd?: string, runtimeContext?: { appMode?: string, oversightLevel?: string, expectedCategory?: string } }} [options]
+ * @param {{ cwd?: string, runtimeContext?: {
+ *   appMode?: string,
+ *   oversightLevel?: string,
+ *   expectedCategory?: string,
+ *   autoMove?: boolean,
+ *   strictValidation?: boolean,
+ *   reviewThreshold?: number,
+ * } }} [options]
  */
 export function processFolder(inputPath, options) {
   return post({
@@ -35,7 +42,14 @@ export function processFolder(inputPath, options) {
 
 /**
  * @param {unknown[]} normalizedData
- * @param {{ cwd?: string, runtimeContext?: { appMode?: string, oversightLevel?: string, expectedCategory?: string } }} [options]
+ * @param {{ cwd?: string, runtimeContext?: {
+ *   appMode?: string,
+ *   oversightLevel?: string,
+ *   expectedCategory?: string,
+ *   autoMove?: boolean,
+ *   strictValidation?: boolean,
+ *   reviewThreshold?: number,
+ * } }} [options]
  */
 export function processData(normalizedData, options) {
   return post({
@@ -61,8 +75,10 @@ export function processData(normalizedData, options) {
 export function applyDecision(payload) {
   return post({
     kind: "applyDecision",
+    decision_type: payload?.decision_type,
     predicted_label: payload?.predicted_label,
     selected_label: payload?.selected_label,
+    selected_room: payload?.selected_room,
     confidence: payload?.confidence,
     filePath: payload?.filePath,
     scope: payload?.scope,
@@ -95,6 +111,29 @@ export function getRooms(options) {
 /** @param {{ cwd?: string }} [options] */
 export function getSuggestions(options) {
   return post({ kind: "getSuggestions", cwd: options?.cwd });
+}
+
+/** @returns {Promise<{ rules: unknown[], bypassLog: unknown[] }>} */
+export function getUserControlState() {
+  return post({ kind: "getUserControlState" });
+}
+
+/**
+ * @param {{
+ *   predicted_label: string,
+ *   effect: "force_review" | "bypass_review",
+ *   enabled?: boolean,
+ *   remove?: boolean,
+ * }} payload
+ */
+export function setUserControlRule(payload) {
+  return post({
+    kind: "setUserControlRule",
+    predicted_label: payload.predicted_label,
+    effect: payload.effect,
+    enabled: payload.enabled,
+    remove: payload.remove === true,
+  });
 }
 
 /**

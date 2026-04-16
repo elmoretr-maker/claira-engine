@@ -3,6 +3,7 @@
  */
 
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -13,7 +14,7 @@ import {
   writeFileSync,
 } from "fs";
 import { tmpdir } from "os";
-import { basename, extname, join, resolve } from "path";
+import { basename, extname, join, resolve, sep } from "path";
 import { getAdapter, normalizeInput } from "../adapters/index.js";
 import { sendOutput } from "../outputs/index.js";
 import { generateSessionReport } from "./sessionLedger.js";
@@ -37,7 +38,7 @@ import {
   readPackReference,
 } from "./packReference.js";
 import { getActiveReferenceAssets, getProcesses, getReferenceAssets } from "./referenceAssets.js";
-import { addUserReference } from "../learning/addUserReference.js";
+import { persistReferenceLearning } from "../learning/addUserReference.js";
 import {
   cleanupTunnelStagingCategoryDir,
   ensureTunnelStagingRoot,
@@ -45,6 +46,12 @@ import {
   tunnelStagingFolderRel,
 } from "./tunnelStaging.js";
 import { runProcessFolderPipeline, runProcessItemsPipeline } from "./processFolderPipeline.js";
+import {
+  loadUserControlRules,
+  readBypassReviewLog,
+  removeUserControlRule,
+  setUserControlRule,
+} from "../policies/userControl.js";
 export {
   addTrackingSnapshotApi,
   categorySupportsProgressTracking,
@@ -86,7 +93,7 @@ function safeTunnelLeaf(name) {
 
 /**
  * Stage tunnel uploads under temp/tunnel_staging/<category>/.
- * Reference tag: copy into references/user via addUserReference and clear staging.
+ * Reference tag: copy into references/user via persistReferenceLearning and clear staging.
  * Live: return relative folderPath for processFolder.
  *
  * @param {string} category
@@ -119,18 +126,36 @@ export function tunnelUploadStaged(category, files, options = {}) {
 
   if (isReference) {
     let added = 0;
+    /** @type {Array<{ filePath: string, reason: string, detail?: string }>} */
+    const referenceLearningFailures = [];
     for (const name of readdirSync(destRoot)) {
       const full = join(destRoot, name);
       try {
         if (!statSync(full).isFile()) continue;
-        const r = addUserReference(full, cat);
-        if (r.ok) added += 1;
-      } catch {
-        /* ignore */
+        const r = persistReferenceLearning(full, cat);
+        if (r.ok && !r.skipped) added += 1;
+        else if (!r.ok) {
+          console.error(`[learning] tunnel reference persistReferenceLearning failed: ${r.reason} (${full})`);
+          /** @type {{ filePath: string, reason: string, detail?: string }} */
+          const fail = { filePath: full, reason: r.reason };
+          if ("detail" in r && typeof r.detail === "string") fail.detail = r.detail;
+          referenceLearningFailures.push(fail);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`[learning] tunnel reference error: ${msg} (${full})`);
+        referenceLearningFailures.push({ filePath: full, reason: "io_error", detail: msg });
       }
     }
     cleanupTunnelStagingCategoryDir(destRoot);
-    return { ok: true, uploadKind: "reference", added, category: cat };
+    const ok = referenceLearningFailures.length === 0;
+    return {
+      ok,
+      uploadKind: "reference",
+      added,
+      category: cat,
+      ...(referenceLearningFailures.length ? { referenceLearningFailures } : {}),
+    };
   }
 
   return { ok: true, uploadKind: "live", folderPath: tunnelStagingFolderRel(cat) };
@@ -138,7 +163,14 @@ export function tunnelUploadStaged(category, files, options = {}) {
 
 /**
  * @param {string} inputPath — folder path (relative to cwd or absolute)
- * @param {{ cwd?: string }} [options]
+ * @param {{ cwd?: string, runtimeContext?: {
+ *   appMode?: string,
+ *   oversightLevel?: string,
+ *   expectedCategory?: string,
+ *   autoMove?: boolean,
+ *   strictValidation?: boolean,
+ *   reviewThreshold?: number,
+ * } }} [options]
  * @returns {Promise<{
  *   processed: number,
  *   moved: number,
@@ -390,8 +422,10 @@ export function getActiveReferenceAssetsApi(category, industryOverride) {
 
 /**
  * @param {{
+ *   decision_type?: "learning" | "express_pass" | "exemption",
  *   predicted_label?: string | null,
  *   selected_label?: string | null,
+ *   selected_room?: string | null,
  *   confidence?: number,
  *   file?: string | null,
  *   filePath?: string | null,
@@ -434,6 +468,19 @@ function reviewReasonForItem(item) {
 
 function isReviewQueueItem(item) {
   if (item == null || typeof item !== "object") return false;
+  const pcEarly = item.place_card;
+  if (
+    pcEarly &&
+    typeof pcEarly === "object" &&
+    /** @type {{ user_override?: unknown }} */ (pcEarly).user_override === "bypass_review"
+  ) {
+    if (item.room_validation != null) return true;
+    if (item.text_mismatch === true) return true;
+    if (item.text_label_conflict === true) return true;
+    if (item.text_routing_conflict === true) return true;
+    if (item.text_insight_flag === true) return true;
+    return false;
+  }
   if (item.room_validation != null) return true;
   if (item.text_mismatch === true) return true;
   if (item.text_label_conflict === true) return true;
@@ -489,12 +536,16 @@ export function getReviewQueue(options = {}) {
 }
 
 /**
+ * Programmatic alias for {@link captureUserDecision} → {@link applyDecision}.
+ * Prefer calling `applyDecision` with `decision_type` when wiring new code; this exists for stable API shape.
+ *
  * @param {{
  *   file?: string | null,
  *   selected_room: string,
  *   decision_type: "learning" | "express_pass" | "exemption",
  *   predicted_label?: string | null,
- *   confidence?: number
+ *   confidence?: number,
+ *   scope?: "global" | "single",
  * }} payload
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
@@ -514,6 +565,43 @@ export function getSessionSummary() {
  */
 export function getSuggestions() {
   return generateSuggestions();
+}
+
+/**
+ * User control rules (force_review / bypass_review) and bypass audit log.
+ * @returns {{ rules: unknown[], bypassLog: unknown[] }}
+ */
+export function getUserControlState() {
+  const { rules } = loadUserControlRules();
+  return { rules: Array.isArray(rules) ? rules : [], bypassLog: readBypassReviewLog() };
+}
+
+/**
+ * @param {{
+ *   predicted_label: string,
+ *   effect: "force_review" | "bypass_review",
+ *   enabled?: boolean,
+ * }} payload
+ */
+export function setUserControlRuleApi(payload = {}) {
+  try {
+    if (payload.remove === true) {
+      removeUserControlRule({
+        predicted_label: typeof payload.predicted_label === "string" ? payload.predicted_label : "",
+        effect: /** @type {"force_review"|"bypass_review"} */ (payload.effect),
+      });
+      return { ok: true };
+    }
+    setUserControlRule({
+      predicted_label: typeof payload.predicted_label === "string" ? payload.predicted_label : "",
+      effect: /** @type {"force_review"|"bypass_review"} */ (payload.effect),
+      enabled: payload.enabled,
+    });
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
 }
 
 /**
@@ -546,6 +634,73 @@ export function exportData(payload = {}) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, target: target != null ? String(target) : undefined, error: msg };
+  }
+}
+
+/**
+ * @param {string} dir
+ * @param {string} file
+ */
+function fileIsUnderDir(dir, file) {
+  const base = resolve(dir);
+  const f = resolve(file);
+  if (f === base) return true;
+  const pref = base.endsWith(sep) ? base : base + sep;
+  return f.startsWith(pref);
+}
+
+/**
+ * Buffer/url ingest writes under tmpBase. Files not moved (e.g. review) must survive rmSync(tmpBase).
+ * Copies remaining files to cwd/temp/claira_ingest_hold/ and updates result row paths for applyDecision / UI.
+ * @param {import("./processFolderPipeline.js").ProcessPipelineItem[]} pipelineItems
+ * @param {unknown[]} results
+ * @param {string} tmpBase
+ * @param {string} cwd
+ */
+function persistRemainingAdapterTempFiles(pipelineItems, results, tmpBase, cwd) {
+  if (!existsSync(tmpBase)) return;
+  const holdRoot = resolve(cwd, "temp", "claira_ingest_hold");
+  for (let i = 0; i < pipelineItems.length; i++) {
+    const it = pipelineItems[i];
+    if (!it || it.skip === true) continue;
+    const abs = it.absPath;
+    if (typeof abs !== "string" || !fileIsUnderDir(tmpBase, abs)) continue;
+    if (!existsSync(abs)) continue;
+    mkdirSync(holdRoot, { recursive: true });
+    const dest = join(holdRoot, `${Date.now()}_${i}_${basename(abs)}`);
+    try {
+      copyFileSync(abs, dest);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[learning] ingest hold copy failed: ${msg} (${abs})`);
+      const row = results[i];
+      if (row && typeof row === "object") {
+        const r = /** @type {Record<string, unknown>} */ (row);
+        r.ingest_hold_error = msg;
+        if (typeof r.filePath === "string" && fileIsUnderDir(tmpBase, r.filePath)) {
+          delete r.filePath;
+        }
+        const cc = r.classification_conflict;
+        if (cc && typeof cc === "object") {
+          const cco = /** @type {Record<string, unknown>} */ (cc);
+          if (typeof cco.filePath === "string" && fileIsUnderDir(tmpBase, cco.filePath)) {
+            delete cco.filePath;
+          }
+        }
+      }
+      continue;
+    }
+    const row = results[i];
+    if (!row || typeof row !== "object") continue;
+    const r = /** @type {Record<string, unknown>} */ (row);
+    const cc = r.classification_conflict;
+    if (cc && typeof cc === "object") {
+      const cco = /** @type {Record<string, unknown>} */ (cc);
+      if (typeof cco.filePath === "string" && resolve(cco.filePath) === resolve(abs)) {
+        cco.filePath = dest;
+      }
+    }
+    r.filePath = dest;
   }
 }
 
@@ -616,7 +771,14 @@ export async function ingestData(args, options = {}) {
 /**
  * Run the process-folder pipeline on normalized adapter items (images only; other types yield skip rows).
  * @param {unknown[]} normalizedData
- * @param {{ cwd?: string }} [options]
+ * @param {{ cwd?: string, runtimeContext?: {
+ *   appMode?: string,
+ *   oversightLevel?: string,
+ *   expectedCategory?: string,
+ *   autoMove?: boolean,
+ *   strictValidation?: boolean,
+ *   reviewThreshold?: number,
+ * } }} [options]
  * @returns {Promise<{
  *   processed: number,
  *   moved: number,
@@ -701,10 +863,18 @@ export async function processData(normalizedData, options = {}) {
       });
     }
 
-    return await runProcessItemsPipeline(pipelineItems, {
+    const out = await runProcessItemsPipeline(pipelineItems, {
       cwd,
       runtimeContext: options.runtimeContext,
     });
+    persistRemainingAdapterTempFiles(pipelineItems, out.results, tmpBase, cwd);
+    try {
+      const outPath = join(resolve(cwd, "output"), "results.json");
+      writeFileSync(outPath, JSON.stringify(out.results, null, 2), "utf8");
+    } catch {
+      /* ignore */
+    }
+    return out;
   } finally {
     try {
       rmSync(tmpBase, { recursive: true, force: true });

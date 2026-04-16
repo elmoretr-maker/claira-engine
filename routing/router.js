@@ -4,14 +4,9 @@
 
 import { loadRooms } from "../rooms/index.js";
 
-/** @type {ReturnType<typeof loadRooms> | null} */
-let cachedRooms = null;
-
+/** Always re-read `rooms/` so pack or room edits apply without process restart. */
 function getRooms() {
-  if (!cachedRooms) {
-    cachedRooms = loadRooms();
-  }
-  return cachedRooms;
+  return loadRooms();
 }
 
 /**

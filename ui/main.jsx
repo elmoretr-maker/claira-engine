@@ -17,6 +17,7 @@ import {
   getRiskInsights,
   getRooms,
   getSuggestions,
+  getUserControlState,
 } from "../interfaces/api.js";
 import BrandMark from "./components/BrandMark.jsx";
 import SimulationPanel from "./components/SimulationPanel.jsx";
@@ -49,7 +50,11 @@ import { VoiceOnboardingProvider, useVoiceOnboarding } from "./voice/VoiceOnboar
 import OnboardingVoiceSync from "./voice/OnboardingVoiceSync.jsx";
 import { VoiceGuidanceTools } from "./voice/VoiceGuidanceTools.jsx";
 import { deriveOnboardingVoiceStep, deriveVoiceReplayStep } from "./voice/deriveOnboardingVoiceStep.js";
-import { isReviewPipelineRow } from "./pipelineRowUtils.js";
+import {
+  attachSessionBypassUiMetadata,
+  isBypassReviewPipelineRow,
+  isReviewPipelineRow,
+} from "./pipelineRowUtils.js";
 import { buildTunnelSteps, fingerprintSelectedCaps, normalizeStoredTunnelSteps } from "./tunnelSteps.js";
 import { UiThemeProvider } from "./theme/UiThemeContext.jsx";
 import {
@@ -160,6 +165,13 @@ function pipelineRowToWaitingRoomItem(row) {
     if (score != null) ext.score = score;
     return ext;
   }
+  const rowPath = r.filePath;
+  if (typeof rowPath === "string" && rowPath.length) {
+    /** @type {{ file: string, reason: string, priority: string, score?: number, filePath?: string }} */
+    const ext = { ...base, filePath: rowPath };
+    if (score != null) ext.score = score;
+    return ext;
+  }
   if (score != null) return { ...base, score };
   return base;
 }
@@ -217,6 +229,8 @@ function App() {
   const [pipelineResults, setPipelineResults] = useState(/** @type {unknown[]} */ ([]));
   const [rooms, setRooms] = useState(/** @type {{ name: string, destination: string }[]} */ ([]));
   const [reviewItems, setReviewItems] = useState(/** @type {unknown[]} */ ([]));
+  /** Log lines from disk that match this run’s bypass events (same order as pipeline bypass rows when possible). */
+  const [sessionBypassLogSnapshot, setSessionBypassLogSnapshot] = useState(/** @type {unknown[]} */ ([]));
   const [suggestions, setSuggestions] = useState(/** @type {unknown[]} */ ([]));
   const [expectedItems, setExpectedItems] = useState(/** @type {string[]} */ ([]));
   const [packCategoryUi, setPackCategoryUi] = useState(
@@ -484,6 +498,7 @@ function App() {
     setPipelineResults([]);
     setSessionSummary(null);
     setReviewItems([]);
+    setSessionBypassLogSnapshot([]);
     setSuggestions([]);
     setRooms([]);
     setExpectedItems([]);
@@ -808,6 +823,7 @@ function App() {
               setPipelineResults([]);
               setRooms([]);
               setReviewItems([]);
+              setSessionBypassLogSnapshot([]);
               setSuggestions([]);
               setSessionSummary(null);
               setScreen("processing");
@@ -848,18 +864,24 @@ function App() {
         {workflowTopBar}
         <div key={screen} className="app-screen-fade">
           <WaitingRoom
+            pipelineResults={pipelineResults}
+            sessionBypassLogSnapshot={sessionBypassLogSnapshot}
             reviewItems={reviewItems}
             categoryUi={packCategoryUi}
             guidedStep={appMode === "setup" ? ONBOARDING_STEP.learning : undefined}
             onConflictResolved={(detail) => {
               void (async () => {
                 try {
-                  await applyDecision({
+                  const decRes = await applyDecision({
                     predicted_label: detail.predicted_label,
                     selected_label: detail.selected_label,
                     filePath: detail.filePath,
                     scope: detail.scope === "single" ? "single" : "global",
                   });
+                  if (decRes && decRes.applied === false) {
+                    console.error("applyDecision failed:", decRes.error ?? decRes);
+                    return;
+                  }
                   void refreshRiskInsights();
                   bumpSetupConflictsResolved();
                   setReviewItems((prev) =>
@@ -941,6 +963,23 @@ function App() {
       ? /** @type {Record<string, unknown>} */ (intakePayload.settings)
       : undefined;
 
+  /** @type {{
+   *   appMode: string,
+   *   oversightLevel: string,
+   *   autoMove?: boolean,
+   *   strictValidation?: boolean,
+   *   reviewThreshold?: number,
+   * }} */
+  const processingRuntimeContext = {
+    appMode,
+    oversightLevel,
+    ...(typeof settings?.autoMove === "boolean" ? { autoMove: settings.autoMove } : {}),
+    ...(settings?.strictValidation === true ? { strictValidation: true } : {}),
+    ...(typeof settings?.reviewThreshold === "number" && Number.isFinite(settings.reviewThreshold)
+      ? { reviewThreshold: settings.reviewThreshold }
+      : {}),
+  };
+
   return shell(
     <>
       {workflowTopBar}
@@ -951,7 +990,7 @@ function App() {
           ingestSource="file"
           ingestInput="references"
           entranceContext={{ intentLabel, settings }}
-          runtimeContext={{ appMode, oversightLevel }}
+          runtimeContext={processingRuntimeContext}
           guidedStep={appMode === "setup" ? ONBOARDING_STEP.processing : undefined}
           onBackToEntrance={() => {
             setScreen("entrance");
@@ -960,8 +999,19 @@ function App() {
           }}
           onProcessingComplete={async (out) => {
             const results = Array.isArray(out.results) ? out.results : [];
-            setPipelineResults(results);
-            const derived = results.filter(isReviewPipelineRow).map(pipelineRowToWaitingRoomItem);
+            const enriched = attachSessionBypassUiMetadata(results);
+            setPipelineResults(enriched);
+            let snap = /** @type {unknown[]} */ ([]);
+            try {
+              const uc = await getUserControlState();
+              const log = Array.isArray(uc?.bypassLog) ? uc.bypassLog : [];
+              const bCount = enriched.filter(isBypassReviewPipelineRow).length;
+              snap = bCount > 0 ? log.slice(-bCount) : [];
+            } catch {
+              snap = [];
+            }
+            setSessionBypassLogSnapshot(snap);
+            const derived = enriched.filter(isReviewPipelineRow).map(pipelineRowToWaitingRoomItem);
             setReviewItems(derived);
 
             setSessionSummary({

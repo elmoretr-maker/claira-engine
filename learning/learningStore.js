@@ -1,6 +1,6 @@
 /**
- * Passive in-memory correction log (no disk, no auto-routing changes).
- * Keys: "predicted→selected"
+ * Passive in-memory correction log for session UX (e.g. place-card learning_hint).
+ * Not classifier / embedding state — durable label learning is references/user via persistReferenceLearning.
  */
 
 /** @type {Map<string, { count: number, sumConfidence: number }>} */

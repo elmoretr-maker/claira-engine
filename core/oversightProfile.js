@@ -152,13 +152,29 @@ export function normalizeAppMode(raw) {
 }
 
 /**
+ * Effective oversight for thresholds / conflict UI: Entrance "Strict validation" forces strict for this run.
+ * @param {{ oversightLevel?: string, strictValidation?: boolean } | null | undefined} runtimeContext
+ * @returns {OversightLevel}
+ */
+export function effectiveOversightLevelFromRuntime(runtimeContext) {
+  if (runtimeContext?.strictValidation === true) return "strict";
+  return normalizeOversightLevel(runtimeContext?.oversightLevel);
+}
+
+/**
  * @param {{
  *   decision?: { decision?: string, reason?: string } | null,
  *   classification?: { predicted_label?: string | null, visualCosineTop3?: unknown } | null,
  *   classificationPreFallback?: { predicted_label?: string | null, confidence?: number, margin?: number } | null,
  * }} result
  * @param {string} absPath
- * @param {{ appMode?: string, oversightLevel?: string, expectedCategory?: string }} runtimeContext
+ * @param {{
+ *   appMode?: string,
+ *   oversightLevel?: string,
+ *   expectedCategory?: string,
+ *   strictValidation?: boolean,
+ *   reviewThreshold?: number,
+ * }} runtimeContext
  * @returns {{
  *   kind: "classification_conflict",
  *   predicted_label: string | null,
@@ -184,7 +200,7 @@ export function buildClassificationConflictPayload(result, absPath, runtimeConte
     refCtx?.potential_conflict === true;
 
   const pre = result.classificationPreFallback;
-  const oversightLevel = normalizeOversightLevel(runtimeContext?.oversightLevel);
+  const oversightLevel = effectiveOversightLevelFromRuntime(runtimeContext);
   const appMode = normalizeAppMode(runtimeContext?.appMode);
   const tunnelMismatch = result?.decision?.reason === "tunnel_expected_category_mismatch";
   const expectedCat =

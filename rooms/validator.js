@@ -53,9 +53,10 @@ function getThreshold(room) {
  * @param {string | null | undefined} label — room / label key (for diagnostics only)
  * @param {Float32Array | number[]} embedding — input vector (e.g. CLIP image embedding)
  * @param {{ config: object, referencePath: string }} room — entry from `loadRooms()`
+ * @param {{ strictValidation?: boolean }} [options] — raise cosine bar when Entrance strict mode is on
  * @returns {Promise<{ accepted: boolean, score: number, reason: string }>}
  */
-export async function validatePlacement(label, embedding, room) {
+export async function validatePlacement(label, embedding, room, options) {
   const refDir = room?.referencePath;
   if (!refDir || typeof refDir !== "string") {
     return {
@@ -104,7 +105,10 @@ export async function validatePlacement(label, embedding, room) {
   }
 
   const score = Math.max(...sims);
-  const threshold = getThreshold(room);
+  let threshold = getThreshold(room);
+  if (options?.strictValidation === true) {
+    threshold = Math.min(0.92, threshold + 0.08);
+  }
   const accepted = score >= threshold;
   const tag = label != null && String(label).trim() ? String(label).trim() : "unknown";
 

@@ -1,6 +1,7 @@
 /**
- * In-memory risk signals (fingerprinted per predicted label + failure mode).
- * Confusion pair tracking; adjusts confidence/margin in analyze() — no embedding/classifier changes.
+ * Session-only behavioral adjustment: fingerprints, confusion pairs, and confidence/margin deltas in analyze().
+ * Not persistent reference learning (that is persistReferenceLearning → references/user).
+ * No embedding model or routing table changes.
  */
 
 import { inferPatternMismatchDetails } from "./patternMismatchSeverity.js";

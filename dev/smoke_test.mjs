@@ -3,7 +3,7 @@
  * Run from package root: `node dev/smoke_test.mjs`
  */
 import { readFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import {
   analyze,
@@ -16,6 +16,12 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const reportPath = join(__dirname, "../data/session_report.json");
+/** Real image path so global applyDecision can persist reference learning */
+const refImage = resolve(__dirname, "../references/environment/terrain.png");
+if (!existsSync(refImage)) {
+  console.error("FAIL missing", refImage);
+  process.exit(1);
+}
 
 function vec3(x, y, z) {
   return new Float32Array([x, y, z]);
@@ -46,11 +52,13 @@ await applyDecision({
   predicted_label: "terrain",
   selected_label: "prop",
   confidence: 0.7,
+  filePath: refImage,
 });
 await applyDecision({
   predicted_label: "terrain",
   selected_label: "prop",
   confidence: 0.71,
+  filePath: refImage,
 });
 await applyDecision({
   predicted_label: "terrain",

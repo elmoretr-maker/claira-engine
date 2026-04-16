@@ -225,6 +225,16 @@ export default function TunnelScreen({
         const up = await tunnelUploadStaged(refCat, entries, {
           uploadTag: { type: "reference", category: refCat },
         });
+        if (up && up.ok === false) {
+          const fails = Array.isArray(up.referenceLearningFailures) ? up.referenceLearningFailures : [];
+          const detail = fails
+            .map(
+              (f) =>
+                `${f.filePath ?? "?"}: ${f.reason ?? "unknown"}${f.detail ? ` (${f.detail})` : ""}`,
+            )
+            .join("; ");
+          throw new Error(detail || "Reference learning failed for one or more files.");
+        }
         const added = typeof up?.added === "number" ? up.added : 0;
         if (added > 0) {
           addTunnelExampleCount(exampleKey, added);
