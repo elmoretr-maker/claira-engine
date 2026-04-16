@@ -30,12 +30,14 @@ import { autoImproveIndustryPack } from "../packs/industryAutogen/autoImproveInd
 import { buildIndustryReport } from "../packs/industryAutogen/coverageEvaluator.js";
 import { confirmIndustryPackActivation } from "../packs/industryAutogen/confirmIndustryPackActivation.js";
 import { createIndustryFromInput } from "../packs/industryAutogen/createIndustryFromInput.js";
+import { analyzeModuleCompositionForBuild } from "../workflow/moduleMapping/analyzeModuleCompositionForBuild.js";
 import { readStructureCategories } from "./referenceLoader.js";
 import {
   ensureCapabilityOutputFolders,
   humanizeCategoryKey,
   readActivePackIndustry,
   readPackReference,
+  readPackWorkflowSource,
 } from "./packReference.js";
 import { getActiveReferenceAssets, getProcesses, getReferenceAssets } from "./referenceAssets.js";
 import { persistReferenceLearning } from "../learning/addUserReference.js";
@@ -46,6 +48,13 @@ import {
   tunnelStagingFolderRel,
 } from "./tunnelStaging.js";
 import { runProcessFolderPipeline, runProcessItemsPipeline } from "./processFolderPipeline.js";
+import { dispatchPostPipeline } from "../workflow/moduleHost/moduleHost.js";
+import { assertWorkflowTemplateContract } from "../workflow/validation/workflowTemplateContract.js";
+import { readWorkflowTemplateFromActivePack } from "../workflow/trainer/readWorkflowTemplate.js";
+import { TRAINER_ROOT } from "../workflow/trainer/paths.js";
+import { createTrainerClient, getTrainerClient, listTrainerClients } from "../workflow/trainer/clientStore.js";
+import { listTrainerAssets } from "../workflow/trainer/assetStore.js";
+import { listTrainerEvents } from "../workflow/trainer/eventStore.js";
 import {
   loadUserControlRules,
   readBypassReviewLog,
@@ -163,7 +172,7 @@ export function tunnelUploadStaged(category, files, options = {}) {
 
 /**
  * @param {string} inputPath — folder path (relative to cwd or absolute)
- * @param {{ cwd?: string, runtimeContext?: {
+ * @param {{ cwd?: string, workflowContext?: { entityId?: string, clientId?: string }, runtimeContext?: {
  *   appMode?: string,
  *   oversightLevel?: string,
  *   expectedCategory?: string,
@@ -176,7 +185,8 @@ export function tunnelUploadStaged(category, files, options = {}) {
  *   moved: number,
  *   review: number,
  *   results: unknown[],
- *   reviewPriorityCounts: { high: number, medium: number, low: number }
+ *   reviewPriorityCounts: { high: number, medium: number, low: number },
+ *   workflowModuleErrors?: string[],
  * }>}
  */
 export async function processFolder(inputPath, options = {}) {
@@ -186,12 +196,20 @@ export async function processFolder(inputPath, options = {}) {
     cwd,
     runtimeContext: options.runtimeContext,
   });
+  const wf = options.workflowContext && typeof options.workflowContext === "object" ? options.workflowContext : {};
+  const entityId = String(wf.entityId ?? wf.clientId ?? "").trim();
+  const { moduleErrors } = dispatchPostPipeline(out, {
+    entityId,
+    cwd,
+    templateId: typeof wf.templateId === "string" ? wf.templateId : undefined,
+  });
   return {
     processed: out.processed,
     moved: out.moved,
     review: out.review,
     results: out.results,
     reviewPriorityCounts: out.reviewPriorityCounts,
+    ...(moduleErrors.length ? { workflowModuleErrors: moduleErrors } : {}),
   };
 }
 
@@ -327,12 +345,39 @@ export async function checkInternetConnectionApi() {
 }
 
 /**
+ * Deterministic module preview for Create Your Category (no build).
+ * @param {{
+ *   industryName?: string,
+ *   buildIntent?: string,
+ *   guidedModuleSignals?: { trackPeople?: boolean, trackActivity?: boolean, trackFiles?: boolean },
+ * }} [input]
+ */
+export function previewIndustryModuleCompositionApi(input = {}) {
+  const industryName = typeof input.industryName === "string" ? input.industryName : "";
+  const buildIntent = typeof input.buildIntent === "string" ? input.buildIntent : "";
+  const g = input.guidedModuleSignals;
+  const guidedModuleSignals =
+    g != null && typeof g === "object"
+      ? {
+          trackPeople: g.trackPeople === true,
+          trackActivity: g.trackActivity === true,
+          trackFiles: g.trackFiles === true,
+        }
+      : undefined;
+  return analyzeModuleCompositionForBuild(industryName, buildIntent, { guidedModuleSignals });
+}
+
+/**
  * Research + generate_pack_system pipeline (no classifier / learning changes).
- * @param {{ industryName?: string }} [input]
+ * @param {{ industryName?: string, buildIntent?: string, selectedModules?: string[] }} [input]
  */
 export async function createIndustryFromInputApi(input = {}) {
   const industryName = typeof input.industryName === "string" ? input.industryName : "";
-  return createIndustryFromInput(industryName);
+  const buildIntent = typeof input.buildIntent === "string" ? input.buildIntent : "";
+  const selectedModules = Array.isArray(input.selectedModules)
+    ? input.selectedModules.map((x) => String(x ?? "").trim()).filter(Boolean)
+    : [];
+  return createIndustryFromInput({ industryName, buildIntent, selectedModules });
 }
 
 /**
@@ -771,7 +816,7 @@ export async function ingestData(args, options = {}) {
 /**
  * Run the process-folder pipeline on normalized adapter items (images only; other types yield skip rows).
  * @param {unknown[]} normalizedData
- * @param {{ cwd?: string, runtimeContext?: {
+ * @param {{ cwd?: string, workflowContext?: { entityId?: string, clientId?: string }, runtimeContext?: {
  *   appMode?: string,
  *   oversightLevel?: string,
  *   expectedCategory?: string,
@@ -784,7 +829,8 @@ export async function ingestData(args, options = {}) {
  *   moved: number,
  *   review: number,
  *   results: unknown[],
- *   reviewPriorityCounts: { high: number, medium: number, low: number }
+ *   reviewPriorityCounts: { high: number, medium: number, low: number },
+ *   workflowModuleErrors?: string[],
  * }>}
  */
 export async function processData(normalizedData, options = {}) {
@@ -868,13 +914,23 @@ export async function processData(normalizedData, options = {}) {
       runtimeContext: options.runtimeContext,
     });
     persistRemainingAdapterTempFiles(pipelineItems, out.results, tmpBase, cwd);
+    const wf = options.workflowContext && typeof options.workflowContext === "object" ? options.workflowContext : {};
+    const entityId = String(wf.entityId ?? wf.clientId ?? "").trim();
+    const { moduleErrors } = dispatchPostPipeline(out, {
+      entityId,
+      cwd,
+      templateId: typeof wf.templateId === "string" ? wf.templateId : undefined,
+    });
     try {
       const outPath = join(resolve(cwd, "output"), "results.json");
       writeFileSync(outPath, JSON.stringify(out.results, null, 2), "utf8");
     } catch {
       /* ignore */
     }
-    return out;
+    return {
+      ...out,
+      ...(moduleErrors.length ? { workflowModuleErrors: moduleErrors } : {}),
+    };
   } finally {
     try {
       rmSync(tmpBase, { recursive: true, force: true });
@@ -882,4 +938,90 @@ export async function processData(normalizedData, options = {}) {
       /* ignore */
     }
   }
+}
+
+/**
+ * Active pack workflow template (packs/&lt;active&gt;/workflow_template.json).
+ */
+export function getActiveWorkflowTemplateApi() {
+  const packSlug = readActivePackIndustry();
+  if (!packSlug) {
+    throw new Error("getActiveWorkflowTemplateApi: no active pack (config/active_pack.json)");
+  }
+  const wfSrc = readPackWorkflowSource(packSlug);
+  if (wfSrc !== "generated") {
+    throw new Error(
+      'getActiveWorkflowTemplateApi: modular workflow is only for custom-built packs (pack.workflowSource must be "generated")',
+    );
+  }
+  const hint = `packs/${packSlug}/workflow_template.json`;
+  const template = readWorkflowTemplateFromActivePack();
+  if (!template) {
+    throw new Error(`getActiveWorkflowTemplateApi: missing ${hint}`);
+  }
+  assertWorkflowTemplateContract(template, hint);
+  return { ok: true, packSlug, template };
+}
+
+/**
+ * Packs that define workflow_template.json (composition metadata for UI hub).
+ */
+export function listWorkflowCompositionsApi() {
+  const packs = listIndustryPacks();
+  const activePackSlug = readActivePackIndustry();
+  /** @type {unknown[]} */
+  const workflows = [];
+  for (const p of packs) {
+    const tmplPath = join(TRAINER_ROOT, "packs", p.slug, "workflow_template.json");
+    if (!existsSync(tmplPath)) continue;
+    const wfSrc = readPackWorkflowSource(p.slug);
+    if (wfSrc !== "generated") {
+      throw new Error(
+        `packs/${p.slug}: workflow_template.json exists but pack.workflowSource is not "generated" (found ${wfSrc === undefined ? "missing" : JSON.stringify(wfSrc)})`,
+      );
+    }
+    const raw = JSON.parse(readFileSync(tmplPath, "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error(`Invalid workflow template (not an object): ${tmplPath}`);
+    }
+    const hint = tmplPath.split(/[/\\]/g).join("/").replace(/^.*\/packs\//, "packs/");
+    assertWorkflowTemplateContract(raw, hint);
+    const o = /** @type {Record<string, unknown>} */ (raw);
+    workflows.push({
+      slug: p.slug,
+      packLabel: p.label,
+      workflowSource: "generated",
+      templateId: o.templateId,
+      label: o.label,
+      modules: o.modules,
+      moduleOptions: o.moduleOptions,
+      template: raw,
+    });
+  }
+  return { ok: true, activePackSlug, workflows };
+}
+
+/**
+ * @param {{ displayName?: string }} [input]
+ */
+export function createTrainerClientApi(input = {}) {
+  return createTrainerClient(input.displayName ?? "");
+}
+
+export function listTrainerClientsApi() {
+  return listTrainerClients();
+}
+
+/**
+ * @param {{ entityId?: string, clientId?: string }} [input]
+ */
+export function getTrainerClientApi(input = {}) {
+  const id = String(input.entityId ?? input.clientId ?? "").trim();
+  const r = getTrainerClient(id);
+  if (!r.ok) return r;
+  const clientId = r.client.id;
+  const events = listTrainerEvents(clientId)
+    .slice()
+    .sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")));
+  return { ok: true, client: r.client, events, assets: listTrainerAssets(clientId) };
 }

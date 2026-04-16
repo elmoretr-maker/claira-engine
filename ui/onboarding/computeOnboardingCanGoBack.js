@@ -23,6 +23,8 @@ export function computeOnboardingCanGoBack({ industryGateDone, preAppPhase, scre
     case "rooms":
     case "workspace":
     case "progress":
+    case "workflow_hub":
+    case "workflow_run":
     case "logs":
       return true;
     case "entrance":

@@ -1,6 +1,7 @@
 {
   "version": 1,
   "pack": {
+    "workflowSource": "prebuilt",
     "label": "Ecommerce",
     "inputVerb": "Add products or images",
     "intents": [

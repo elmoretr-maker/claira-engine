@@ -299,3 +299,27 @@ export function readActivePackIndustry() {
     return null;
   }
 }
+
+/**
+ * Modular workflow entry is allowed only for packs marked generated (see reference.json pack.workflowSource).
+ * @param {string} slug — pack folder name under packs/
+ * @returns {"generated" | "prebuilt" | undefined}
+ */
+export function readPackWorkflowSource(slug) {
+  const s = String(slug ?? "")
+    .trim()
+    .toLowerCase();
+  if (!s || !/^[a-z0-9_-]+$/.test(s)) return undefined;
+  const refPath = join(ROOT, "packs", s, "reference.json");
+  if (!existsSync(refPath)) return undefined;
+  try {
+    const raw = JSON.parse(readFileSync(refPath, "utf8"));
+    const p = raw?.pack;
+    if (!p || typeof p !== "object" || Array.isArray(p)) return undefined;
+    const ws = /** @type {Record<string, unknown>} */ (p).workflowSource;
+    if (ws === "generated" || ws === "prebuilt") return ws;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}

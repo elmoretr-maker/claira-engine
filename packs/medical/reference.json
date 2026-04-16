@@ -2,6 +2,7 @@
   "version": 1,
   "pack": {
     "label": "Medical",
+    "workflowSource": "prebuilt",
     "inputVerb": "Add clinical files or images",
     "intents": [
       { "value": "sort_assets", "label": "Sort clinical documents" },

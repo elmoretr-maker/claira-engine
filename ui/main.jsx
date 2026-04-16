@@ -45,6 +45,8 @@ import CapabilityScreen from "./screens/CapabilityScreen.jsx";
 import TunnelScreen from "./screens/TunnelScreen.jsx";
 import StructureSetupScreen from "./screens/StructureSetupScreen.jsx";
 import WelcomeScreen from "./screens/WelcomeScreen.jsx";
+import WorkflowHubScreen from "./screens/WorkflowHubScreen.jsx";
+import WorkflowScreen from "./screens/WorkflowScreen.jsx";
 import { IndustryProvider, useIndustry } from "./IndustryContext.jsx";
 import { VoiceOnboardingProvider, useVoiceOnboarding } from "./voice/VoiceOnboardingContext.jsx";
 import OnboardingVoiceSync from "./voice/OnboardingVoiceSync.jsx";
@@ -217,10 +219,11 @@ function App() {
   );
 
   const [screen, setScreen] = useState(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run"} */ (
       "entrance"
     ),
   );
+  const [workflowComposition, setWorkflowComposition] = useState(/** @type {Record<string, unknown> | null} */ (null));
   const [progressFocusCategory, setProgressFocusCategory] = useState(/** @type {string} */ (""));
   const [intakePayload, setIntakePayload] = useState(/** @type {null | Record<string, unknown>} */ (null));
   const [sessionSummary, setSessionSummary] = useState(
@@ -361,6 +364,20 @@ function App() {
     if (screen !== "tunnel") setTunnelCategoryScope(null);
   }, [screen]);
 
+  /** Shallow hash routes without a router: #/workflow → workflow hub (after industry gate). */
+  useEffect(() => {
+    function fromHash() {
+      const raw = (window.location.hash || "").replace(/^#\/?/, "");
+      if (raw === "workflow" || raw.startsWith("workflow/")) {
+        if (!industryGateDone) return;
+        setScreen("workflow_hub");
+      }
+    }
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, [industryGateDone]);
+
   const loadRoomsAndGoToRooms = async () => {
     try {
       const r = await getRooms();
@@ -464,6 +481,12 @@ function App() {
         break;
       case "progress":
         setProgressFocusCategory("");
+        setScreen("entrance");
+        break;
+      case "workflow_run":
+        setScreen("workflow_hub");
+        break;
+      case "workflow_hub":
         setScreen("entrance");
         break;
       case "logs":
@@ -651,6 +674,11 @@ function App() {
                 Progress tracking
               </button>
             ) : null}
+            {industryGateDone ? (
+              <button type="button" className="btn btn-secondary" onClick={() => setScreen("workflow_hub")}>
+                Workflows
+              </button>
+            ) : null}
             {workflowAutoCheckActive ? (
               <span className="app-workflow-auto-label">Auto-checking every 60s</span>
             ) : null}
@@ -661,7 +689,12 @@ function App() {
           <summary>Simulated features (audit)</summary>
           <SimulationPanel />
         </details>
-        {screen !== "logs" && screen !== "capabilities" && screen !== "structure" && screen !== "workspace" ? (
+        {screen !== "logs" &&
+        screen !== "capabilities" &&
+        screen !== "structure" &&
+        screen !== "workspace" &&
+        screen !== "workflow_hub" &&
+        screen !== "workflow_run" ? (
           <RiskInsightsBanner
             insights={riskInsights}
             categoryFilter={screen === "tunnel" ? tunnelCategoryScope : null}
@@ -708,6 +741,49 @@ function App() {
               setScreen("entrance");
             }}
           />
+        </div>
+      </>,
+    );
+  }
+
+  if (screen === "workflow_hub") {
+    return shell(
+      <>
+        {workflowTopBar}
+        <div key={screen} className="app-screen-fade">
+          <WorkflowHubScreen
+            onBack={() => setScreen("entrance")}
+            onOpenComposition={(row) => {
+              setWorkflowComposition(row);
+              setScreen("workflow_run");
+            }}
+          />
+        </div>
+      </>,
+    );
+  }
+
+  if (screen === "workflow_run") {
+    return shell(
+      <>
+        {workflowTopBar}
+        <div key={screen} className="app-screen-fade">
+          {workflowComposition ? (
+            <WorkflowScreen
+              composition={workflowComposition}
+              onBack={() => {
+                setWorkflowComposition(null);
+                setScreen("workflow_hub");
+              }}
+            />
+          ) : (
+            <div className="app-screen-padding">
+              <p>No workflow selected.</p>
+              <button type="button" className="btn btn-secondary" onClick={() => setScreen("workflow_hub")}>
+                Back to list
+              </button>
+            </div>
+          )}
         </div>
       </>,
     );

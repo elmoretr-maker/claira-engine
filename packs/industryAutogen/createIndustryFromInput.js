@@ -14,6 +14,8 @@ import { buildIndustryKnowledge, normalizeCategoryKey, normalizePackSlug } from 
 import { runPackGenerator } from "./runPackGenerator.js";
 import { buildIndustryReport } from "./coverageEvaluator.js";
 import { validatePackIntegrity } from "./validatePackIntegrity.js";
+import { writeComposedWorkflowTemplateForPack } from "./writeWorkflowTemplateForPack.js";
+import { validateWorkflowModuleSelection } from "../../workflow/contracts/workflowRules.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..");
@@ -35,7 +37,7 @@ function makeUiSteps() {
 }
 
 /**
- * @param {string} industryName — free-text display name
+ * @param {{ industryName: string, buildIntent?: string, selectedModules: string[] }} input
  * @returns {Promise<{
  *   ok: boolean,
  *   slug: string,
@@ -49,7 +51,7 @@ function makeUiSteps() {
  *   report?: Record<string, unknown>,
  * }>}
  */
-export async function createIndustryFromInput(industryName) {
+export async function createIndustryFromInput(input) {
   const steps = makeUiSteps();
   const setStep = (i, status, detail) => {
     if (steps[i]) {
@@ -58,9 +60,19 @@ export async function createIndustryFromInput(industryName) {
     }
   };
 
-  const displayName = String(industryName ?? "").trim();
+  const industryName = typeof input?.industryName === "string" ? input.industryName : "";
+  const buildIntent = typeof input?.buildIntent === "string" ? input.buildIntent : "";
+  const displayName = industryName.trim();
   if (!displayName) {
     return { ok: false, slug: "", displayName: "", steps, error: "Industry name is required." };
+  }
+
+  const selectedModules = Array.isArray(input?.selectedModules)
+    ? input.selectedModules.map((x) => String(x ?? "").trim()).filter(Boolean)
+    : [];
+  const selectionError = validateWorkflowModuleSelection(selectedModules);
+  if (selectionError) {
+    return { ok: false, slug: "", displayName, steps, error: selectionError };
   }
 
   const slug = normalizePackSlug(displayName);
@@ -179,6 +191,7 @@ export async function createIndustryFromInput(industryName) {
     ref.pack = {
       label: knowledge.displayName,
       inputVerb: `Add ${knowledge.displayName.toLowerCase()} files`,
+      workflowSource: "generated",
       intents: [
         { value: "workflow", label: `Sort & route — ${knowledge.displayName}` },
         { value: "custom", label: "Custom" },
@@ -210,6 +223,22 @@ export async function createIndustryFromInput(industryName) {
     };
   }
   setStep(4, "ok", "Validation passed");
+  try {
+    writeComposedWorkflowTemplateForPack(packDir, displayName, buildIntent, slug, selectedModules);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    setStep(4, "error", msg);
+    cleanupPartial();
+    return {
+      ok: false,
+      slug,
+      displayName,
+      steps,
+      knowledge,
+      validation,
+      error: msg,
+    };
+  }
 
   const report = buildIndustryReport(slug);
   const prof = report.useCaseProfile?.id ?? "general";

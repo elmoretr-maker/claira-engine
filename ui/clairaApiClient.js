@@ -22,7 +22,7 @@ async function post(body) {
 
 /**
  * @param {string} inputPath
- * @param {{ cwd?: string, runtimeContext?: {
+ * @param {{ cwd?: string, workflowContext?: { entityId?: string, clientId?: string }, runtimeContext?: {
  *   appMode?: string,
  *   oversightLevel?: string,
  *   expectedCategory?: string,
@@ -37,12 +37,13 @@ export function processFolder(inputPath, options) {
     folderPath: inputPath,
     cwd: options?.cwd,
     runtimeContext: options?.runtimeContext,
+    workflowContext: options?.workflowContext,
   });
 }
 
 /**
  * @param {unknown[]} normalizedData
- * @param {{ cwd?: string, runtimeContext?: {
+ * @param {{ cwd?: string, workflowContext?: { entityId?: string, clientId?: string }, runtimeContext?: {
  *   appMode?: string,
  *   oversightLevel?: string,
  *   expectedCategory?: string,
@@ -57,6 +58,7 @@ export function processData(normalizedData, options) {
     items: normalizedData,
     cwd: options?.cwd,
     runtimeContext: options?.runtimeContext,
+    workflowContext: options?.workflowContext,
   });
 }
 
@@ -165,13 +167,40 @@ export function checkInternetConnection() {
 }
 
 /**
- * @param {{ industryName: string }} payload
+ * @param {{
+ *   industryName: string,
+ *   buildIntent?: string,
+ *   guidedModuleSignals?: { trackPeople?: boolean, trackActivity?: boolean, trackFiles?: boolean },
+ * }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export function previewIndustryModuleComposition(payload) {
+  const body = {
+    kind: "previewIndustryModuleComposition",
+    industryName: typeof payload?.industryName === "string" ? payload.industryName : "",
+    buildIntent: typeof payload?.buildIntent === "string" ? payload.buildIntent : "",
+  };
+  const g = payload?.guidedModuleSignals;
+  if (g != null && typeof g === "object") {
+    body.guidedModuleSignals = {
+      trackPeople: g.trackPeople === true,
+      trackActivity: g.trackActivity === true,
+      trackFiles: g.trackFiles === true,
+    };
+  }
+  return post(body);
+}
+
+/**
+ * @param {{ industryName: string, buildIntent?: string, selectedModules: string[] }} payload
  * @returns {Promise<Record<string, unknown>>}
  */
 export function createIndustryFromInput(payload) {
   return post({
     kind: "createIndustryFromInput",
     industryName: typeof payload?.industryName === "string" ? payload.industryName : "",
+    buildIntent: typeof payload?.buildIntent === "string" ? payload.buildIntent : "",
+    selectedModules: Array.isArray(payload?.selectedModules) ? payload.selectedModules : [],
   });
 }
 
@@ -379,6 +408,59 @@ export function workspaceGeneratorSnapshot(args) {
     mode: args?.mode,
     accountId: typeof args?.accountId === "string" ? args.accountId : undefined,
   });
+}
+
+/**
+ * @param {{ displayName: string }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export function createTrainerClient(payload) {
+  return post({
+    kind: "createTrainerClient",
+    displayName: typeof payload?.displayName === "string" ? payload.displayName : "",
+  });
+}
+
+/** Domain-agnostic alias (same API as createTrainerClient). */
+export function createEntity(payload) {
+  return createTrainerClient(payload);
+}
+
+/** @returns {Promise<Record<string, unknown>>} */
+export function listTrainerClients() {
+  return post({ kind: "listTrainerClients" });
+}
+
+/** Domain-agnostic alias (same API as listTrainerClients). */
+export function listEntities() {
+  return listTrainerClients();
+}
+
+/**
+ * @param {{ entityId?: string, clientId?: string }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export function getTrainerClient(payload) {
+  return post({
+    kind: "getTrainerClient",
+    entityId: typeof payload?.entityId === "string" ? payload.entityId : "",
+    clientId: typeof payload?.clientId === "string" ? payload.clientId : "",
+  });
+}
+
+/** Domain-agnostic alias (same API as getTrainerClient). */
+export function getEntity(payload) {
+  return getTrainerClient(payload);
+}
+
+/** @returns {Promise<Record<string, unknown>>} */
+export function getActiveWorkflowTemplate() {
+  return post({ kind: "getActiveWorkflowTemplate" });
+}
+
+/** @returns {Promise<Record<string, unknown>>} */
+export function listWorkflowCompositions() {
+  return post({ kind: "listWorkflowCompositions" });
 }
 
 /** @returns {Promise<string>} */

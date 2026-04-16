@@ -180,12 +180,18 @@ export default {
               if (body.runtimeContext && typeof body.runtimeContext === "object") {
                 opts.runtimeContext = body.runtimeContext;
               }
+              if (body.workflowContext && typeof body.workflowContext === "object") {
+                opts.workflowContext = body.workflowContext;
+              }
               out = await api.processFolder(body.folderPath, opts);
             } else if (body.kind === "processData") {
               const opts = {};
               if (body.cwd) opts.cwd = body.cwd;
               if (body.runtimeContext && typeof body.runtimeContext === "object") {
                 opts.runtimeContext = body.runtimeContext;
+              }
+              if (body.workflowContext && typeof body.workflowContext === "object") {
+                opts.workflowContext = body.workflowContext;
               }
               out = await api.processData(body.items, opts);
             } else if (body.kind === "applyDecision") {
@@ -227,9 +233,20 @@ export default {
               out = api.listIndustryPacksApi();
             } else if (body.kind === "checkInternetConnection") {
               out = await api.checkInternetConnectionApi();
+            } else if (body.kind === "previewIndustryModuleComposition") {
+              out = api.previewIndustryModuleCompositionApi({
+                industryName: typeof body.industryName === "string" ? body.industryName : "",
+                buildIntent: typeof body.buildIntent === "string" ? body.buildIntent : "",
+                guidedModuleSignals:
+                  body.guidedModuleSignals != null && typeof body.guidedModuleSignals === "object"
+                    ? body.guidedModuleSignals
+                    : undefined,
+              });
             } else if (body.kind === "createIndustryFromInput") {
               out = await api.createIndustryFromInputApi({
                 industryName: typeof body.industryName === "string" ? body.industryName : "",
+                buildIntent: typeof body.buildIntent === "string" ? body.buildIntent : "",
+                selectedModules: Array.isArray(body.selectedModules) ? body.selectedModules : [],
               });
             } else if (body.kind === "confirmIndustryPackActivation") {
               out = await api.confirmIndustryPackActivationApi({
@@ -333,6 +350,21 @@ export default {
                 mode: typeof body.mode === "string" ? body.mode : undefined,
                 industry: typeof body.industry === "string" ? body.industry : "",
               });
+            } else if (body.kind === "createTrainerClient") {
+              out = api.createTrainerClientApi({
+                displayName: typeof body.displayName === "string" ? body.displayName : "",
+              });
+            } else if (body.kind === "listTrainerClients") {
+              out = api.listTrainerClientsApi();
+            } else if (body.kind === "getTrainerClient") {
+              out = api.getTrainerClientApi({
+                entityId: typeof body.entityId === "string" ? body.entityId : "",
+                clientId: typeof body.clientId === "string" ? body.clientId : "",
+              });
+            } else if (body.kind === "getActiveWorkflowTemplate") {
+              out = api.getActiveWorkflowTemplateApi();
+            } else if (body.kind === "listWorkflowCompositions") {
+              out = api.listWorkflowCompositionsApi();
             } else {
               res.statusCode = 400;
               res.setHeader("Content-Type", "application/json");

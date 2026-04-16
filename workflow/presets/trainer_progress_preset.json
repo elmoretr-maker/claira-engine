@@ -1,0 +1,20 @@
+{
+  "presetId": "trainer_progress",
+  "matchKeywords": ["client", "progress"],
+  "modules": ["entity_tracking", "asset_registry", "event_log"],
+  "moduleOptions": {
+    "entity_tracking": {
+      "labels": { "singular": "Client", "plural": "Clients" }
+    },
+    "uiSections": {
+      "entities": "Clients",
+      "activity": "Activity",
+      "addData": "Add data"
+    },
+    "moduleLabels": {
+      "entity_tracking": "Clients",
+      "asset_registry": "Data input",
+      "event_log": "Activity"
+    }
+  }
+}

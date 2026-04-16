@@ -190,7 +190,7 @@ export default function IndustrySelector({ onLoaded, variant = "full" }) {
                   </p>
                 ) : packs.length === 0 ? (
                   <p className="industry-selector-error" role="alert">
-                    Nothing to choose yet—create one with Make your category on the right, or come back when a category
+                    Nothing to choose yet—create one with Create Your Category on the right, or come back when a category
                     has been added for you.
                   </p>
                 ) : (

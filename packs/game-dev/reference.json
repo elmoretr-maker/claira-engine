@@ -2,6 +2,7 @@
   "version": 1,
   "pack": {
     "label": "Game development",
+    "workflowSource": "prebuilt",
     "inputVerb": "Add game art or assets",
     "intents": [
       { "value": "sort_assets", "label": "Sort game assets" },
