@@ -1,5 +1,14 @@
 node_modules/
 .env
+.env.*
+!.env.example
+
+# Vite production build (regenerate: npm run ui:build)
+ui/dist/
+build/
+coverage/
+.cache/
+
 output/
 temp/
 _clip_test.png
