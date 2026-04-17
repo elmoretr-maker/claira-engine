@@ -74,3 +74,12 @@ node dev/smoke_test.mjs
 ```bash
 npm start
 ```
+
+## Workflow System Rules
+
+- Never commit ui/dist/ (build output)
+- Always run npm run ui:build locally or in CI
+- workflowBuildState is the single source of truth
+- Analyzer must not mutate state directly
+- No fallback logic allowed
+- Clarification must resolve gaps only

@@ -12,10 +12,14 @@
     "build:references": "node vision/buildReferences.js",
     "generate:reference-assets": "node dev/generate_pack_reference_assets.mjs",
     "generate:pack-system": "node dev/generate_pack_system.mjs",
+    "dev": "vite --config ui/vite.config.mjs --port 8151 --host 127.0.0.1",
+    "dev:full": "concurrently -k -n api,web \"npm run start:server\" \"npm run dev\"",
     "ui:dev": "vite --config ui/vite.config.mjs",
     "ui:build": "vite build --config ui/vite.config.mjs",
+    "validate:all": "npm run ui:build && node dev/validateClarificationLogic.mjs && node dev/validateGuidedBuild.mjs && node dev/validateProgressiveClarification.mjs && node dev/validateWorkflowBuildState.mjs && node dev/validateModuleRegistry.mjs && node dev/validatePipelineConfiguration.mjs && node dev/validateWorkflowExecutor.mjs && node dev/validatePhase2.mjs && node dev/validatePhase3.mjs && node dev/validatePhase4.mjs && node dev/validatePhase5.mjs && node dev/validatePhase6.mjs && node dev/validatePhase7.mjs && node dev/validatePhase8.mjs && node dev/validatePhase9.mjs && node dev/validatePhase10.mjs && node dev/validatePhase10_5.mjs && node dev/validatePhase11.mjs && node dev/validatePhase12.mjs && node dev/validatePhase13.mjs && node dev/validatePhase14.mjs && node dev/validatePhase15.mjs && node dev/validatePhase16.mjs && node dev/validateExecutionDeterminism.mjs",
     "start:server": "node --env-file=.env server/index.js",
-    "watch": "node server/watcher.js"
+    "watch": "node server/watcher.js",
+    "watch:workflow": "node --env-file=.env workflow/watcher/folderWatcher.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.65",
@@ -32,6 +36,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.2.1",
     "vite": "^5.4.11"
   },
   "overrides": {
