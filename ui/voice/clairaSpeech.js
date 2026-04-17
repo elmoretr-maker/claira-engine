@@ -16,6 +16,19 @@ function voiceDbg(...args) {
 }
 
 /**
+ * When the UI runs on Vite only, `/__claira/tts` is proxied to the Express API (PORT, default 3000).
+ * If the API is not running, the proxy often returns 500/502 — not a stack-worthy failure.
+ * @param {number} status
+ */
+function logTtsBackendUnavailableHint(status) {
+  if (status === 500 || status === 502 || status === 503) {
+    console.warn(
+      `[Claira] TTS unavailable (HTTP ${status}). Start API + UI together: npm run dev:full — or run npm run start:server (PORT default 3000) beside npm run dev. Vite proxies /__claira/tts to the API.`,
+    );
+  }
+}
+
+/**
  * @param {string} headerCt
  * @param {string} blobType
  * @param {number} blobSize
@@ -138,6 +151,32 @@ let queuedNonInterruptText = null;
 
 let playbackPrimed = false;
 
+/** @type {string} */
+const VOICE_CLIENT_INIT_KEY = "__clairaVoiceClientInitPromise";
+
+/**
+ * Idempotent client-side voice warm-up: best-effort `primeClairaVoicePlayback` only.
+ * Does not call the API (avoids 500s in the console when only Vite is running without `start:server`).
+ * When the API is up, TTS status is still available at GET `/__claira/tts/status` (manual or tooling).
+ * Survives Vite HMR by storing the promise on `window`. Never throws to callers.
+ * @returns {Promise<void>}
+ */
+export function initClairaVoiceClient() {
+  if (typeof window === "undefined") return Promise.resolve();
+  const g = /** @type {Window & { [VOICE_CLIENT_INIT_KEY]?: Promise<void> }} */ (window);
+  const existing = g[VOICE_CLIENT_INIT_KEY];
+  if (existing) return existing;
+  const p = (async () => {
+    try {
+      await primeClairaVoicePlayback();
+    } catch {
+      /* autoplay policy — pointer listener still unlocks later */
+    }
+  })();
+  g[VOICE_CLIENT_INIT_KEY] = p;
+  return p;
+}
+
 const SILENT_WAV =
   "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
@@ -228,6 +267,36 @@ export async function primeClairaVoicePlayback() {
   }
 }
 
+/**
+ * Pause current TTS without destroying the buffer (for UI that pauses video + voice together).
+ * @returns {void}
+ */
+export function pauseClairaSpeechPlayback() {
+  if (typeof window === "undefined") return;
+  try {
+    if (currentAudio && !currentAudio.ended) {
+      currentAudio.pause();
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Resume TTS after {@link pauseClairaSpeechPlayback} (no-op if nothing paused).
+ * @returns {void}
+ */
+export function resumeClairaSpeechPlayback() {
+  if (typeof window === "undefined") return;
+  try {
+    if (currentAudio && currentAudio.paused && !currentAudio.ended) {
+      void currentAudio.play();
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export function cancelClairaSpeech() {
   voiceDbg("cancelClairaSpeech()");
   playbackGeneration += 1;
@@ -264,7 +333,9 @@ export function cancelClairaSpeech() {
  * @returns {Promise<Response>}
  */
 async function fetchClairaEdgeTts(t) {
-  console.log("[Claira] requesting TTS… (Edge only)");
+  if (import.meta.env?.DEV) {
+    console.log("[Claira] requesting TTS… (Edge via /__claira/tts)");
+  }
   return fetch("/__claira/tts", {
     method: "POST",
     headers: {
@@ -307,13 +378,19 @@ async function playClairaTtsUtterance(t, myGen) {
   try {
     const res = await fetchClairaEdgeTts(t);
 
-    console.log("[Claira] response status:", res.status);
+    if (import.meta.env?.DEV) {
+      console.log("[Claira] response status:", res.status);
+    }
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      const failureMessage = typeof errBody?.error === "string" ? errBody.error : `HTTP ${res.status}`;
-      console.error("[Claira] TTS failed:", res.status, res.statusText, import.meta.env?.DEV ? errBody : "");
-      throw new Error(failureMessage || `HTTP ${res.status}`);
+      logTtsBackendUnavailableHint(res.status);
+      if (import.meta.env?.DEV && Object.keys(errBody).length > 0) {
+        console.warn("[Claira] TTS error body:", errBody);
+      }
+      dropLocals();
+      if (myGen !== playbackGeneration) return false;
+      return false;
     }
 
     voiceDbg("fetch succeeded", { status: res.status, contentType: res.headers.get("content-type") });
@@ -330,7 +407,12 @@ async function playClairaTtsUtterance(t, myGen) {
     logIfUnexpectedAudioMime(headerCt, blob.type, blob.size);
 
     if (!blob.size || blob.type.includes("json") || headerCt.includes("application/json")) {
-      throw new Error("TTS response was not audio — check API server on PORT and /__claira/tts (Edge).");
+      console.warn(
+        "[Claira] TTS response was not audio — check API on PORT and POST /__claira/tts (Edge).",
+      );
+      dropLocals();
+      if (myGen !== playbackGeneration) return false;
+      return false;
     }
 
     if (myGen !== playbackGeneration) {
@@ -416,11 +498,11 @@ async function playClairaTtsUtterance(t, myGen) {
   } catch (err) {
     dropLocals();
     if (myGen !== playbackGeneration) return false;
+    const msg = err instanceof Error ? err.message : String(err);
     if (import.meta.env?.DEV) {
-      console.error("[Claira] playClairaTtsUtterance error (full):", err);
+      console.warn("[Claira] TTS request/playback failed:", msg);
     } else {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[Claira] playClairaTtsUtterance error:", msg);
+      console.warn("[Claira] TTS failed:", msg);
     }
     return false;
   }
@@ -444,36 +526,42 @@ export async function speakClaira(text, options = {}) {
  * @returns {Promise<void>}
  */
 export async function speakClairaByMode(text, options = {}) {
-  const interrupt = options.interrupt === true;
-  const t = String(text ?? "").trim();
-  console.log("[Claira] speak called:", t);
-  voiceDbg("speakClairaByMode", { interrupt, empty: !t, textLen: t.length });
+  try {
+    const interrupt = options.interrupt === true;
+    const t = String(text ?? "").trim();
+    if (import.meta.env?.DEV) {
+      console.log("[Claira] speak called:", t);
+    }
+    voiceDbg("speakClairaByMode", { interrupt, empty: !t, textLen: t.length });
 
-  if (!t) return;
+    if (!t) return;
 
-  if (!interrupt && isClairaVoicePlaying()) {
-    voiceDbg("queue non-interrupt line (audio playing)");
-    queuedNonInterruptText = t;
-    return;
-  }
+    if (!interrupt && isClairaVoicePlaying()) {
+      voiceDbg("queue non-interrupt line (audio playing)");
+      queuedNonInterruptText = t;
+      return;
+    }
 
-  if (interrupt) {
-    queuedNonInterruptText = null;
-  }
+    if (interrupt) {
+      queuedNonInterruptText = null;
+    }
 
-  cancelClairaSpeech();
-  const myGen = playbackGeneration;
-  const ok = await playClairaTtsUtterance(t, myGen);
-  if (ok) {
-    voiceDbg("speakClairaByMode: TTS playback finished OK");
-    return;
-  }
-  if (myGen !== playbackGeneration) {
-    voiceDbg("speakClairaByMode: aborted (superseded)");
-    return;
-  }
-  if (import.meta.env?.DEV) {
-    console.warn("[Claira] speakClairaByMode: TTS did not complete playback");
+    cancelClairaSpeech();
+    const myGen = playbackGeneration;
+    const ok = await playClairaTtsUtterance(t, myGen);
+    if (ok) {
+      voiceDbg("speakClairaByMode: TTS playback finished OK");
+      return;
+    }
+    if (myGen !== playbackGeneration) {
+      voiceDbg("speakClairaByMode: aborted (superseded)");
+      return;
+    }
+    if (import.meta.env?.DEV) {
+      console.warn("[Claira] speakClairaByMode: TTS did not complete playback");
+    }
+  } catch (e) {
+    console.warn("[Claira] speakClairaByMode:", e instanceof Error ? e.message : e);
   }
 }
 

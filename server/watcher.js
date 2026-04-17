@@ -11,6 +11,18 @@ import { isSupportedImageFilename } from "../adapters/supportedImages.js";
 import { runProcessItemsPipeline } from "../interfaces/processFolderPipeline.js";
 import { clearReferenceEmbeddingsCache } from "./clairaImagePipeline.js";
 
+/**
+ * Legacy Claira folder watcher (runProcessItemsPipeline). Inactive unless explicitly enabled.
+ * New_Arrival ingestion for the Asset Orchestration Engine uses `npm run watch:workflow` only.
+ */
+if (process.env.CLAIRA_LEGACY_WATCHER !== "1") {
+  console.log(
+    "[Claira legacy watcher] Inactive. New_Arrival is handled by Asset Orchestration Engine (npm run watch:workflow).",
+  );
+  console.log("Set CLAIRA_LEGACY_WATCHER=1 to enable this script (runProcessItemsPipeline).");
+  process.exit(0);
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const NEW_ARRIVAL = join(ROOT, "New_Arrival");

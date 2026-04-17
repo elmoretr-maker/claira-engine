@@ -25,6 +25,7 @@ export function computeOnboardingCanGoBack({ industryGateDone, preAppPhase, scre
     case "progress":
     case "workflow_hub":
     case "workflow_run":
+    case "module_health":
     case "logs":
       return true;
     case "entrance":

@@ -46,6 +46,7 @@ import TunnelScreen from "./screens/TunnelScreen.jsx";
 import StructureSetupScreen from "./screens/StructureSetupScreen.jsx";
 import WelcomeScreen from "./screens/WelcomeScreen.jsx";
 import WorkflowHubScreen from "./screens/WorkflowHubScreen.jsx";
+import ModuleHealthPanel from "./components/ModuleHealthPanel.jsx";
 import WorkflowScreen from "./screens/WorkflowScreen.jsx";
 import { IndustryProvider, useIndustry } from "./IndustryContext.jsx";
 import { VoiceOnboardingProvider, useVoiceOnboarding } from "./voice/VoiceOnboardingContext.jsx";
@@ -219,7 +220,7 @@ function App() {
   );
 
   const [screen, setScreen] = useState(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run" | "module_health"} */ (
       "entrance"
     ),
   );
@@ -486,6 +487,9 @@ function App() {
       case "workflow_run":
         setScreen("workflow_hub");
         break;
+      case "module_health":
+        setScreen("entrance");
+        break;
       case "workflow_hub":
         setScreen("entrance");
         break;
@@ -675,9 +679,14 @@ function App() {
               </button>
             ) : null}
             {industryGateDone ? (
-              <button type="button" className="btn btn-secondary" onClick={() => setScreen("workflow_hub")}>
-                Workflows
-              </button>
+              <>
+                <button type="button" className="btn btn-secondary" onClick={() => setScreen("workflow_hub")}>
+                  Workflows
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setScreen("module_health")}>
+                  Module health
+                </button>
+              </>
             ) : null}
             {workflowAutoCheckActive ? (
               <span className="app-workflow-auto-label">Auto-checking every 60s</span>
@@ -694,7 +703,8 @@ function App() {
         screen !== "structure" &&
         screen !== "workspace" &&
         screen !== "workflow_hub" &&
-        screen !== "workflow_run" ? (
+        screen !== "workflow_run" &&
+        screen !== "module_health" ? (
           <RiskInsightsBanner
             insights={riskInsights}
             categoryFilter={screen === "tunnel" ? tunnelCategoryScope : null}
@@ -753,11 +763,23 @@ function App() {
         <div key={screen} className="app-screen-fade">
           <WorkflowHubScreen
             onBack={() => setScreen("entrance")}
+            onOpenModuleHealth={() => setScreen("module_health")}
             onOpenComposition={(row) => {
               setWorkflowComposition(row);
               setScreen("workflow_run");
             }}
           />
+        </div>
+      </>,
+    );
+  }
+
+  if (screen === "module_health") {
+    return shell(
+      <>
+        {workflowTopBar}
+        <div key={screen} className="app-screen-fade">
+          <ModuleHealthPanel onBack={() => setScreen("entrance")} />
         </div>
       </>,
     );

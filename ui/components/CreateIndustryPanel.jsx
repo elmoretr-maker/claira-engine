@@ -338,37 +338,38 @@ export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreat
 
   const panelClass = ["create-industry-panel", "card", className].filter(Boolean).join(" ");
 
-  const preview = buildState.analysisSnapshot;
+  const presentation = buildState.analysisPresentation;
 
   const modulesMeta =
-    preview && typeof preview.modulesMeta === "object" && preview.modulesMeta !== null
-      ? /** @type {Record<string, { title: string, description: string }>} */ (preview.modulesMeta)
+    presentation && typeof presentation.modulesMeta === "object" && presentation.modulesMeta !== null
+      ? /** @type {Record<string, { title: string, description: string }>} */ (presentation.modulesMeta)
       : {};
 
-  const detectedList = preview && Array.isArray(preview.detectedModules) ? preview.detectedModules : [];
+  const detectedList =
+    presentation && Array.isArray(presentation.detectedModules) ? presentation.detectedModules : [];
   const suggestedList =
-    preview && Array.isArray(preview.suggestedModules) ? preview.suggestedModules : [];
+    presentation && Array.isArray(presentation.suggestedModules) ? presentation.suggestedModules : [];
   const domainIntro =
-    preview && preview.domainIntro && typeof preview.domainIntro === "object"
-      ? /** @type {{ id: string, text: string }} */ (preview.domainIntro)
+    presentation && presentation.domainIntro && typeof presentation.domainIntro === "object"
+      ? /** @type {{ id: string, text: string }} */ (presentation.domainIntro)
       : null;
 
   const clarificationIntro =
-    typeof preview?.clarificationIntro === "string" ? preview.clarificationIntro : CLARIFICATION_INTRO;
-  const clarificationOptions = Array.isArray(preview?.clarificationOptions)
-    ? preview.clarificationOptions
+    typeof presentation?.clarificationIntro === "string" ? presentation.clarificationIntro : CLARIFICATION_INTRO;
+  const clarificationOptions = Array.isArray(presentation?.clarificationOptions)
+    ? presentation.clarificationOptions
     : [];
-  const clarificationOptionsProgressive = Array.isArray(preview?.clarificationOptionsProgressive)
-    ? preview.clarificationOptionsProgressive
+  const clarificationOptionsProgressive = Array.isArray(presentation?.clarificationOptionsProgressive)
+    ? presentation.clarificationOptionsProgressive
     : [];
   const clarifyRows =
     clarificationOptionsProgressive.length > 0 ? clarificationOptionsProgressive : clarificationOptions;
   const clarificationReason =
-    typeof preview?.clarificationReason === "string" ? preview.clarificationReason : "";
+    typeof presentation?.clarificationReason === "string" ? presentation.clarificationReason : "";
   const clarificationDetail =
-    preview?.clarificationDetail && typeof preview.clarificationDetail === "object"
+    presentation?.clarificationDetail && typeof presentation.clarificationDetail === "object"
       ? /** @type {{ missingModules?: string[], modulesToResolve?: string[], matchedDomainIds?: string[], matchedPresetId?: string | null, primaryDomainId?: string | null, minimalInput?: boolean, vagueIntent?: boolean, continuationSummary?: string }} */ (
-          preview.clarificationDetail
+          presentation.clarificationDetail
         )
       : null;
   const modulesToResolve = Array.isArray(clarificationDetail?.modulesToResolve)
@@ -656,7 +657,7 @@ export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreat
         </div>
       ) : null}
 
-      {buildState.step === "clarify" && preview?.ok === true ? (
+      {buildState.step === "clarify" && presentation != null ? (
         <div className="create-industry-module-flow">
           <h3>{clarificationIntro}</h3>
           {continuationSummary ? (
@@ -718,7 +719,7 @@ export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreat
         </div>
       ) : null}
 
-      {buildState.step === "select" && preview?.ok === true ? (
+      {buildState.step === "select" && presentation != null ? (
         <div className="create-industry-module-flow">
           <h3>These are the modules we selected based on your request:</h3>
           <p>
@@ -807,7 +808,7 @@ export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreat
         </div>
       ) : null}
 
-      {buildState.step === "confirm" && preview?.ok === true ? (
+      {buildState.step === "confirm" && presentation != null ? (
         <div className="create-industry-module-flow">
           <h3>Are you sure you want to build this system?</h3>
           <p>These are the modules selected for your system. The pack is generated only after you confirm.</p>

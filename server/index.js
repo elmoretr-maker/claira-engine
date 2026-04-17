@@ -1,8 +1,12 @@
 import express from "express";
 import { analyzeImage } from "./clairaImagePipeline.js";
+import { getClairaTtsRuntimeSummary, initClairaTtsService, synthesizeClairaSpeech } from "../lib/clairaTts.mjs";
 import { loadRootEnv } from "./loadRootEnv.mjs";
 
 loadRootEnv();
+void initClairaTtsService().catch((e) => {
+  console.warn("[Claira TTS] init (non-fatal):", e instanceof Error ? e.message : e);
+});
 
 /** Last POST /run body + extracted fields (in-memory only; resets on process restart). */
 let lastWixWebhook = null;
@@ -273,6 +277,20 @@ app.get("/health", (req, res) => {
 });
 
 /**
+ * TTS service status (no audio; safe to call on app load).
+ */
+app.get("/__claira/tts/status", (req, res) => {
+  try {
+    res.json({ ok: true, ...getClairaTtsRuntimeSummary() });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+});
+
+/**
  * Claira TTS — same path the UI uses (`fetch("/__claira/tts")`).
  * Proxied from Vite in dev; call this server directly in production or serve static UI behind the same host.
  */
@@ -294,7 +312,6 @@ app.post("/__claira/tts", async (req, res) => {
         headerEdge,
       );
     }
-    const { synthesizeClairaSpeech } = await import("../lib/clairaTts.mjs");
     const { synthesizeClairaSpeechEdge } = await import("../lib/clairaEdgeTtsVoice.mjs");
     const buf = forceEdge ? await synthesizeClairaSpeechEdge(text) : await synthesizeClairaSpeech(text);
     res.setHeader("Content-Type", "audio/mpeg");

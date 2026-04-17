@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import BrandMark from "../components/BrandMark.jsx";
 import ClairaClaritySignature from "../components/ClairaClaritySignature.jsx";
-import { primeClairaVoicePlayback } from "../voice/clairaSpeech.js";
+import {
+  pauseClairaSpeechPlayback,
+  primeClairaVoicePlayback,
+  resumeClairaSpeechPlayback,
+} from "../voice/clairaSpeech.js";
 import { getVoiceScriptForStep } from "../voice/clairaVoiceSteps.js";
 import { useVoiceOnboarding } from "../voice/VoiceOnboardingContext.jsx";
 import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
@@ -68,17 +72,20 @@ export default function WelcomeScreen({ onStart }) {
     if (!v) return;
     if (v.paused && isVideoAtStart()) {
       speakWelcomeLine();
+    } else if (v.paused && voiceEnabled) {
+      resumeClairaSpeechPlayback();
     }
     try {
       await v.play();
     } catch {
       /* ignore */
     }
-  }, [isStatic, isVideoAtStart, speakWelcomeLine]);
+  }, [isStatic, isVideoAtStart, speakWelcomeLine, voiceEnabled]);
 
   const handlePause = useCallback(() => {
     if (isStatic) return;
     videoRef.current?.pause();
+    pauseClairaSpeechPlayback();
   }, [isStatic]);
 
   const handleReplay = useCallback(async () => {

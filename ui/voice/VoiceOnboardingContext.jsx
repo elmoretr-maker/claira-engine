@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelClairaSpeech,
+  initClairaVoiceClient,
   primeClairaVoicePlayback,
   speakClaira,
   speakClairaByMode,
@@ -25,6 +26,10 @@ export function VoiceOnboardingProvider({ children }) {
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled;
   }, [voiceEnabled]);
+
+  useEffect(() => {
+    void initClairaVoiceClient();
+  }, []);
 
   useEffect(() => {
     const onFirstPointer = () => {

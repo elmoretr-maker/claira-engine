@@ -7,9 +7,10 @@ import { useIndustry } from "../IndustryContext.jsx";
  * @param {{
  *   onBack: () => void,
  *   onOpenComposition: (row: Record<string, unknown>) => void,
+ *   onOpenModuleHealth?: () => void,
  * }} props
  */
-export default function WorkflowHubScreen({ onBack, onOpenComposition }) {
+export default function WorkflowHubScreen({ onBack, onOpenComposition, onOpenModuleHealth }) {
   const { loadIndustryPack, industrySlug } = useIndustry();
   const [workflows, setWorkflows] = useState(/** @type {unknown[]} */ ([]));
   const [activePackSlug, setActivePackSlug] = useState("");
@@ -52,11 +53,16 @@ export default function WorkflowHubScreen({ onBack, onOpenComposition }) {
 
   return (
     <div className="app-screen-padding" style={{ maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem", flexWrap: "wrap" }}>
         <button type="button" className="btn btn-secondary" onClick={onBack}>
           Back
         </button>
         <h1 style={{ margin: 0, fontSize: "1.2rem" }}>Workflows</h1>
+        {typeof onOpenModuleHealth === "function" ? (
+          <button type="button" className="btn btn-secondary" onClick={onOpenModuleHealth}>
+            Module health
+          </button>
+        ) : null}
       </div>
       <p style={{ fontSize: "0.9rem", color: "var(--text-muted, #6b7280)", marginBottom: "1rem" }}>
         Choose a workflow to open. Your industry pack updates when you pick one from a different pack so
