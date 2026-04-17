@@ -54,9 +54,21 @@ import fs from "node:fs";
 
 /**
  * @typedef {{
+ *   tokenScore: number,
+ *   themeScore: number,
+ *   embeddingScore: number,
+ *   contextScore: number,
+ *   combined: number,
+ *   weights: { wT: number, wH: number, wE: number, wC: number },
+ * }} SemanticScoreBreakdown
+ */
+
+/**
+ * @typedef {{
  *   userCorrectedCategory: string,
  *   semanticMatchScore: number,
  *   strength: "strong" | "weak",
+ *   scoreBreakdown?: SemanticScoreBreakdown,
  * }} SemanticMemoryMatch
  */
 
@@ -256,6 +268,97 @@ function jaccardStrings(a, b) {
 }
 
 /**
+ * @param {string | null | undefined} s
+ */
+function normCatKeyLocal(s) {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Deterministic filename-derived tokens (prefix, sequence markers, version tags).
+ * @param {string} ref
+ * @returns {string[]}
+ */
+export function computeFilenamePatternTokens(ref) {
+  const base = basenameOnly(ref);
+  const stem = base.includes(".") ? base.slice(0, base.lastIndexOf(".")) : base;
+  const lower = stem.toLowerCase();
+  /** @type {string[]} */
+  const out = [];
+  const vm = /^(v\d{1,3})(?:[^\d]|$)/i.exec(lower);
+  if (vm) out.push(String(vm[1]).toLowerCase());
+  if (/frame|frm|seq|sequence/.test(lower)) out.push("seq_marker");
+  const nm = /[_-](?:frame|frm|seq)?[_-]?0*(\d{2,4})(?=[_.-]|$)/i.exec(lower);
+  if (nm) out.push(`idx_${nm[1]}`);
+  const parts = lower.split(/[_\-.]+/).filter(Boolean);
+  const prefix = parts[0];
+  if (prefix && prefix.length >= 2 && prefix.length <= 32 && !/^\d+$/.test(prefix)) out.push(prefix);
+  return [...new Set(out)].slice(0, 10);
+}
+
+/**
+ * @param {string[]} fpToks
+ * @param {string} entryFilename
+ */
+function filenamePatternOverlap(fpToks, entryFilename) {
+  const stem = String(entryFilename ?? "").includes(".")
+    ? String(entryFilename).slice(0, String(entryFilename).lastIndexOf("."))
+    : String(entryFilename ?? "");
+  const parts = stem
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 1);
+  const a = fpToks.map((x) => String(x).toLowerCase());
+  return a.length || parts.length ? jaccardStrings(a, parts) : 0;
+}
+
+/**
+ * Route / history proxy alignment (group consensus, feedback history, hierarchy hints).
+ * @param {Record<string, unknown> | null | undefined} routeContext
+ * @param {string} entryCategory
+ * @param {string[]} themes
+ * @param {string[]} tokens
+ * @param {FeedbackEntry} entry
+ */
+function routeAndHistoryScore(routeContext, entryCategory, themes, tokens, entry) {
+  if (routeContext == null || typeof routeContext !== "object") return 0;
+  let s = 0;
+  const ec = normCatKeyLocal(entryCategory);
+  const gc =
+    "groupConsensusCategory" in routeContext && routeContext.groupConsensusCategory != null
+      ? normCatKeyLocal(String(routeContext.groupConsensusCategory))
+      : "";
+  if (gc && ec && gc === ec) s += 0.44;
+  const dh =
+    "dominantHistoryTop" in routeContext && routeContext.dominantHistoryTop != null
+      ? normCatKeyLocal(String(routeContext.dominantHistoryTop))
+      : "";
+  if (dh && ec && dh === ec) s += 0.34;
+  const hh =
+    "hierarchyHint" in routeContext && routeContext.hierarchyHint != null ? String(routeContext.hierarchyHint).toLowerCase() : "";
+  if (hh) {
+    const pool = `${themes.join(" ")} ${tokens.join(" ")}`;
+    const words = hh.split(/[^\w]+/).filter((w) => w.length > 2);
+    let hits = 0;
+    for (const w of words) {
+      if (pool.includes(w.toLowerCase())) hits++;
+    }
+    s += Math.min(0.2, 0.1 * hits);
+  }
+  const gt =
+    "groupType" in routeContext && routeContext.groupType != null ? String(routeContext.groupType).toLowerCase() : "";
+  const eth = Array.isArray(entry.labelThemes) ? entry.labelThemes.map((x) => String(x).toLowerCase()) : [];
+  const etok = Array.isArray(entry.semanticTokens) ? entry.semanticTokens.map((x) => String(x).toLowerCase()) : [];
+  if (gt && (eth.some((t) => t.includes(gt) || gt.includes(t)) || etok.some((t) => t.includes(gt) || gt.includes(t)))) {
+    s += 0.12;
+  }
+  return Math.min(1, s);
+}
+
+/**
  * @param {number[] | null | undefined} a
  * @param {number[] | undefined} b
  * @returns {number | null}
@@ -326,15 +429,37 @@ export function recordFeedbackEntry(entry) {
 }
 
 /**
- * Semantic memory: match current signals against stored feedback (tokens, themes, optional embedding).
+ * Deterministic intrinsic composition (no store lookup) with explicit breakdown.
  * @param {{
  *   semanticTokens?: string[],
  *   labelThemes?: string[],
  *   embedding?: number[] | null,
- *   cosineThreshold?: number,
  * }} input
- * @returns {SemanticMemoryMatch | null}
+ * @returns {SemanticScoreBreakdown}
  */
+export function computeSemanticMatchScoreIntrinsicDetailed(input) {
+  const t = Array.isArray(input.semanticTokens) ? input.semanticTokens.map((x) => String(x).toLowerCase().trim()).filter(Boolean) : [];
+  const h = Array.isArray(input.labelThemes) ? input.labelThemes.map((x) => String(x).toLowerCase().trim()).filter(Boolean) : [];
+  const tokenScore = Number(jaccardStrings(t, h).toFixed(4));
+  const themeScore = Number((t.length === 0 ? 0 : Math.min(1, t.length / 8)).toFixed(4));
+  let embeddingScore = 0;
+  const sig = input.embedding != null && Array.isArray(input.embedding) ? embeddingSignatureFrom(input.embedding) : null;
+  if (sig != null && sig.length > 0) {
+    let sum = 0;
+    for (const x of sig) sum += Math.abs(Number(x));
+    embeddingScore = Number(Math.min(1, (sum / sig.length) * 1.15).toFixed(4));
+  }
+  const combined = Number(Math.min(1, 0.48 * tokenScore + 0.28 * themeScore + 0.24 * embeddingScore).toFixed(4));
+  return {
+    tokenScore,
+    themeScore,
+    embeddingScore,
+    contextScore: 0,
+    combined,
+    weights: { wT: 0.48, wH: 0.28, wE: 0.24, wC: 0 },
+  };
+}
+
 /**
  * Deterministic 0–1 score from token/theme alignment + embedding strength (no store lookup).
  * @param {{
@@ -345,23 +470,33 @@ export function recordFeedbackEntry(entry) {
  * @returns {number}
  */
 export function computeSemanticMatchScoreIntrinsic(input) {
-  const t = Array.isArray(input.semanticTokens) ? input.semanticTokens.map((x) => String(x).toLowerCase().trim()).filter(Boolean) : [];
-  const h = Array.isArray(input.labelThemes) ? input.labelThemes.map((x) => String(x).toLowerCase().trim()).filter(Boolean) : [];
-  const j = jaccardStrings(t, h);
-  const tokDensity = t.length === 0 ? 0 : Math.min(1, t.length / 8);
-  let embPart = 0;
-  const sig = input.embedding != null && Array.isArray(input.embedding) ? embeddingSignatureFrom(input.embedding) : null;
-  if (sig != null && sig.length > 0) {
-    let sum = 0;
-    for (const x of sig) sum += Math.abs(Number(x));
-    embPart = Math.min(1, (sum / sig.length) * 1.15);
-  }
-  return Number(Math.min(1, 0.48 * j + 0.28 * tokDensity + 0.24 * embPart).toFixed(4));
+  return computeSemanticMatchScoreIntrinsicDetailed(input).combined;
 }
 
+/**
+ * Semantic memory: match stored feedback with Phase 17 multi-signal composition.
+ * @param {{
+ *   semanticTokens?: string[],
+ *   labelThemes?: string[],
+ *   embedding?: number[] | null,
+ *   cosineThreshold?: number,
+ *   filenamePatternTokens?: string[],
+ *   routeContext?: {
+ *     hierarchyHint?: string | null,
+ *     groupType?: string | null,
+ *     groupConsensusCategory?: string | null,
+ *     dominantHistoryTop?: string | null,
+ *   } | null,
+ * }} input
+ * @returns {SemanticMemoryMatch | null}
+ */
 export function findSemanticMemoryMatch(input) {
   const tokens = Array.isArray(input.semanticTokens) ? input.semanticTokens.map((x) => String(x).toLowerCase()) : [];
   const themes = Array.isArray(input.labelThemes) ? input.labelThemes.map((x) => String(x).toLowerCase()) : [];
+  const fpToks = Array.isArray(input.filenamePatternTokens)
+    ? input.filenamePatternTokens.map((x) => String(x).toLowerCase().trim()).filter(Boolean)
+    : [];
+  const routeContext = input.routeContext != null && typeof input.routeContext === "object" ? input.routeContext : null;
   const embIn = Array.isArray(input.embedding) && input.embedding.length > 0 ? input.embedding : null;
   const sigIn = embIn != null ? embeddingSignatureFrom(embIn) : null;
   const cosThresh = typeof input.cosineThreshold === "number" && input.cosineThreshold > 0 ? input.cosineThreshold : 0.82;
@@ -370,6 +505,8 @@ export function findSemanticMemoryMatch(input) {
   let bestScore = 0;
   /** @type {string | null} */
   let bestCat = null;
+  /** @type {SemanticScoreBreakdown | null} */
+  let bestBreakdown = null;
 
   for (const e of entries) {
     const cat = String(e.userCorrectedCategory ?? "")
@@ -394,18 +531,60 @@ export function findSemanticMemoryMatch(input) {
       if (c != null) embScore = Math.max(0, c);
     }
 
-    let combined;
-    if (sigIn != null && Array.isArray(e.embeddingSignature) && e.embeddingSignature.length === sigIn.length) {
-      combined = 0.32 * tScore + 0.28 * hScore + 0.4 * embScore;
-    } else {
-      combined = tokens.length || themes.length ? 0.55 * tScore + 0.45 * hScore : 0;
+    const routeSc = routeAndHistoryScore(routeContext, cat, themes, tokens, e);
+    const fpSc = fpToks.length ? filenamePatternOverlap(fpToks, e.filename) : 0;
+    const contextScore = Number(Math.min(1, 0.62 * routeSc + 0.38 * fpSc).toFixed(4));
+
+    const sparseSignals = tokens.length < 2 && themes.length >= 1;
+    const hasEmbPair = sigIn != null && Array.isArray(e.embeddingSignature) && e.embeddingSignature.length === sigIn.length;
+
+    let wT = 0.28;
+    let wH = 0.26;
+    let wE = 0.38;
+    let wC = 0.08;
+    if (!hasEmbPair) {
+      wT = sparseSignals ? 0.36 : 0.42;
+      wH = sparseSignals ? 0.38 : 0.38;
+      wE = 0;
+      wC = sparseSignals ? 0.26 : 0.2;
+    } else if (sparseSignals) {
+      wT -= 0.04;
+      wH += 0.03;
+      wC += 0.04;
+      wE -= 0.03;
     }
 
-    if (embIn != null && embScore >= cosThresh) combined = Math.max(combined, embScore * 0.95);
+    const strongEmb = embScore >= cosThresh * 0.97;
+    if (strongEmb) wC *= 0.45;
+
+    let sumW = wT + wH + wE + wC;
+    wT /= sumW;
+    wH /= sumW;
+    wE /= sumW;
+    wC /= sumW;
+
+    let combined = wT * tScore + wH * hScore + wE * embScore + wC * contextScore;
+    if (embIn != null && embScore >= cosThresh) {
+      combined = Math.max(combined, Math.min(1, 0.52 * combined + 0.48 * (embScore * 0.96)));
+    }
+
+    const dims = [tScore, hScore, embScore, contextScore].filter((x) => x > 0.07 && x < 0.48);
+    if (dims.length >= 2) {
+      combined = Math.min(1, combined + 0.032 * (dims.length - 1));
+    }
+    combined = Math.min(1, combined);
 
     if (combined > bestScore) {
       bestScore = combined;
       bestCat = cat;
+      bestBreakdown = {
+        tokenScore: Number(tScore.toFixed(4)),
+        themeScore: Number(hScore.toFixed(4)),
+        embeddingScore: Number(embScore.toFixed(4)),
+        contextScore,
+        combined: Number(combined.toFixed(4)),
+        weights: { wT: Number(wT.toFixed(4)), wH: Number(wH.toFixed(4)), wE: Number(wE.toFixed(4)), wC: Number(wC.toFixed(4)) },
+      };
     }
   }
 
@@ -415,6 +594,7 @@ export function findSemanticMemoryMatch(input) {
     userCorrectedCategory: bestCat,
     semanticMatchScore: Math.min(1, Number(bestScore.toFixed(4))),
     strength,
+    ...(bestBreakdown != null ? { scoreBreakdown: bestBreakdown } : {}),
   };
 }
 
