@@ -26,6 +26,7 @@ function assert(name, cond, detail = "") {
 let s = createInitialWorkflowBuildState();
 assert("initial step input", s.step === "input");
 assert("history empty", s.history.length === 0);
+assert("module runtime state present", s.moduleRuntimeState != null && typeof s.moduleRuntimeState === "object");
 
 s = transitionChooseEntryPath(s, "guided");
 assert("guided entry", s.step === "guided" && s.entryPath === "guided");
@@ -62,7 +63,10 @@ s = transitionConfirmToBuild(s);
 assert("build step", s.step === "build");
 
 s = transitionBackToInput(toConf.state);
-assert("back to input clears analysis", s.analysisSnapshot === null && s.step === "guided");
+assert(
+  "back to input clears analysis",
+  s.analysisSnapshot === null && s.analysisPresentation === null && s.step === "guided",
+);
 
 const reset = transitionCompleteReset();
 assert("complete reset clears history", reset.history.length === 0);

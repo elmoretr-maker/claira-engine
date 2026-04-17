@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { REGISTERED_WORKFLOW_MODULE_IDS } from "../validation/workflowTemplateContract.js";
+import { REGISTERED_WORKFLOW_MODULE_IDS } from "../modules/moduleRegistry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PRESETS_DIR = __dirname;

@@ -2,14 +2,29 @@
  * Workflow build state engine — single source for category creation flow.
  * Transitions are explicit; analyzer updates merge into existing state (no blind resets).
  * See MODULE_DISCOVERY_WORKING.md (guided resolution, no fallbacks).
+ *
+ * NOTE:
+ * The "analyzed" step is recorded in history only.
+ * The UI transitions directly to "clarify" or "select"
+ * to avoid inactive states.
  */
 
 import { MODULE_SELECTION_ORDER, validateWorkflowModuleSelection } from "../contracts/workflowRules.js";
 import { moduleIdsFromGuidedSignals } from "../moduleMapping/guidedModuleSignals.js";
-import { domainExpectedModules } from "../moduleMapping/domainExpectedCoverage.js";
+import { getRequiredModulesForDomain } from "../moduleMapping/domainExpectedCoverage.js";
+import { createInitialModuleRuntimeState } from "../modules/moduleRegistry.js";
+import { applyModuleRuntimeReducer } from "../modules/moduleRuntime.js";
+
+const MAX_HISTORY_LENGTH = 50;
 
 /**
  * @typedef {'init' | 'input' | 'guided' | 'analyzed' | 'clarify' | 'select' | 'confirm' | 'build'} WorkflowBuildStep
+ */
+
+/**
+ * UI copy + lists derived once at apply time from the analyzer response.
+ * This is state-owned presentation data — not a second runtime truth for modules (see knownModuleIds, etc.).
+ * @typedef {Record<string, unknown> | null} AnalysisPresentation
  */
 
 /**
@@ -29,6 +44,7 @@ import { domainExpectedModules } from "../moduleMapping/domainExpectedCoverage.j
  *   confirmed: boolean,
  *   needsClarification: boolean,
  *   history: Array<Record<string, unknown>>,
+ *   analysisPresentation: AnalysisPresentation,
  *   analysisSnapshot: Record<string, unknown> | null,
  *   guidedDraft: {
  *     trackPeople: boolean,
@@ -39,6 +55,7 @@ import { domainExpectedModules } from "../moduleMapping/domainExpectedCoverage.j
  *     domain: string,
  *   },
  *   clarificationSeedModuleIds: string[],
+ *   moduleRuntimeState: Record<string, unknown>,
  * }} WorkflowBuildState
  */
 
@@ -50,19 +67,40 @@ function emptyModuleRecord() {
 }
 
 function pushHistory(state, entry) {
+  const next = [...state.history, { at: Date.now(), ...entry }];
+  const trimmed = next.length > MAX_HISTORY_LENGTH ? next.slice(-MAX_HISTORY_LENGTH) : next;
   return {
     ...state,
-    history: [...state.history, { at: Date.now(), ...entry }],
+    history: trimmed,
   };
 }
 
 function expectedModulesUnion(domainIds) {
   const u = new Set();
   for (const did of domainIds) {
-    const exp = domainExpectedModules[did];
-    if (exp) for (const m of exp) u.add(m);
+    for (const m of getRequiredModulesForDomain(did)) u.add(m);
   }
   return MODULE_SELECTION_ORDER.filter((id) => u.has(id));
+}
+
+/**
+ * Freeze presentation fields for the panel — logic must use state.detectedModules, state.knownModuleIds, etc.
+ * @param {Record<string, unknown>} apiResult
+ * @returns {Record<string, unknown>}
+ */
+function buildAnalysisPresentation(apiResult) {
+  return {
+    modulesMeta: apiResult.modulesMeta,
+    detectedModules: apiResult.detectedModules,
+    suggestedModules: apiResult.suggestedModules,
+    domainIntro: apiResult.domainIntro,
+    clarificationIntro: apiResult.clarificationIntro,
+    clarificationOptions: apiResult.clarificationOptions,
+    clarificationOptionsProgressive: apiResult.clarificationOptionsProgressive,
+    clarificationReason: apiResult.clarificationReason,
+    clarificationDetail: apiResult.clarificationDetail,
+    needsClarification: apiResult.needsClarification,
+  };
 }
 
 /** @returns {WorkflowBuildState} */
@@ -83,6 +121,11 @@ export function createInitialWorkflowBuildState() {
     confirmed: false,
     needsClarification: false,
     history: [],
+    analysisPresentation: null,
+    // IMPORTANT:
+    // State fields are the single source of truth.
+    // analysisSnapshot is READ-ONLY and for debugging/reference only.
+    // It must NEVER be used to drive logic.
     analysisSnapshot: null,
     guidedDraft: {
       trackPeople: false,
@@ -93,6 +136,7 @@ export function createInitialWorkflowBuildState() {
       domain: "",
     },
     clarificationSeedModuleIds: [],
+    moduleRuntimeState: createInitialModuleRuntimeState(),
   };
 }
 
@@ -162,6 +206,20 @@ export function getGuidedModuleSignalsForApi(state) {
 }
 
 /**
+ * Update a module slice via its registered reducer only (no direct mutation).
+ * @param {WorkflowBuildState} state
+ * @param {string} moduleId
+ * @param {string} reducerKey
+ * @param {unknown} payload
+ * @returns {WorkflowBuildState}
+ */
+export function dispatchModuleRuntime(state, moduleId, reducerKey, payload) {
+  const nextRuntime = applyModuleRuntimeReducer(state.moduleRuntimeState, moduleId, reducerKey, payload);
+  if (nextRuntime === state.moduleRuntimeState) return state;
+  return { ...state, moduleRuntimeState: nextRuntime };
+}
+
+/**
  * Analyzer completed: merge snapshot into state, route analyzed → clarify | select (logged in history).
  * @param {WorkflowBuildState} state
  * @param {Record<string, unknown>} apiResult — analyzeModuleCompositionForBuild success payload
@@ -208,6 +266,11 @@ export function applyAnalyzerToWorkflowBuildState(state, apiResult) {
     expectedModules: expected,
     missingModules: [...modulesToResolve],
     needsClarification,
+    analysisPresentation: buildAnalysisPresentation(apiResult),
+    // IMPORTANT:
+    // State fields are the single source of truth.
+    // analysisSnapshot is READ-ONLY and for debugging/reference only.
+    // It must NEVER be used to drive logic.
     analysisSnapshot: apiResult,
     confirmed: false,
     clarificationSeedModuleIds: [],
@@ -243,21 +306,19 @@ export function patchModuleSelectionToggle(state, moduleId, checked) {
 
 /**
  * clarify → select: merge known ∪ picks; validate; persist userSelections.
+ * Uses state.knownModuleIds and state.detectedModules only (never analysisSnapshot).
  * @param {WorkflowBuildState} state
  * @returns {{ state: WorkflowBuildState, ok: true, error: null } | { state: WorkflowBuildState, ok: false, error: string }}
  */
 export function transitionClarifyToSelect(state) {
-  const snap = state.analysisSnapshot;
-  const known = Array.isArray(snap?.clarificationState?.knownModuleIds)
-    ? /** @type {string[]} */ (snap.clarificationState.knownModuleIds)
-    : state.knownModuleIds;
+  const known = state.knownModuleIds;
   const picked = MODULE_SELECTION_ORDER.filter((id) => state.moduleSelectionById[id]);
   const merged = [...new Set([...known, ...picked])];
   const err = validateWorkflowModuleSelection(merged);
   if (err) return { state, ok: false, error: err };
 
-  const detectedSet = new Set(/** @type {string[]} */ (snap?.detectedModules ?? []));
-  const clarificationSeedModuleIds = picked.filter((id) => !detectedSet.has(id));
+  const detectedList = state.detectedModules;
+  const clarificationSeedModuleIds = picked.filter((id) => !detectedList.includes(id));
 
   const moduleSelectionById = emptyModuleRecord();
   for (const id of merged) moduleSelectionById[id] = true;
@@ -327,9 +388,11 @@ export function transitionBackToInput(state) {
     moduleSelectionById: emptyModuleRecord(),
     confirmed: false,
     needsClarification: false,
+    analysisPresentation: null,
     analysisSnapshot: null,
     clarificationSeedModuleIds: [],
     affirmedModuleIds,
+    moduleRuntimeState: createInitialModuleRuntimeState(),
   };
   return pushHistory(next, { action: "backToInput", from: "postAnalysis" });
 }
@@ -369,3 +432,5 @@ export function transitionBackToSelect(state) {
 export function transitionCompleteReset() {
   return createInitialWorkflowBuildState();
 }
+
+export { MAX_HISTORY_LENGTH };

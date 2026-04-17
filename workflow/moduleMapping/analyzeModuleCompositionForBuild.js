@@ -3,11 +3,11 @@
  * Progressive clarification: gap = expected − (detected ∪ guided-affirmed); UI asks only unresolved modules.
  */
 
-import { REGISTERED_WORKFLOW_MODULE_IDS } from "../validation/workflowTemplateContract.js";
+import { REGISTERED_WORKFLOW_MODULE_IDS } from "../modules/moduleRegistry.js";
 import { MODULE_SELECTION_ORDER, CLARIFICATION_INTRO, CLARIFICATION_OPTIONS } from "../contracts/workflowRules.js";
 import { getKeywordDetectedModules } from "./detectModulesFromNormalizedText.js";
 import { DOMAIN_MODULE_HINTS } from "./domainModuleSuggestions.js";
-import { domainExpectedModules } from "./domainExpectedCoverage.js";
+import { getRequiredModulesForDomain } from "./domainExpectedCoverage.js";
 import { isVagueAmbiguousIntent } from "./vagueIntentDetection.js";
 import { MODULE_PUBLIC_COPY } from "./modulePublicCopy.js";
 import { loadWorkflowPresets, matchWorkflowPreset } from "../presets/loadWorkflowPresets.js";
@@ -119,8 +119,8 @@ export function analyzeModuleCompositionForBuild(industryName, buildIntent = "",
   let partialVersusDomain = false;
   if (!ambiguousMultiDomain && matchedDomainIds.length === 1) {
     const domainId = matchedDomainIds[0];
-    const expected = domainExpectedModules[domainId];
-    if (Array.isArray(expected) && expected.length > 0) {
+    const expected = getRequiredModulesForDomain(domainId);
+    if (expected.length > 0) {
       missingExpectedModules = expected.filter((m) => !known.has(m));
       partialVersusDomain = missingExpectedModules.length > 0;
       primaryDomainForPartial = domainId;
@@ -166,9 +166,7 @@ export function analyzeModuleCompositionForBuild(industryName, buildIntent = "",
   if (ambiguousMultiDomain) {
     const u = new Set();
     for (const did of matchedDomainIds) {
-      const exp = domainExpectedModules[did];
-      if (!exp) continue;
-      for (const m of exp) {
+      for (const m of getRequiredModulesForDomain(did)) {
         if (!known.has(m)) u.add(m);
       }
     }

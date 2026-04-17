@@ -1,4 +1,4 @@
-import { REGISTERED_WORKFLOW_MODULE_IDS } from "../validation/workflowTemplateContract.js";
+import { REGISTERED_WORKFLOW_MODULE_IDS } from "../modules/moduleRegistry.js";
 import { MODULE_KEYWORD_MAP } from "./moduleKeywordMap.js";
 
 /**

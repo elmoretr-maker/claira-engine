@@ -1,10 +1,11 @@
 /**
- * Strict workflow_template.json contract — pure validation (no fs, no registry imports).
- * Any violation throws Error with an actionable message.
+ * Strict workflow_template.json contract — pure validation (no fs).
+ * Module IDs are defined in workflow/modules/moduleRegistry.js (single source of truth).
  */
 
-/** Must match modules registered in workflow/modules/registry.js */
-export const REGISTERED_WORKFLOW_MODULE_IDS = ["entity_tracking", "asset_registry", "event_log"];
+import { REGISTERED_WORKFLOW_MODULE_IDS } from "../modules/moduleRegistry.js";
+
+export { REGISTERED_WORKFLOW_MODULE_IDS };
 
 const REGISTERED = new Set(REGISTERED_WORKFLOW_MODULE_IDS);
 

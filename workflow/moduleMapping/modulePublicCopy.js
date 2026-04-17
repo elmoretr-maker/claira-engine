@@ -16,4 +16,12 @@ export const MODULE_PUBLIC_COPY = {
     title: "Event Log",
     description: "Track activity over time (progress, history, sessions, notes).",
   },
+  asset_validation: {
+    title: "Asset validation",
+    description: "Cross-check filenames with classifier output; route uncertain items to Review.",
+  },
+  claira_reasoning: {
+    title: "Claira reasoning",
+    description: "Refine classification and naming using the Claira reasoning provider.",
+  },
 };

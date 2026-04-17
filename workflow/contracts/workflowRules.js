@@ -3,7 +3,7 @@
  * Labels and copy used for templates are derived only AFTER module selection (see composeWorkflowFromUserSelection).
  */
 
-import { REGISTERED_WORKFLOW_MODULE_IDS } from "../validation/workflowTemplateContract.js";
+import { REGISTERED_WORKFLOW_MODULE_IDS } from "../modules/moduleRegistry.js";
 import { MODULE_PUBLIC_COPY } from "../moduleMapping/modulePublicCopy.js";
 
 /** Stable order for checklists and persisted template membership. */
