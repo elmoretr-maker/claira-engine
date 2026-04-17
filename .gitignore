@@ -46,7 +46,10 @@ _phase*/
 
 # Optional dev/test images
 dev/test-assets/
+dev/fixtures/
 test_images/
+
+Assets/
 *.tmp.png
 *.debug.png
 
