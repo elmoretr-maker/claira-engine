@@ -279,3 +279,41 @@ Constraint: Reference-only planning document; no architecture/pipeline changes i
 - **Suggested Phase:** Phase 22
 - **Success Criteria:** Provider fallback matrix passes deterministic tests for available/unavailable providers, with stable capability reports and unchanged outputs for identical fallback paths.
 
+## 7. ✅ DECISION INTELLIGENCE HARDENING (Phase 17–17.2)
+
+### 7.1 Signal Agreement Refinement
+- Improve weighting and interaction between memory, group, intent, and alternatives.
+- Consider future dynamic weighting beyond fixed coefficients.
+- Priority: high
+- Impact: accuracy
+
+### 7.2 Threshold Adaptation Tuning
+- Refine effectiveThreshold formula to better handle edge cases.
+- Explore nonlinear scaling instead of linear blend.
+- Priority: high
+- Impact: accuracy
+
+### 7.3 Conflict Sensitivity Calibration
+- Improve conflictScore sensitivity to subtle disagreements.
+- Prevent over-penalizing valid multi-signal diversity.
+- Priority: medium
+- Impact: accuracy
+
+### 7.4 Confidence Cap Strategy
+- Revisit static caps (0.81 / 0.91).
+- Consider context-aware caps based on signal quality.
+- Priority: medium
+- Impact: accuracy
+
+### 7.5 Fallback Threshold Optimization
+- Further reduce fallback usage by refining dynamicFallbackEscape.
+- Ensure fallback only triggers in true low-signal scenarios.
+- Priority: high
+- Impact: accuracy
+
+### 7.6 Signal Contribution Transparency
+- Improve explainability of how each signal contributes to final decision.
+- Expand scoreBreakdown into clearer weighted contributions.
+- Priority: medium
+- Impact: maintainability
+
