@@ -1,6 +1,7 @@
 /**
  * Phase 8 — Hugging Face (CLIP zero-shot) as a pluggable imageAnalysisProvider implementation.
  * Runs inference in a child process with timeout; on any failure returns null (classifier uses heuristic).
+ * Worker uses transformers.js (ONNX) for CLIP ViT-B/32; token still required to enable the real-inference path.
  * Token: process.env.HUGGINGFACE_API_TOKEN (loaded from repo-root .env via loadRootEnv when available).
  */
 
