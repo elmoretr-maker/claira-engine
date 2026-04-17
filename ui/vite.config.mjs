@@ -30,8 +30,16 @@ export default {
   root: uiDir,
   /** Load `VITE_*` from repo root `.env` next to `server/` and `package.json`. */
   envDir: engineRoot,
+  /** Workflow modules are imported for module health; stub Node builtins in the browser graph. */
+  resolve: {
+    alias: [
+      { find: "node:fs", replacement: path.join(uiDir, "shims", "node-fs-browser.mjs") },
+      { find: "node:path", replacement: path.join(uiDir, "shims", "node-path-browser.mjs") },
+    ],
+  },
   server: {
     proxy: {
+      /** TTS + status — requires `npm run start:server` (Express on PORT, default 3000). */
       "/__claira/tts": {
         target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
         changeOrigin: true,
