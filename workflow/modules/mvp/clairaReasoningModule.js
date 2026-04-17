@@ -2,7 +2,11 @@
  * Phase 12 — Claira reasoning slot: refines classification input for routing (provider-only; no fs).
  */
 
-import { tryClairaReasoning, finalizeGroupClairaResults } from "../../integrations/clairaReasoningProvider.js";
+import {
+  tryClairaReasoning,
+  finalizeGroupClairaResults,
+  finalizeBatchClairaMetrics,
+} from "../../integrations/clairaReasoningProvider.js";
 
 function orchestrationLogEnabled() {
   const v = process.env.ASSET_ORCHESTRATION_LOG;
@@ -176,6 +180,27 @@ export const clairaReasoningModule = {
           ? { confidenceBreakdown: { .../** @type {object} */ (result.confidenceBreakdown) } }
           : {}),
         ...(result.semanticMatchScore != null ? { semanticMatchScore: result.semanticMatchScore } : {}),
+        ...(result.scoreBreakdown != null && typeof result.scoreBreakdown === "object"
+          ? { scoreBreakdown: { .../** @type {object} */ (result.scoreBreakdown) } }
+          : {}),
+        ...(Array.isArray(result.alternativeCategoriesDetailed) && result.alternativeCategoriesDetailed.length > 0
+          ? { alternativeCategoriesDetailed: [...result.alternativeCategoriesDetailed] }
+          : {}),
+        ...(typeof result.intentCanonical === "string" && result.intentCanonical.trim()
+          ? { intentCanonical: result.intentCanonical }
+          : {}),
+        ...(Array.isArray(result.intentClusters) && result.intentClusters.length > 0
+          ? { intentClusters: [...result.intentClusters] }
+          : {}),
+        fallbackUsed: result.fallbackUsed === true,
+        fallbackReason: result.fallbackReason ?? null,
+        ...(typeof result.fallbackRate === "number" ? { fallbackRate: result.fallbackRate } : {}),
+        ...(typeof result.signalAgreementScore === "number" ? { signalAgreementScore: result.signalAgreementScore } : {}),
+        ...(result.signalConflictLevel != null ? { signalConflictLevel: result.signalConflictLevel } : {}),
+        ...(typeof result.effectiveThreshold === "number" ? { effectiveThreshold: result.effectiveThreshold } : {}),
+        ...(result.signalState != null && result.signalState !== ""
+          ? { signalState: result.signalState }
+          : {}),
       };
       items.push(rowOut);
 
@@ -187,6 +212,7 @@ export const clairaReasoningModule = {
     }
 
     finalizeGroupClairaResults(items);
+    finalizeBatchClairaMetrics(items);
 
     context.dispatch("claira_reasoning", "setItems", items);
     const mod = /** @type {{ state: { selectors: { listItems: (s: unknown) => unknown[] } } }} */ (

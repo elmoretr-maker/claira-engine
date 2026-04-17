@@ -1,12 +1,17 @@
 /**
- * Phase 12–16 — Pluggable Claira reasoning layer for workflow (no fs / no watcher).
+ * Phase 12–17 — Pluggable Claira reasoning layer for workflow (no fs / no watcher).
  * Phase 15: batch + CLIP embedding similarity, group detection, hierarchy hints.
  * Phase 16: semantic memory, group decisions, intent, confidence breakdown, cross-batch patterns.
+ * Phase 17: semantic signal expansion, score breakdown, precedence, intent hardening.
+ * Phase 17.1: batch-aware precedence, smart fallback, fallback observability + batch metrics.
+ * Phase 17.2: signal agreement score, conflict level, context-aware thresholds + confidence shaping.
+ * Phase 17.3: signalState (strong / moderate / conflict / weak_signals) for observability.
  */
 
 import {
   basenameOnly,
-  computeSemanticMatchScoreIntrinsic,
+  computeFilenamePatternTokens,
+  computeSemanticMatchScoreIntrinsicDetailed,
   findGroupPatternMatch,
   findLearningMatch,
   findSemanticMemoryMatch,
@@ -50,7 +55,13 @@ import {
  *   intentCandidates?: Array<{ intent: string, score: number, categoryBoost: string | null, kind: string }>,
  *   intentSource?: "inferred" | "learned" | "fallback",
  *   groupPrior?: { groupConsensusCategory: string | null, groupConfidence: number, voteRatio: number } | null,
- *   effectiveThresholds?: { cosineSemantic: number, contextFactor: number },
+ *   effectiveThresholds?: {
+ *     cosineSemantic: number,
+ *     contextFactor: number,
+ *     effectiveThreshold?: number,
+ *     fallbackEscape?: number,
+ *     thresholdBlend?: number,
+ *   },
  *   adaptiveWeights?: { feedbackStrength: number, groupCohesionStrength: number },
  *   groupDecisionApplied?: boolean,
  *   confidenceBreakdown?: {
@@ -61,6 +72,22 @@ import {
  *     groupConfidence: number,
  *   },
  *   semanticMatchScore?: number | null,
+ *   scoreBreakdown?: import("../feedback/feedbackStore.js").SemanticScoreBreakdown,
+ *   alternativeCategoriesDetailed?: Array<{
+ *     category: string,
+ *     score: number,
+ *     signalAgreement: number,
+ *     rationale: { sources: string[], confidenceHint: number },
+ *   }>,
+ *   intentCanonical?: string,
+ *   intentClusters?: Array<{ canonicalKey: string, members: string[], score: number }>,
+ *   fallbackUsed?: boolean,
+ *   fallbackReason?: "insufficient_signals" | "conflicting_signals" | "low_confidence" | "missing_data" | null,
+ *   fallbackRate?: number | null,
+ *   signalAgreementScore?: number,
+ *   signalConflictLevel?: "low" | "medium" | "high",
+ *   effectiveThreshold?: number,
+ *   signalState?: "strong_agreement" | "moderate_agreement" | "conflict" | "weak_signals",
  * }} ClairaReasoningResult
  */
 
@@ -272,6 +299,638 @@ function buildAlternativeCategories(p) {
   if (p.ambiguousHf && p.hfCat) set.add(`maybe:${p.hfCat}`);
   if (p.hierarchySub) set.add(`${p.refinedCategory} (${p.hierarchySub})`);
   return [...set].slice(0, 6);
+}
+
+/**
+ * Deterministic category arbitration when multiple sources disagree (Phase 17).
+ * Precedence: semantic memory (strong) → group consensus → Claira reasoning → validation → HF.
+ * @param {{
+ *   hfCat: string,
+ *   validationFinal: string,
+ *   semanticMem: import("../feedback/feedbackStore.js").SemanticMemoryMatch | null,
+ *   groupPrior: { groupConsensusCategory: string | null, groupConfidence: number, voteRatio: number },
+ *   reasoningCategory: string,
+ *   currentRefined: string,
+ * }} p
+ * @returns {{ apply: boolean, category?: string, source?: string }}
+ */
+function resolveCategoryPrecedence(p) {
+  /** @type {Array<{ pri: number, cat: string, key: string, src: string }>} */
+  const layers = [];
+  if (p.semanticMem?.strength === "strong" && p.semanticMem.userCorrectedCategory) {
+    const cat = String(p.semanticMem.userCorrectedCategory).trim();
+    const key = normCatKey(cat);
+    if (key && key !== "review") layers.push({ pri: 1, cat, key, src: "semantic_memory" });
+  }
+  if (
+    p.groupPrior.groupConfidence >= 0.72 &&
+    p.groupPrior.voteRatio >= 0.45 &&
+    p.groupPrior.groupConsensusCategory
+  ) {
+    const cat = String(p.groupPrior.groupConsensusCategory).trim();
+    const key = normCatKey(cat);
+    if (key && key !== "review") layers.push({ pri: 2, cat, key, src: "group_consensus" });
+  }
+  const rc = String(p.reasoningCategory ?? "").trim();
+  if (rc && normCatKey(rc) !== "review") {
+    layers.push({ pri: 3, cat: rc, key: normCatKey(rc), src: "claira_reasoning" });
+  }
+  const vf = String(p.validationFinal ?? "").trim();
+  if (vf && normCatKey(vf) !== "review") {
+    layers.push({ pri: 4, cat: vf, key: normCatKey(vf), src: "validation" });
+  }
+  const hf = String(p.hfCat ?? "").trim();
+  if (hf) {
+    layers.push({ pri: 5, cat: hf, key: normCatKey(hf), src: "hf_classifier" });
+  }
+  /** @type {Map<string, { pri: number, cat: string, src: string }>} */
+  const byKey = new Map();
+  for (const l of layers) {
+    if (!l.key) continue;
+    const prev = byKey.get(l.key);
+    if (!prev || l.pri < prev.pri || (l.pri === prev.pri && l.cat.localeCompare(prev.cat) < 0)) {
+      byKey.set(l.key, { pri: l.pri, cat: l.cat, src: l.src });
+    }
+  }
+  if (byKey.size <= 1) return { apply: false };
+  const ranked = [...byKey.entries()].sort(
+    (a, b) => a[1].pri - b[1].pri || a[0].localeCompare(b[0]) || a[1].cat.localeCompare(b[1].cat),
+  );
+  const winKey = ranked[0][0];
+  const winner = ranked[0][1];
+  const curK = normCatKey(p.currentRefined);
+  if (winKey === curK) return { apply: false };
+  return { apply: true, category: winner.cat, source: winner.src };
+}
+
+/**
+ * @param {{
+ *   baseAlternatives: string[],
+ *   hfCat: string,
+ *   inferredCategory: string | null,
+ *   refinedCategory: string,
+ *   semanticMem: import("../feedback/feedbackStore.js").SemanticMemoryMatch | null,
+ *   groupPrior: { groupConsensusCategory: string | null, groupConfidence: number, voteRatio: number },
+ * }} p
+ * @returns {NonNullable<ClairaReasoningResult["alternativeCategoriesDetailed"]>}
+ */
+function buildAlternativeCategoriesDetailed(p) {
+  /** @type {Set<string>} */
+  const raw = new Set();
+  for (const x of p.baseAlternatives) raw.add(x);
+  if (p.inferredCategory) raw.add(p.inferredCategory);
+  if (p.hfCat) raw.add(p.hfCat);
+  if (p.refinedCategory && p.refinedCategory !== "review") raw.add(p.refinedCategory);
+  if (p.semanticMem?.userCorrectedCategory) raw.add(p.semanticMem.userCorrectedCategory);
+  if (p.groupPrior.groupConsensusCategory) raw.add(p.groupPrior.groupConsensusCategory);
+
+  /** @type {NonNullable<ClairaReasoningResult["alternativeCategoriesDetailed"]>} */
+  const out = [];
+  for (const rawCat of [...raw]) {
+    const isMaybe = String(rawCat).startsWith("maybe:");
+    const category = isMaybe ? String(rawCat).replace(/^maybe:/, "").trim() : String(rawCat).trim();
+    if (!category) continue;
+    /** @type {string[]} */
+    const sources = [];
+    let score = 0;
+    if (normCatKey(category) === normCatKey(p.hfCat)) {
+      score += 0.22;
+      sources.push("hf");
+    }
+    if (p.inferredCategory && normCatKey(category) === normCatKey(p.inferredCategory)) {
+      score += 0.28;
+      sources.push("tokens_themes");
+    }
+    if (normCatKey(category) === normCatKey(p.refinedCategory)) {
+      score += 0.35;
+      sources.push("claira_reasoning");
+    }
+    if (p.semanticMem != null && normCatKey(category) === normCatKey(p.semanticMem.userCorrectedCategory)) {
+      const m = p.semanticMem.semanticMatchScore ?? 0;
+      score += 0.26 * Math.min(1, m);
+      sources.push("semantic_memory");
+    }
+    if (p.groupPrior.groupConsensusCategory && normCatKey(category) === normCatKey(p.groupPrior.groupConsensusCategory)) {
+      score += 0.18 * p.groupPrior.groupConfidence;
+      sources.push("group");
+    }
+    if (isMaybe) sources.push("ambiguous_hf");
+    score = Number(Math.min(1, score).toFixed(4));
+    const signalAgreement = Number((sources.length / 6).toFixed(4));
+    out.push({
+      category,
+      score,
+      signalAgreement,
+      rationale: { sources: [...new Set(sources)].sort((a, b) => a.localeCompare(b)), confidenceHint: score },
+    });
+  }
+  out.sort(
+    (a, b) => b.score - a.score || b.signalAgreement - a.signalAgreement || a.category.localeCompare(b.category),
+  );
+  return out.slice(0, 8);
+}
+
+/**
+ * Normalize, dedupe, cluster intents; trim to top N (Phase 17).
+ * @param {Array<{ intent: string, score: number, categoryBoost: string | null, kind: string }>} candidates
+ * @param {string} inferredIntent
+ * @param {number} maxN
+ */
+function hardenIntentOutputs(candidates, inferredIntent, maxN = 5) {
+  const list = Array.isArray(candidates) ? [...candidates] : [];
+  const normalized = list.map((c) => {
+    const intent = String(c.intent ?? "")
+      .trim()
+      .toLowerCase();
+    return {
+      intent,
+      score: Math.min(1, Number(c.score) || 0),
+      categoryBoost: c.categoryBoost != null ? String(c.categoryBoost).trim().toLowerCase() : null,
+      kind: String(c.kind ?? "surface"),
+    };
+  });
+  /** @type {Map<string, typeof normalized[0]>} */
+  const merged = new Map();
+  for (const c of normalized) {
+    const k = normSlug(c.intent) || c.intent;
+    const prev = merged.get(k);
+    if (!prev || c.score > prev.score) merged.set(k, c);
+  }
+  const ranked = [...merged.values()].sort((a, b) => b.score - a.score || a.intent.localeCompare(b.intent));
+  const top = ranked.slice(0, maxN);
+
+  /** @type {Map<string, Set<string>>} */
+  const clusterMap = new Map();
+  for (const c of ranked) {
+    const ck = normSlug(c.intent) || c.intent;
+    if (!clusterMap.has(ck)) clusterMap.set(ck, new Set());
+    clusterMap.get(ck).add(c.intent);
+  }
+  const intentClusters = [...clusterMap.entries()]
+    .map(([canonicalKey, members]) => ({
+      canonicalKey,
+      members: [...members].sort((a, b) => a.localeCompare(b)),
+      score: ranked.find((x) => (normSlug(x.intent) || x.intent) === canonicalKey)?.score ?? 0,
+    }))
+    .sort((a, b) => b.score - a.score || a.canonicalKey.localeCompare(b.canonicalKey))
+    .slice(0, maxN);
+
+  const intentCanonical = normSlug(String(inferredIntent ?? "").trim().toLowerCase()) || "intent_unknown";
+
+  return { intentCandidates: top, intentCanonical, intentClusters };
+}
+
+/** Phase 17.1 — minimum confidence to prefer structured signals over blind fallback */
+const PHASE171_FALLBACK_ESCAPE = 0.42;
+/** Strong batch: peer embedding similarity + category agreement */
+const PHASE171_STRONG_BATCH_SIM = 0.84;
+const PHASE171_STRONG_BATCH_CAT = 0.82;
+
+const GENERIC_CATEGORY_RE = /^(misc|unknown|unclassified|other|review)$/i;
+
+/**
+ * @param {string | null | undefined} c
+ */
+function isNonGenericCategoryLabel(c) {
+  const k = normCatKey(String(c ?? ""));
+  return k.length > 0 && !GENERIC_CATEGORY_RE.test(k);
+}
+
+/**
+ * Multi-asset batch with peers: strong group → defer category precedence to group finalize.
+ * @param {ClairaReasoningInput["batchContext"] | null | undefined} bc
+ * @param {string} hfCat
+ * @param {number | null} batchMaxSim
+ */
+function batchGroupCohesionStrong(bc, hfCat, batchMaxSim) {
+  if (bc == null || bc.batchAssetCount < 2 || !Array.isArray(bc.peers) || bc.peers.length === 0) return false;
+  const simOk = batchMaxSim != null && batchMaxSim >= PHASE171_STRONG_BATCH_SIM;
+  const catAg = peerCategoryCohesion(bc.peers, hfCat);
+  const catOk = catAg >= PHASE171_STRONG_BATCH_CAT;
+  return simOk && catOk;
+}
+
+/**
+ * Phase 17.2 — aggregate alignment across memory, group, intent candidates, and alternatives.
+ * @param {{
+ *   semanticMem: import("../feedback/feedbackStore.js").SemanticMemoryMatch | null,
+ *   groupPrior: { groupConsensusCategory: string | null, groupConfidence: number, voteRatio: number },
+ *   hfCat: string,
+ *   refinedCategory: string,
+ *   intentSeedAgreement: number,
+ *   intentCandidates: Array<{ intent: string, score: number, categoryBoost: string | null, kind: string }>,
+ *   alternativeCategoriesDetailed: NonNullable<ClairaReasoningResult["alternativeCategoriesDetailed"]>,
+ * }} p
+ * @returns {{ signalAgreementScore: number, signalConflictLevel: "low" | "medium" | "high", conflictScore: number }}
+ */
+function computePhase172SignalAgreement(p) {
+  const rk = normCatKey(p.refinedCategory === "review" ? p.hfCat : p.refinedCategory);
+  const hk = normCatKey(p.hfCat);
+
+  let sMem = 0.52;
+  if (p.semanticMem != null) {
+    const mk = normCatKey(String(p.semanticMem.userCorrectedCategory ?? ""));
+    const sm = Math.min(1, p.semanticMem.semanticMatchScore ?? 0);
+    if (mk && (mk === rk || mk === hk)) sMem = 0.78 + 0.2 * sm;
+    else if (mk) sMem = 0.28 + 0.42 * sm;
+    else sMem = 0.45 + 0.2 * sm;
+  }
+
+  let sGrp = 0.5;
+  if (p.groupPrior.groupConsensusCategory) {
+    const gk = normCatKey(p.groupPrior.groupConsensusCategory);
+    sGrp = gk && gk === rk ? 0.74 + 0.26 * Math.min(1, p.groupPrior.groupConfidence) : 0.26 + 0.38 * Math.min(1, p.groupPrior.groupConfidence);
+  }
+
+  let sIntent = Math.min(1, Math.max(0.35, p.intentSeedAgreement));
+  const ic = p.intentCandidates;
+  if (ic.length >= 2) {
+    const gap = Math.abs(ic[0].score - ic[1].score);
+    sIntent = Number(Math.min(1, sIntent * (0.62 + 0.38 * Math.min(1, gap / 0.4))).toFixed(4));
+  } else if (ic.length === 1) {
+    sIntent = Math.min(1, sIntent * 1.06);
+  }
+
+  let sAlt = 0.5;
+  const ad = p.alternativeCategoriesDetailed;
+  if (ad.length >= 1) {
+    const t0 = ad[0];
+    const t1 = ad[1];
+    if (!t1) sAlt = 0.58 + 0.42 * t0.score;
+    else {
+      const c0 = normCatKey(t0.category);
+      const c1 = normCatKey(t1.category);
+      const close = Math.abs(t0.score - t1.score) < 0.11;
+      if (c0 !== c1 && close) sAlt = 0.22 + 0.36 * Math.min(t0.score, t1.score);
+      else if (t0.score >= 0.52) sAlt = 0.55 + 0.4 * t0.score;
+      else sAlt = 0.38 + 0.45 * t0.score;
+    }
+  }
+
+  const signalAgreementScore = Number(((sMem + sGrp + sIntent + sAlt) / 4).toFixed(4));
+
+  let conflictScore = 0;
+  if (ad.length >= 2) {
+    const t0 = ad[0];
+    const t1 = ad[1];
+    if (normCatKey(t0.category) !== normCatKey(t1.category) && Math.abs(t0.score - t1.score) < 0.13) conflictScore += 0.36;
+  }
+  if (p.semanticMem != null && p.groupPrior.groupConsensusCategory) {
+    const mk = normCatKey(String(p.semanticMem.userCorrectedCategory ?? ""));
+    const gk = normCatKey(String(p.groupPrior.groupConsensusCategory ?? ""));
+    if (mk && gk && mk !== gk && (p.semanticMem.semanticMatchScore ?? 0) > 0.42 && p.groupPrior.groupConfidence > 0.48) {
+      conflictScore += 0.32;
+    }
+  }
+  if (ic.length >= 2 && ic[0].score > 0.15 && ic[1].score > 0.15 && Math.abs(ic[0].score - ic[1].score) < 0.11) {
+    conflictScore += 0.24;
+  }
+
+  const signalConflictLevel = conflictScore >= 0.55 ? "high" : conflictScore >= 0.28 ? "medium" : "low";
+  return { signalAgreementScore, signalConflictLevel, conflictScore: Number(conflictScore.toFixed(4)) };
+}
+
+/**
+ * Phase 17.2 — context-aware cosine + fallback escape (deterministic).
+ * Strong overall alignment → lower effective cosine threshold; weak → raise. Fallback escape tracks inverse.
+ * @param {{
+ *   baseCosineSemantic: number,
+ *   signalAgreementScore: number,
+ *   groupConfidence: number,
+ *   semanticMatchScore: number,
+ *   intentConfidence: number,
+ * }} p
+ */
+function derivePhase172Thresholds(p) {
+  const blend = Number(
+    (
+      0.28 * p.signalAgreementScore +
+      0.26 * Math.min(1, p.groupConfidence) +
+      0.24 * Math.min(1, p.semanticMatchScore) +
+      0.22 * Math.min(1, Math.max(0, p.intentConfidence))
+    ).toFixed(4),
+  );
+  const thMult = 1.11 - 0.27 * blend;
+  const effectiveThreshold = Number(Math.min(0.94, Math.max(0.67, p.baseCosineSemantic * thMult)).toFixed(4));
+  const dynamicFallbackEscape = Number(
+    Math.min(0.53, Math.max(0.27, PHASE171_FALLBACK_ESCAPE * (0.84 + 0.26 * (1 - p.signalAgreementScore)))).toFixed(4),
+  );
+  return {
+    effectiveThreshold,
+    dynamicFallbackEscape,
+    thresholdBlend: blend,
+    thresholdMultiplier: Number(thMult.toFixed(4)),
+  };
+}
+
+/**
+ * Phase 17.3 — low information content (not contradictory evidence).
+ * @param {{
+ *   semanticMatchScore: number,
+ *   intentConfidence: number,
+ *   thresholdBlend: number,
+ * }} p
+ */
+function computeWeakSignalsOverall173(p) {
+  const sm = p.semanticMatchScore ?? 0;
+  const ic = p.intentConfidence ?? 0;
+  const tb = p.thresholdBlend ?? 0.5;
+  return sm < 0.36 && ic < 0.5 && tb < 0.44;
+}
+
+/**
+ * Observability-only classification. Invariant: fallbackUsed ⇒ weak_signals; never strong_agreement with fallback.
+ * @param {{
+ *   signalAgreementScore: number,
+ *   signalConflictLevel: "low" | "medium" | "high",
+ *   fallbackUsed: boolean,
+ *   weakSignalsOverall: boolean,
+ * }} p
+ * @returns {"strong_agreement"|"moderate_agreement"|"conflict"|"weak_signals"}
+ */
+function derivePhase173SignalState(p) {
+  const sa = Number(p.signalAgreementScore ?? 0);
+  const cl = p.signalConflictLevel ?? "low";
+
+  if (p.fallbackUsed === true) return "weak_signals";
+  if (cl === "high") return "conflict";
+  if (sa >= 0.74 && cl === "low") return "strong_agreement";
+  if (sa >= 0.52) return "moderate_agreement";
+  if (p.weakSignalsOverall === true) return "weak_signals";
+  return "moderate_agreement";
+}
+
+/**
+ * Phase 17.1 — replace blind intent fallback when signals justify a structured choice.
+ * @param {object} p
+ */
+function resolvePhase171IntentAndFallback(p) {
+  const { intentOut, intentHardenedPre, hfCat, semanticMem, groupPrior, alternativeCategoriesDetailed } = p;
+  const escapeThr =
+    typeof p.fallbackEscapeThreshold === "number" && p.fallbackEscapeThreshold > 0
+      ? p.fallbackEscapeThreshold
+      : PHASE171_FALLBACK_ESCAPE;
+  const peerCatAg =
+    p.bc != null && Array.isArray(p.bc.peers) && p.bc.peers.length > 0 ? peerCategoryCohesion(p.bc.peers, hfCat) : null;
+
+  const signalCompleteness = {
+    tokensPresent: p.semanticTokensEarly.length > 0,
+    themesPresent: p.themes.length > 0,
+    embeddingsEvaluated: true,
+    groupEvaluated:
+      p.bc == null || !Array.isArray(p.bc.peers) || p.bc.peers.length === 0 ? true : peerCatAg != null && Number.isFinite(peerCatAg),
+    memoryEvaluated: true,
+  };
+
+  const conflictingSignals =
+    alternativeCategoriesDetailed.length >= 2 &&
+    alternativeCategoriesDetailed[0].score >= 0.28 &&
+    alternativeCategoriesDetailed[1].score >= 0.28 &&
+    Math.abs(alternativeCategoriesDetailed[0].score - alternativeCategoriesDetailed[1].score) <= 0.08 &&
+    normCatKey(alternativeCategoriesDetailed[0].category) !== normCatKey(alternativeCategoriesDetailed[1].category);
+
+  if (intentOut.intentSource !== "fallback") {
+    return {
+      inferredIntent: intentOut.inferredIntent,
+      intentConfidence: intentOut.intentConfidence,
+      intentSource: intentOut.intentSource,
+      intentCandidates: intentHardenedPre.intentCandidates,
+      intentCanonical: intentHardenedPre.intentCanonical,
+      intentClusters: intentHardenedPre.intentClusters,
+      fallbackUsed: false,
+      fallbackReason: null,
+      signalCompleteness,
+    };
+  }
+
+  if (!p.analysisPresent) {
+    const intentStr =
+      p.themes.length > 0
+        ? `intent_theme_${normSlug(p.themes[0])}`
+        : `intent_signal_${normSlug(hfCat) || "minimum"}`;
+    const conf = p.themes.length > 0 ? 0.26 : 0.2;
+    const h = hardenIntentOutputs([{ intent: intentStr, score: conf, categoryBoost: null, kind: "missing_data_min" }], intentStr, 5);
+    return {
+      inferredIntent: intentStr,
+      intentConfidence: conf,
+      intentSource: "fallback",
+      intentCandidates: h.intentCandidates,
+      intentCanonical: h.intentCanonical,
+      intentClusters: h.intentClusters,
+      fallbackUsed: true,
+      fallbackReason: "missing_data",
+      signalCompleteness,
+    };
+  }
+
+  /** @type {Array<{ intent: string, conf: number, src: string }>} */
+  const rescue = [];
+  if (
+    semanticMem != null &&
+    semanticMem.semanticMatchScore >= escapeThr &&
+    isNonGenericCategoryLabel(semanticMem.userCorrectedCategory)
+  ) {
+    const id = `intent_category_${normSlug(String(semanticMem.userCorrectedCategory))}`;
+    rescue.push({
+      intent: id,
+      conf: Number((0.34 + 0.5 * Math.min(1, semanticMem.semanticMatchScore)).toFixed(4)),
+      src: "semantic_memory",
+    });
+  }
+  const topAlt = alternativeCategoriesDetailed[0];
+  if (topAlt && topAlt.score >= escapeThr && isNonGenericCategoryLabel(topAlt.category)) {
+    rescue.push({
+      intent: `intent_category_${normSlug(topAlt.category)}`,
+      conf: Number(Math.min(0.92, 0.28 + topAlt.score * 0.55).toFixed(4)),
+      src: "alternatives",
+    });
+  }
+  if (
+    groupPrior.groupConsensusCategory &&
+    groupPrior.groupConfidence >= escapeThr &&
+    isNonGenericCategoryLabel(groupPrior.groupConsensusCategory)
+  ) {
+    rescue.push({
+      intent: `intent_category_${normSlug(groupPrior.groupConsensusCategory)}`,
+      conf: Number((0.32 + 0.5 * groupPrior.groupConfidence).toFixed(4)),
+      src: "group_prior",
+    });
+  }
+  const topCand = intentHardenedPre.intentCandidates[0];
+  if (topCand && topCand.score >= escapeThr) {
+    rescue.push({ intent: topCand.intent, conf: topCand.score, src: "intent_candidate" });
+  }
+
+  rescue.sort((a, b) => b.conf - a.conf || a.intent.localeCompare(b.intent));
+  if (rescue.length > 0 && rescue[0].conf >= escapeThr) {
+    const w = rescue[0];
+    const merged = [
+      { intent: w.intent, score: w.conf, categoryBoost: null, kind: w.src },
+      ...intentHardenedPre.intentCandidates.filter((c) => normSlug(c.intent) !== normSlug(w.intent)),
+    ].slice(0, 5);
+    const h = hardenIntentOutputs(merged, w.intent, 5);
+    return {
+      inferredIntent: w.intent,
+      intentConfidence: w.conf,
+      intentSource: "inferred",
+      intentCandidates: h.intentCandidates,
+      intentCanonical: h.intentCanonical,
+      intentClusters: h.intentClusters,
+      fallbackUsed: false,
+      fallbackReason: null,
+      signalCompleteness,
+    };
+  }
+
+  const minPick = pickMinimumValidIntent({
+    semanticMem,
+    alternativeCategoriesDetailed,
+    groupPrior,
+    hfCat,
+    themes: p.themes,
+    intentHardenedPre,
+    conflictingSignals,
+  });
+  const hFinal = hardenIntentOutputs(
+    [{ intent: minPick.intent, score: minPick.conf, categoryBoost: null, kind: "smart_fallback" }],
+    minPick.intent,
+    5,
+  );
+  return {
+    inferredIntent: minPick.intent,
+    intentConfidence: minPick.conf,
+    intentSource: "fallback",
+    intentCandidates: hFinal.intentCandidates,
+    intentCanonical: hFinal.intentCanonical,
+    intentClusters: hFinal.intentClusters,
+    fallbackUsed: true,
+    fallbackReason: minPick.reason,
+    signalCompleteness,
+  };
+}
+
+/**
+ * @param {{
+ *   semanticMem: import("../feedback/feedbackStore.js").SemanticMemoryMatch | null,
+ *   alternativeCategoriesDetailed: NonNullable<ClairaReasoningResult["alternativeCategoriesDetailed"]>,
+ *   groupPrior: { groupConsensusCategory: string | null, groupConfidence: number, voteRatio: number },
+ *   hfCat: string,
+ *   themes: string[],
+ *   intentHardenedPre: { intentCandidates: Array<{ intent: string, score: number, categoryBoost: string | null, kind: string }> },
+ *   conflictingSignals: boolean,
+ * }} p
+ * @returns {{ intent: string, conf: number, reason: "insufficient_signals" | "conflicting_signals" | "low_confidence" | "missing_data" }}
+ */
+function pickMinimumValidIntent(p) {
+  const { semanticMem, alternativeCategoriesDetailed, groupPrior, hfCat, themes, intentHardenedPre, conflictingSignals } = p;
+  if (semanticMem != null && isNonGenericCategoryLabel(semanticMem.userCorrectedCategory)) {
+    const conf = Number((0.22 + 0.42 * Math.min(1, semanticMem.semanticMatchScore ?? 0)).toFixed(4));
+    return {
+      intent: `intent_category_${normSlug(String(semanticMem.userCorrectedCategory))}`,
+      conf,
+      reason: conflictingSignals ? "conflicting_signals" : "low_confidence",
+    };
+  }
+  const alt = alternativeCategoriesDetailed.find((a) => isNonGenericCategoryLabel(a.category));
+  if (alt) {
+    return {
+      intent: `intent_category_${normSlug(alt.category)}`,
+      conf: Number(Math.max(0.24, 0.2 + alt.score * 0.45).toFixed(4)),
+      reason: conflictingSignals ? "conflicting_signals" : "low_confidence",
+    };
+  }
+  if (groupPrior.groupConsensusCategory && isNonGenericCategoryLabel(groupPrior.groupConsensusCategory)) {
+    return {
+      intent: `intent_category_${normSlug(groupPrior.groupConsensusCategory)}`,
+      conf: Number(Math.max(0.22, 0.18 + 0.42 * groupPrior.groupConfidence).toFixed(4)),
+      reason: "low_confidence",
+    };
+  }
+  if (isNonGenericCategoryLabel(hfCat)) {
+    return {
+      intent: `intent_category_${normSlug(hfCat)}`,
+      conf: 0.28,
+      reason: "low_confidence",
+    };
+  }
+  for (const c of intentHardenedPre.intentCandidates) {
+    if (c.categoryBoost != null && isNonGenericCategoryLabel(c.categoryBoost)) {
+      return {
+        intent: `intent_category_${normSlug(c.categoryBoost)}`,
+        conf: Number(Math.max(0.22, c.score * 0.82).toFixed(4)),
+        reason: "low_confidence",
+      };
+    }
+  }
+  if (themes.length > 0) {
+    return {
+      intent: `intent_theme_${normSlug(themes[0])}`,
+      conf: 0.23,
+      reason: "insufficient_signals",
+    };
+  }
+  return {
+    intent: `intent_structured_batch`,
+    conf: 0.2,
+    reason: "insufficient_signals",
+  };
+}
+
+/**
+ * Attach per-batch and per-category fallback rates to each row (Phase 17.1).
+ * @param {unknown[]} items
+ */
+export function finalizeBatchClairaMetrics(items) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  const n = items.length;
+  let fb = 0;
+  /** @type {Map<string, { t: number, f: number }>} */
+  const byCat = new Map();
+  for (const it of items) {
+    if (it == null || typeof it !== "object" || Array.isArray(it)) continue;
+    const row = /** @type {Record<string, unknown>} */ (it);
+    const cr =
+      row.clairaReasoning != null && typeof row.clairaReasoning === "object" && !Array.isArray(row.clairaReasoning)
+        ? /** @type {Record<string, unknown>} */ (row.clairaReasoning)
+        : {};
+    const used = cr.fallbackUsed === true;
+    if (used) fb++;
+    const cat = String(row.refinedCategory ?? "unknown").toLowerCase();
+    if (!byCat.has(cat)) byCat.set(cat, { t: 0, f: 0 });
+    const o = byCat.get(cat);
+    if (o) {
+      o.t++;
+      if (used) o.f++;
+    }
+  }
+  const batchRate = n ? fb / n : 0;
+  /** @type {Record<string, { total: number, fallbacks: number, rate: number }>} */
+  const perCat = {};
+  for (const [k, v] of byCat) {
+    perCat[k] = { total: v.t, fallbacks: v.f, rate: v.t ? v.f / v.t : 0 };
+  }
+  for (const it of items) {
+    if (it == null || typeof it !== "object" || Array.isArray(it)) continue;
+    const row = /** @type {Record<string, unknown>} */ (it);
+    const cat = String(row.refinedCategory ?? "unknown").toLowerCase();
+    const cr =
+      row.clairaReasoning != null && typeof row.clairaReasoning === "object" && !Array.isArray(row.clairaReasoning)
+        ? /** @type {Record<string, unknown>} */ (row.clairaReasoning)
+        : null;
+    if (cr == null) continue;
+    const catEntry = perCat[cat];
+    cr.fallbackMetrics = {
+      batchAssetCount: n,
+      batchFallbackCount: fb,
+      batchFallbackRate: Number(batchRate.toFixed(4)),
+      categoryKey: cat,
+      categoryFallbackRate: catEntry ? Number(catEntry.rate.toFixed(4)) : 0,
+      byCategory: perCat,
+    };
+    const fr = Number(batchRate.toFixed(4));
+    cr.fallbackRate = fr;
+    row.fallbackRate = fr;
+  }
 }
 
 /**
@@ -891,7 +1550,10 @@ export function finalizeGroupClairaResults(items) {
           : {};
       row.clairaReasoning = {
         ...prevCr,
-        phase: 16,
+        phase: 17,
+        phase17_1: true,
+        phase17_2: true,
+        phase17_3: true,
         groupDecision: {
           applied: true,
           categoryOverride: hadCategoryConflict,
@@ -925,6 +1587,7 @@ export function defaultWorkflowClairaReasoning(input) {
   const assetId = String(input.assetId ?? "");
   const sourceRef = String(input.sourceRef ?? "");
   const an = input.analysis;
+  const analysisPresent = an != null && typeof an === "object" && !Array.isArray(an);
   const hfCat = an != null ? String(an.category ?? "unknown") : "unknown";
   const labels = an != null && Array.isArray(an.labels) ? an.labels.map((x) => String(x)) : [];
   const conf = an != null && typeof an.confidence === "number" && Number.isFinite(an.confidence) ? an.confidence : null;
@@ -1001,11 +1664,21 @@ export function defaultWorkflowClairaReasoning(input) {
   });
   const effectiveCosineThreshold = Number(Math.min(0.92, Math.max(0.72, 0.82 * contextFactor)).toFixed(4));
 
+  const filenamePatternTokens = computeFilenamePatternTokens(sourceRef);
+  const routeContext = {
+    hierarchyHint: hierarchyPathHint,
+    groupType: groupInfo.groupType,
+    groupConsensusCategory: groupPrior.groupConsensusCategory,
+    dominantHistoryTop: dominantHistory[0] ?? null,
+  };
+
   const semanticMem = findSemanticMemoryMatch({
     semanticTokens: semanticTokensEarly,
     labelThemes: themes,
     embedding: myEmb,
     cosineThreshold: effectiveCosineThreshold,
+    filenamePatternTokens,
+    routeContext,
   });
   const groupPat = findGroupPatternMatch({
     semanticTokens: semanticTokensEarly,
@@ -1044,14 +1717,18 @@ export function defaultWorkflowClairaReasoning(input) {
     notes.push(`intent ${intentOut.inferredIntent} (${intentOut.intentConfidence.toFixed(2)})`);
   }
 
+  const refinedAfterIntent = refinedCategory;
+  const intentHardened = hardenIntentOutputs(intentOut.intentCandidates, intentOut.inferredIntent, 5);
+
+  const intrinsicBreakdown = computeSemanticMatchScoreIntrinsicDetailed({
+    semanticTokens: semanticTokensEarly,
+    labelThemes: themes,
+    embedding: myEmb,
+  });
   const semanticMatchScore =
-    semanticMem != null
-      ? semanticMem.semanticMatchScore
-      : computeSemanticMatchScoreIntrinsic({
-          semanticTokens: semanticTokensEarly,
-          labelThemes: themes,
-          embedding: myEmb,
-        });
+    semanticMem != null ? semanticMem.semanticMatchScore : intrinsicBreakdown.combined;
+  const scoreBreakdown =
+    semanticMem != null && semanticMem.scoreBreakdown != null ? semanticMem.scoreBreakdown : intrinsicBreakdown;
 
   const coherentNonGeneric = stripGenericLabels(labels);
   const labelCoherence = coherentNonGeneric.length >= 2;
@@ -1108,6 +1785,57 @@ export function defaultWorkflowClairaReasoning(input) {
   } else {
     notes.push("Claira: aligned with validation + HF");
   }
+
+  const batchMulti =
+    bc != null && bc.batchAssetCount >= 2 && Array.isArray(bc.peers) && bc.peers.length > 0;
+  const deferPrecedenceForBatch = batchMulti && batchGroupCohesionStrong(bc, hfCat, batchMaxSim);
+  const categoryPrecedenceResult = deferPrecedenceForBatch
+    ? /** @type {{ apply: boolean, category?: string, source?: string }} */ ({ apply: false })
+    : resolveCategoryPrecedence({
+        hfCat,
+        validationFinal: finalCat,
+        semanticMem,
+        groupPrior,
+        reasoningCategory: refinedAfterIntent,
+        currentRefined: refinedCategory,
+      });
+  if (categoryPrecedenceResult.apply && categoryPrecedenceResult.category) {
+    refinedCategory = categoryPrecedenceResult.category;
+    notes.push(`Phase17 precedence: ${categoryPrecedenceResult.source} → ${categoryPrecedenceResult.category}`);
+  }
+
+  const alternatives = buildAlternativeCategories({
+    ambiguousHf,
+    hfCat,
+    inferredCategory,
+    refinedCategory: reviewRecommended ? "review" : refinedCategory,
+    hierarchySub,
+  });
+  const alternativeCategoriesDetailed = buildAlternativeCategoriesDetailed({
+    baseAlternatives: alternatives,
+    hfCat,
+    inferredCategory,
+    refinedCategory: reviewRecommended ? "review" : refinedCategory,
+    semanticMem,
+    groupPrior,
+  });
+  const phase172Ag = computePhase172SignalAgreement({
+    semanticMem,
+    groupPrior,
+    hfCat,
+    refinedCategory: reviewRecommended ? "review" : refinedCategory,
+    intentSeedAgreement: intentOut.signalAgreement,
+    intentCandidates: intentHardened.intentCandidates,
+    alternativeCategoriesDetailed,
+  });
+  const phase172Th = derivePhase172Thresholds({
+    baseCosineSemantic: effectiveCosineThreshold,
+    signalAgreementScore: phase172Ag.signalAgreementScore,
+    groupConfidence: groupPrior.groupConfidence,
+    semanticMatchScore,
+    intentConfidence: intentOut.intentConfidence ?? 0,
+  });
+  const { effectiveThreshold, dynamicFallbackEscape } = phase172Th;
 
   const perceptionConfidence = Math.min(1, conf ?? 0.42);
   const validationConfidence = Math.min(
@@ -1199,6 +1927,15 @@ export function defaultWorkflowClairaReasoning(input) {
     );
   }
 
+  if (phase172Ag.signalConflictLevel === "high") {
+    reasoningConfidence = Math.min(reasoningConfidence, 0.81);
+  } else if (phase172Ag.signalConflictLevel === "medium") {
+    reasoningConfidence = Math.min(reasoningConfidence, 0.91);
+  }
+  if (phase172Ag.signalAgreementScore >= 0.78) {
+    reasoningConfidence = Math.min(1, reasoningConfidence + 0.026);
+  }
+
   const confidenceBreakdown = {
     perceptionConfidence,
     validationConfidence,
@@ -1224,12 +1961,32 @@ export function defaultWorkflowClairaReasoning(input) {
       ? `${semanticStem}_claira_${shortId}${ext}`
       : `review_${shortId}_claira${ext}`;
 
-  const alternatives = buildAlternativeCategories({
-    ambiguousHf,
+  const intentFinal = resolvePhase171IntentAndFallback({
+    intentOut,
+    intentHardenedPre: intentHardened,
     hfCat,
-    inferredCategory,
-    refinedCategory: reviewRecommended ? "review" : refinedCategory,
-    hierarchySub,
+    semanticMem,
+    semanticMatchScore,
+    groupPrior,
+    alternativeCategoriesDetailed,
+    themes,
+    semanticTokensEarly,
+    myEmb,
+    bc,
+    analysisPresent,
+    fallbackEscapeThreshold: dynamicFallbackEscape,
+  });
+
+  const weakSignalsOverall = computeWeakSignalsOverall173({
+    semanticMatchScore,
+    intentConfidence: intentFinal.intentConfidence ?? 0,
+    thresholdBlend: phase172Th.thresholdBlend,
+  });
+  const signalState = derivePhase173SignalState({
+    signalAgreementScore: phase172Ag.signalAgreementScore,
+    signalConflictLevel: phase172Ag.signalConflictLevel,
+    fallbackUsed: intentFinal.fallbackUsed === true,
+    weakSignalsOverall,
   });
 
   const reasoningExplanation = [
@@ -1242,8 +1999,8 @@ export function defaultWorkflowClairaReasoning(input) {
       : "",
     hierarchyPathHint ? `Folder / name context: ${hierarchyPathHint}.` : "",
     dominantHistory.length ? `Historical feedback favors: ${dominantHistory.join(", ")}.` : "",
-    `Intent: ${intentOut.inferredIntent} (${intentOut.intentSource}, confidence ${intentOut.intentConfidence.toFixed(2)}).`,
-    `Semantic cosine threshold (effective): ${effectiveCosineThreshold.toFixed(3)} (contextFactor ${contextFactor.toFixed(3)}).`,
+    `Intent: ${intentFinal.inferredIntent} (${intentFinal.intentSource}, confidence ${intentFinal.intentConfidence.toFixed(2)}).`,
+    `Semantic cosine threshold (base): ${effectiveCosineThreshold.toFixed(3)}; context-aware effective: ${effectiveThreshold.toFixed(3)} (contextFactor ${contextFactor.toFixed(3)}).`,
     semanticMem != null
       ? `Semantic memory score vs feedback store: ${semanticMem.semanticMatchScore.toFixed(3)} (${semanticMem.strength}).`
       : `Semantic match score (intrinsic signals): ${semanticMatchScore.toFixed(3)}.`,
@@ -1263,22 +2020,41 @@ export function defaultWorkflowClairaReasoning(input) {
     suggestedName: suggestedName || valSuggested,
     semanticSimilarityScore: batchMaxSim,
     semanticMatchScore,
+    scoreBreakdown,
     groupId: groupInfo.groupId,
     groupType: groupInfo.groupType,
     alternativeCategories: alternatives,
+    alternativeCategoriesDetailed,
     reasoningExplanation,
-    inferredIntent: intentOut.inferredIntent,
-    intentConfidence: intentOut.intentConfidence,
-    intentCandidates: intentOut.intentCandidates,
-    intentSource: intentOut.intentSource,
+    inferredIntent: intentFinal.inferredIntent,
+    intentConfidence: intentFinal.intentConfidence,
+    intentCandidates: intentFinal.intentCandidates,
+    intentCanonical: intentFinal.intentCanonical,
+    intentClusters: intentFinal.intentClusters,
+    intentSource: intentFinal.intentSource,
+    fallbackUsed: intentFinal.fallbackUsed,
+    fallbackReason: intentFinal.fallbackReason,
     groupPrior,
-    effectiveThresholds: { cosineSemantic: effectiveCosineThreshold, contextFactor },
+    signalAgreementScore: phase172Ag.signalAgreementScore,
+    signalConflictLevel: phase172Ag.signalConflictLevel,
+    signalState,
+    effectiveThreshold,
+    effectiveThresholds: {
+      cosineSemantic: effectiveCosineThreshold,
+      contextFactor,
+      effectiveThreshold,
+      fallbackEscape: dynamicFallbackEscape,
+      thresholdBlend: phase172Th.thresholdBlend,
+    },
     adaptiveWeights: { feedbackStrength: feedbackStrengthHooks, groupCohesionStrength: groupCohesionHooks },
     groupDecisionApplied: false,
     confidenceBreakdown,
     clairaReasoning: {
       provider: "default_workflow_claira",
-      phase: 16,
+      phase: 17,
+      phase17_1: true,
+      phase17_2: true,
+      phase17_3: true,
       filename,
       hfLabels: labels,
       labelThemes: themes,
@@ -1289,16 +2065,44 @@ export function defaultWorkflowClairaReasoning(input) {
         : null,
       semanticMemory: semanticMem,
       semanticMatchScore,
+      scoreBreakdown,
+      filenamePatternTokens,
+      routeContext,
       groupPatternMatch: groupPat,
       groupPrior,
-      effectiveThresholds: { cosineSemantic: effectiveCosineThreshold, contextFactor },
+      effectiveThresholds: {
+        cosineSemantic: effectiveCosineThreshold,
+        contextFactor,
+        effectiveThreshold,
+        fallbackEscape: dynamicFallbackEscape,
+        thresholdBlend: phase172Th.thresholdBlend,
+      },
+      signalAgreementScore: phase172Ag.signalAgreementScore,
+      signalConflictLevel: phase172Ag.signalConflictLevel,
+      signalState,
       adaptiveWeights: { feedbackStrength: feedbackStrengthHooks, groupCohesionStrength: groupCohesionHooks },
+      alternativeCategoriesDetailed,
+      categoryPrecedence: {
+        applied: categoryPrecedenceResult.apply,
+        winnerSource: categoryPrecedenceResult.source ?? null,
+        winnerCategory: categoryPrecedenceResult.category ?? null,
+        batchStrongGroupDefer: deferPrecedenceForBatch,
+      },
+      fallbackUsed: intentFinal.fallbackUsed,
+      fallbackReason: intentFinal.fallbackReason,
+      fallbackRate: null,
+      signalCompleteness: intentFinal.signalCompleteness,
       intent: {
-        id: intentOut.inferredIntent,
-        confidence: intentOut.intentConfidence,
-        candidates: intentOut.intentCandidates,
-        source: intentOut.intentSource,
+        id: intentFinal.inferredIntent,
+        confidence: intentFinal.intentConfidence,
+        candidates: intentFinal.intentCandidates,
+        source: intentFinal.intentSource,
         signalAgreement: intentOut.signalAgreement,
+        signalAgreementScore: phase172Ag.signalAgreementScore,
+        signalConflictLevel: phase172Ag.signalConflictLevel,
+        signalState,
+        canonical: intentFinal.intentCanonical,
+        clusters: intentFinal.intentClusters,
       },
       confidenceBreakdown,
       hierarchySubcategory: hierarchySub,
@@ -1377,17 +2181,27 @@ function inactiveResult(input) {
       (/** @type {{ reviewOverride?: unknown }} */ (val).reviewOverride === true ||
         String(/** @type {{ validationStatus?: unknown }} */ (val).validationStatus ?? "") === "low"),
     suggestedName: suggested,
-    clairaReasoning: { skipped: true },
+    clairaReasoning: {
+      skipped: true,
+      fallbackUsed: true,
+      fallbackReason: "missing_data",
+      fallbackRate: null,
+      signalState: "weak_signals",
+    },
     active: false,
     semanticSimilarityScore: null,
     semanticMatchScore: null,
+    scoreBreakdown: null,
     groupId: null,
     groupType: null,
     alternativeCategories: [],
+    alternativeCategoriesDetailed: [],
     reasoningExplanation: "Claira reasoning provider did not run; using classifier and validation only.",
     inferredIntent: `intent_category_${normSlug(hfCat) || "unknown"}`,
     intentConfidence: 0,
     intentCandidates: [],
+    intentCanonical: null,
+    intentClusters: [],
     intentSource: "fallback",
     groupPrior: null,
     effectiveThresholds: { cosineSemantic: 0.82, contextFactor: 1 },
@@ -1400,5 +2214,12 @@ function inactiveResult(input) {
       learningConfidence: 0,
       groupConfidence: 0,
     },
+    fallbackUsed: true,
+    fallbackReason: "missing_data",
+    fallbackRate: null,
+    signalAgreementScore: 0,
+    signalConflictLevel: "low",
+    signalState: "weak_signals",
+    effectiveThreshold: 0.82,
   };
 }
