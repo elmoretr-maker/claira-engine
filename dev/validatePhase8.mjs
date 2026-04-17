@@ -1,3 +1,4 @@
+import 'dotenv/config';
 /**
  * Phase 8 — Hugging Face CLIP zero-shot provider (Inference API) + fallbacks.
  * Run: node dev/validatePhase8.mjs

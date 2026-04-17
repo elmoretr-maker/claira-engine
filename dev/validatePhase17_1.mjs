@@ -1,7 +1,7 @@
 import 'dotenv/config';
 /**
- * Phase 16 — Semantic memory, group decisions, intent, confidence breakdown.
- * Run: node dev/validatePhase16.mjs
+ * Phase 17.1 — Precedence + fallback hardening (batch-strong defer, smart fallback, metrics).
+ * Run: node dev/validatePhase17_1.mjs
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -27,8 +27,8 @@ function assert(name, cond, detail = "") {
 const VEC_A = [0.12, 0.88, 0.02, 0.04, 0, 0, 0, 0];
 const VEC_B = [0.11, 0.89, 0.03, 0.02, 0, 0, 0, 0];
 
-const phase16Provider = {
-  id: "phase16_hf",
+const phase171Provider = {
+  id: "phase171_hf",
   analyzeImage(asset) {
     const ref = String(asset?.ref ?? "").replace(/\\/g, "/");
     const base = ref.includes("/") ? ref.slice(ref.lastIndexOf("/") + 1) : ref;
@@ -43,10 +43,10 @@ const phase16Provider = {
         inferenceInput: {},
       };
     }
-    if (/^walk_frame_01\.png$/i.test(base)) {
+    if (/^weak_batch_a\.png$/i.test(base)) {
       return {
         category: "document",
-        labels: ["document", "scan"],
+        labels: ["document"],
         confidence: 0.88,
         features: {},
         embeddings: VEC_A,
@@ -54,13 +54,24 @@ const phase16Provider = {
         inferenceInput: {},
       };
     }
-    if (/^walk_frame_02\.png$/i.test(base)) {
+    if (/^weak_batch_b\.png$/i.test(base)) {
       return {
         category: "video game asset",
-        labels: ["video game asset", "character", "sprite"],
-        confidence: 0.9,
+        labels: ["sprite"],
+        confidence: 0.88,
         features: {},
         embeddings: VEC_B,
+        modelSource: "mock",
+        inferenceInput: {},
+      };
+    }
+    if (/^strong_batch_0[12]\.png$/i.test(base)) {
+      return {
+        category: "document",
+        labels: ["document", "scan"],
+        confidence: 0.9,
+        features: {},
+        embeddings: VEC_A,
         modelSource: "mock",
         inferenceInput: {},
       };
@@ -90,7 +101,7 @@ try {
 
   const feedbackDir = path.join(process.cwd(), "workflow", "feedback", "data");
   fs.mkdirSync(feedbackDir, { recursive: true });
-  process.env.FEEDBACK_STORE_PATH = path.join(feedbackDir, `phase16_validate_${Date.now()}.json`);
+  process.env.FEEDBACK_STORE_PATH = path.join(feedbackDir, `phase171_validate_${Date.now()}.json`);
 
   clearFeedbackStore();
   recordFeedbackEntry({
@@ -102,75 +113,87 @@ try {
     labelThemes: ["ui"],
     embeddingSignature: [...VEC_A],
   });
-  recordFeedbackEntry({
-    originalLabels: ["misc"],
-    refinedCategory: "misc",
-    userCorrectedCategory: "ui element",
-    filename: "glyph_beta.png",
-    semanticTokens: ["glyph", "toolbar", "beta"],
-    labelThemes: ["ui"],
-    embeddingSignature: [...VEC_B],
-  });
 
-  setImageAnalysisProvider(phase16Provider);
+  setImageAnalysisProvider(phase171Provider);
   setClairaReasoningProvider({
-    id: "phase16_test",
+    id: "phase171_test",
     refineReasoning: defaultWorkflowClairaReasoning,
   });
 
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "claira-p16-"));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "claira-p171-"));
+
   const glyphPath = path.join(tmp, "toolbar_close_glyph.png");
   fs.writeFileSync(glyphPath, "x");
-
-  const memRun = await runPhase10Pipeline({
+  const weak = await runPhase10Pipeline({
     cwd: tmp,
     imagePaths: [glyphPath],
     destinationRoot: "Assets",
     dryRun: true,
   });
-  const cr0 = memRun.output.payload.moduleResults?.claira_reasoning?.data?.items?.[0];
-  assert("semantic memory match score", typeof cr0?.semanticMatchScore === "number" && cr0.semanticMatchScore > 0.35);
-  assert("confidence breakdown present", cr0?.confidenceBreakdown?.perceptionConfidence != null);
-  assert("intent inferred", typeof cr0?.inferredIntent === "string" && cr0.inferredIntent.length > 2);
-  assert("intent candidates ranked", Array.isArray(cr0?.intentCandidates) && cr0.intentCandidates.length >= 1);
-  assert("intent source set", cr0?.intentSource === "inferred" || cr0?.intentSource === "learned" || cr0?.intentSource === "fallback");
-  assert("group prior present for batch", cr0?.groupPrior != null && typeof cr0.groupPrior.groupConfidence === "number");
-  assert("effective semantic threshold", typeof cr0?.effectiveThresholds?.cosineSemantic === "number");
+  const w0 = weak.output.payload.moduleResults?.claira_reasoning?.data?.items?.[0];
+  assert("phase17_1 flag", w0?.clairaReasoning?.phase17_1 === true);
+  assert("signal completeness object", w0?.clairaReasoning?.signalCompleteness != null);
+  assert("fallback fields present", typeof w0?.fallbackUsed === "boolean" && (w0.fallbackReason === null || typeof w0.fallbackReason === "string"));
+  assert(
+    "weak signal prefers structured intent when possible",
+    typeof w0?.inferredIntent === "string" && !/^intent_category_misc$/i.test(String(w0.inferredIntent)),
+  );
 
-  const icon1 = path.join(tmp, "walk_frame_01.png");
-  const icon2 = path.join(tmp, "walk_frame_02.png");
-  for (const p of [icon1, icon2]) fs.writeFileSync(p, "x");
-
-  const grp = await runPhase10Pipeline({
+  const wa = path.join(tmp, "weak_batch_a.png");
+  const wb = path.join(tmp, "weak_batch_b.png");
+  fs.writeFileSync(wa, "x");
+  fs.writeFileSync(wb, "x");
+  const weakBatch = await runPhase10Pipeline({
     cwd: tmp,
-    imagePaths: [icon1, icon2],
+    imagePaths: [wa, wb],
     destinationRoot: "Assets",
     dryRun: true,
   });
-  const items = grp.output.payload.moduleResults?.claira_reasoning?.data?.items;
-  const j0 = items?.[0];
-  const j1 = items?.[1];
-  const unifiedPair =
-    j0 != null &&
-    j1 != null &&
-    String(j0.refinedCategory ?? "").toLowerCase() === String(j1.refinedCategory ?? "").toLowerCase();
-  assert("batch pair reaches unified category (group finalize or precedence)", unifiedPair === true);
-  if (j0?.groupDecisionApplied === true) {
-    assert("group decision payload marks override", j0?.clairaReasoning?.groupDecision?.categoryOverride === true);
-  }
-  assert("unified naming frame token", String(items?.[0]?.suggestedName ?? "").includes("frame_01"));
-  assert("claira suffix preserved", String(items?.[0]?.suggestedName ?? "").includes("claira"));
+  const wbItems = weakBatch.output.payload.moduleResults?.claira_reasoning?.data?.items ?? [];
+  assert("weak batch: not strong group defer", wbItems[0]?.clairaReasoning?.categoryPrecedence?.batchStrongGroupDefer === false);
+  assert("weak batch: precedence may apply", typeof wbItems[0]?.clairaReasoning?.categoryPrecedence?.applied === "boolean");
 
-  const other = await runPhase10Pipeline({
-    cwd: process.cwd(),
-    imagePaths: ["phase9://kind/other"],
+  const s1 = path.join(tmp, "strong_batch_01.png");
+  const s2 = path.join(tmp, "strong_batch_02.png");
+  fs.writeFileSync(s1, "x");
+  fs.writeFileSync(s2, "x");
+  const strongBatch = await runPhase10Pipeline({
+    cwd: tmp,
+    imagePaths: [s1, s2],
     destinationRoot: "Assets",
     dryRun: true,
   });
-  const routeOther = other.output.payload.moduleResults?.asset_router?.data?.routing?.items?.[0];
-  assert("ambiguous misc stays Review when validation is low", routeOther?.destinationRelPath === "Review");
+  const sbItems = strongBatch.output.payload.moduleResults?.claira_reasoning?.data?.items ?? [];
+  assert("strong batch: defer precedence for group finalize", sbItems[0]?.clairaReasoning?.categoryPrecedence?.batchStrongGroupDefer === true);
 
-  console.log("\nAll Phase 16 checks passed.\n");
+  assert("batch fallback metrics", typeof sbItems[0]?.clairaReasoning?.fallbackRate === "number");
+  assert(
+    "batch fallbackMetrics shape",
+    sbItems[0]?.clairaReasoning?.fallbackMetrics != null &&
+      typeof sbItems[0].clairaReasoning.fallbackMetrics.batchFallbackRate === "number" &&
+      typeof sbItems[0].clairaReasoning.fallbackMetrics.byCategory === "object",
+  );
+
+  const r1 = await runPhase10Pipeline({
+    cwd: tmp,
+    imagePaths: [glyphPath],
+    destinationRoot: "Assets",
+    dryRun: true,
+  });
+  const r2 = await runPhase10Pipeline({
+    cwd: tmp,
+    imagePaths: [glyphPath],
+    destinationRoot: "Assets",
+    dryRun: true,
+  });
+  const g1 = r1.output.payload.moduleResults?.claira_reasoning?.data?.items?.[0];
+  const g2 = r2.output.payload.moduleResults?.claira_reasoning?.data?.items?.[0];
+  assert(
+    "deterministic fallback behavior",
+    String(g1?.inferredIntent) === String(g2?.inferredIntent) && String(g1?.fallbackUsed) === String(g2?.fallbackUsed),
+  );
+
+  console.log("\nAll Phase 17.1 checks passed.\n");
 } finally {
   clearImageAnalysisProvider();
   clearClairaReasoningProvider();
