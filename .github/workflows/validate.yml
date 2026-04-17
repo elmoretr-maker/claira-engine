@@ -1,0 +1,32 @@
+# Full pipeline validation (UI build + dev validators). No Hugging Face secrets required.
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      # Skip live Hugging Face CLIP calls in CI (Phase 8); validators remain deterministic.
+      HF_DISABLE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run validate:all
+        run: npm run validate:all
