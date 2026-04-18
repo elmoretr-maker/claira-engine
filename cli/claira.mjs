@@ -4,9 +4,8 @@
  * Usage: node cli/claira.mjs <command> [options]
  */
 
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { dirname, join, resolve } from "path";
-import { fileURLToPath } from "url";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import {
   analyze,
   applyDecision,
@@ -17,11 +16,8 @@ import {
   getSuggestions,
   resetSessionLedger,
 } from "../index.js";
-import { getImageEmbedding } from "../vision/clipEmbedder.js";
 import { processFolder, getSessionSummary } from "../interfaces/api.js";
 import { parseReferenceEmbeddingsFromJson } from "../interfaces/referenceLoader.js";
-
-const CLI_DIR = dirname(fileURLToPath(import.meta.url));
 
 function printHelp() {
   console.log(`claira — Claira Engine CLI

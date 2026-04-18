@@ -11,7 +11,7 @@ export const REAL_EXTERNAL_OUTPUT_READY = false;
  * @param {string} [target]
  * @returns {Record<string, unknown>}
  */
-export function exportToExternal(results, target) {
+export function exportToExternal(_results, _target) {
   if (!REAL_EXTERNAL_OUTPUT_READY) {
     throw new Error("Real external output not wired — implement in realExternalOutput.js");
   }
