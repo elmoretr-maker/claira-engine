@@ -9,7 +9,12 @@ const MAX_STEPS = 5;
 const MIN_STEPS = 3;
 
 /** Never auto-inserted into planned chains (explicit UI/API only). */
-const EXPLICIT_ONLY_PLAN_MODULES = new Set(["tax_document_comparison", "fitness_image_comparison"]);
+const EXPLICIT_ONLY_PLAN_MODULES = new Set([
+  "tax_document_comparison",
+  "fitness_image_comparison",
+  "contractor_cost_tracking",
+  "receipt_tracking",
+]);
 
 /**
  * @param {string[]} availableModules

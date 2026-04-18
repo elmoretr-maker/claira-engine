@@ -51,6 +51,13 @@ export const BUILTIN_PACK_REGISTRY = [
     description: "Track client transformations, progress photos, and fitness journeys",
     inputVerb: "Add progress photos or client folders",
   },
+  {
+    id: "contractor",
+    name: "General Contractor",
+    domainMode: "contractor",
+    description: "Track construction projects, progress, and costs",
+    inputVerb: "Add project photos or site folders",
+  },
 ];
 
 /**

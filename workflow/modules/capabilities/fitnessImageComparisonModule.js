@@ -150,8 +150,9 @@ function normalizeImagePairsInput(raw) {
 export const fitnessImageComparisonModule = {
   id: "fitness_image_comparison",
   name: "Fitness image comparison",
-  description: "Pairwise pixel comparison of two progress images (read-only, fitness domain only).",
-  supportedIntents: ["fitness compare", "progress compare", "before after", "body comparison"],
+  description:
+    "Pairwise pixel comparison of two progress images (read-only; fitness or contractor timeline domains).",
+  supportedIntents: ["fitness compare", "progress compare", "before after", "body comparison", "room progress compare"],
 
   /**
    * @param {FitnessImageComparisonRunInput} input
@@ -165,11 +166,12 @@ export const fitnessImageComparisonModule = {
       typeof /** @type {{ domainMode?: string }} */ (context.inputData).domainMode === "string"
         ? String(/** @type {{ domainMode?: string }} */ (context.inputData).domainMode).trim()
         : "";
-    if (getDomainDefinition(dm).id !== "fitness") {
+    const domainId = getDomainDefinition(dm).id;
+    if (domainId !== "fitness" && domainId !== "contractor") {
       return {
         error: true,
-        message: "fitness_image_comparison: requires domainMode fitness",
-        summary: "Switch capability domain to Fitness to use this module.",
+        message: "fitness_image_comparison: requires domainMode fitness or contractor",
+        summary: "Switch capability domain to Fitness or General Contractor to use this module.",
       };
     }
 

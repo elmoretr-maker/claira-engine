@@ -46,6 +46,10 @@ export default {
         target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
         changeOrigin: true,
       },
+      "/api/reports": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+      },
       /** TTS + status — requires `npm run start:server` (Express on PORT, default 3000). */
       "/__claira/tts": {
         target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
@@ -401,6 +405,106 @@ export default {
             } else if (body.kind === "fitnessTimelineScan") {
               out = api.fitnessTimelineScanApi({
                 cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+              });
+            } else if (body.kind === "contractorTimelineScan") {
+              out = api.contractorTimelineScanApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+              });
+            } else if (body.kind === "contractorCostTracking") {
+              out = await api.contractorCostTrackingApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                project: typeof body.project === "string" ? body.project : undefined,
+                initialCost: body.initialCost,
+                currentCost: body.currentCost,
+                receiptTotal: body.receiptTotal,
+                manualSpendSupplement: body.manualSpendSupplement,
+              });
+            } else if (body.kind === "receiptAdd") {
+              out = await api.receiptAddApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                vendor: typeof body.vendor === "string" ? body.vendor : "",
+                amount: typeof body.amount === "number" ? body.amount : body.amount,
+                date: typeof body.date === "string" ? body.date : undefined,
+                note: typeof body.note === "string" ? body.note : undefined,
+                imageBase64: typeof body.imageBase64 === "string" ? body.imageBase64 : "",
+                filename: typeof body.filename === "string" ? body.filename : "",
+                tags:
+                  body.tags != null && typeof body.tags === "object" && !Array.isArray(body.tags) ? body.tags : undefined,
+              });
+            } else if (body.kind === "receiptList") {
+              out = api.receiptListApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                tags:
+                  body.tags != null && typeof body.tags === "object" && !Array.isArray(body.tags) ? body.tags : undefined,
+              });
+            } else if (body.kind === "contractorReceiptAdd") {
+              out = await api.contractorReceiptAddApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                project: typeof body.project === "string" ? body.project : "",
+                room: typeof body.room === "string" ? body.room : undefined,
+                vendor: typeof body.vendor === "string" ? body.vendor : "",
+                amount: typeof body.amount === "number" ? body.amount : body.amount,
+                date: typeof body.date === "string" ? body.date : undefined,
+                note: typeof body.note === "string" ? body.note : undefined,
+                imageBase64: typeof body.imageBase64 === "string" ? body.imageBase64 : "",
+                filename: typeof body.filename === "string" ? body.filename : "",
+              });
+            } else if (body.kind === "contractorReceiptList") {
+              out = api.contractorReceiptListApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                project: typeof body.project === "string" ? body.project : undefined,
+              });
+            } else if (body.kind === "contractorProjectSave") {
+              out = api.saveProjectApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                name: typeof body.name === "string" ? body.name : "",
+                slug: typeof body.slug === "string" ? body.slug : undefined,
+                budget: body.budget,
+                assignees: Array.isArray(body.assignees) ? body.assignees : undefined,
+                sections: Array.isArray(body.sections) ? body.sections : undefined,
+              });
+            } else if (body.kind === "contractorProjectLoad") {
+              out = api.loadProjectApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                slug: typeof body.slug === "string" ? body.slug : "",
+              });
+            } else if (body.kind === "contractorProjectList") {
+              out = api.listProjectsApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+              });
+            } else if (body.kind === "contractorProjectExportReport") {
+              out = await api.exportProjectReportApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                project: typeof body.project === "string" ? body.project : "",
+                ...(body.budgetContext != null && typeof body.budgetContext === "object" && !Array.isArray(body.budgetContext)
+                  ? { budgetContext: body.budgetContext }
+                  : {}),
+                ...(body.initialBudget != null ? { initialBudget: body.initialBudget } : {}),
+                ...(body.manualSpendSupplement != null ? { manualSpendSupplement: body.manualSpendSupplement } : {}),
+              });
+            } else if (body.kind === "contractorProjectExportPdf") {
+              out = await api.exportProjectPdfApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                project: typeof body.project === "string" ? body.project : "",
+                ...(body.budgetContext != null && typeof body.budgetContext === "object" && !Array.isArray(body.budgetContext)
+                  ? { budgetContext: body.budgetContext }
+                  : {}),
+                ...(body.initialBudget != null ? { initialBudget: body.initialBudget } : {}),
+                ...(body.manualSpendSupplement != null ? { manualSpendSupplement: body.manualSpendSupplement } : {}),
+              });
+            } else if (body.kind === "contractorGenerateShareLink") {
+              out = await api.generateShareLinkApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                project: typeof body.project === "string" ? body.project : "",
+                ...(body.budgetContext != null && typeof body.budgetContext === "object" && !Array.isArray(body.budgetContext)
+                  ? { budgetContext: body.budgetContext }
+                  : {}),
+                ...(body.initialBudget != null ? { initialBudget: body.initialBudget } : {}),
+                ...(body.manualSpendSupplement != null ? { manualSpendSupplement: body.manualSpendSupplement } : {}),
+              });
+            } else if (body.kind === "receiptExtract") {
+              out = await api.receiptExtractApi({
+                imageBase64: typeof body.imageBase64 === "string" ? body.imageBase64 : "",
               });
             } else if (body.kind === "fitnessImageComparison") {
               out = await api.fitnessImageComparisonApi({

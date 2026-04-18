@@ -6,6 +6,7 @@ import { assertCapabilityModule } from "./capabilityContract.js";
 import { getDomainDefinition } from "./domainRegistry.js";
 import { basenameFromPath, extractTaxHintsFromBasename } from "./taxFilenameHints.js";
 import { extractFitnessHintsFromPaths } from "./fitnessFilenameHints.js";
+import { extractContractorHintsFromPaths } from "./contractorFilenameHints.js";
 
 /**
  * @param {string} s
@@ -70,6 +71,21 @@ export const taggingModule = {
         tags.add(`client_name:${hints.clientSlug}`);
         tags.add(`stage:${hints.stageSlug}`);
         tags.add(`body_view:${hints.bodyView}`);
+      }
+    }
+
+    if (getDomainDefinition(dm).id === "contractor") {
+      const path =
+        typeof input.primaryFile === "string" && input.primaryFile.trim()
+          ? input.primaryFile
+          : typeof input.sourcePath === "string"
+            ? input.sourcePath
+            : "";
+      if (path) {
+        const hints = extractContractorHintsFromPaths(path.replace(/\\/g, "/"));
+        tags.add(`project_name:${hints.projectSlug}`);
+        tags.add(`room:${hints.roomSlug}`);
+        tags.add(`stage:${hints.stageSlug}`);
       }
     }
 

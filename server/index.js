@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "fs";
 import express from "express";
 import { analyzeImage } from "./clairaImagePipeline.js";
 import { getClairaTtsRuntimeSummary, initClairaTtsService, synthesizeClairaSpeech } from "../lib/clairaTts.mjs";
@@ -373,6 +374,250 @@ app.post("/api/capabilities/fitness-timeline", async (req, res) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn("[api/capabilities/fitness-timeline]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-timeline", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.contractorTimelineScanApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-timeline]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-cost", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.contractorCostTrackingApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-cost]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/receipt-add", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.receiptAddApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/receipt-add]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/receipt-list", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.receiptListApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/receipt-list]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-receipt-add", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.contractorReceiptAddApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-receipt-add]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-receipt-list", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.contractorReceiptListApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-receipt-list]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-project-save", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.saveProjectApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-project-save]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-project-load", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.loadProjectApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-project-load]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-project-list", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.listProjectsApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-project-list]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-project-export-report", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.exportProjectReportApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-project-export-report]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-project-export-pdf", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.exportProjectPdfApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-project-export-pdf]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/contractor-generate-share-link", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.generateShareLinkApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/contractor-generate-share-link]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/receipt-extract", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.receiptExtractApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/receipt-extract]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+/**
+ * Shared contractor report snapshot (JSON). Workspace cwd = server process cwd.
+ */
+app.get("/api/reports/:projectSlug/:reportId", async (req, res) => {
+  try {
+    const { readShareReportJson } = await import("../workflow/modules/capabilities/contractorReportShare.js");
+    const slug = String(req.params.projectSlug ?? "").trim();
+    const id = String(req.params.reportId ?? "").trim();
+    if (!slug || !id || /[./\\]/.test(slug) || !/^[a-z0-9._-]+$/i.test(id)) {
+      return res.status(400).json({ ok: false, error: "invalid report path" });
+    }
+    const data = readShareReportJson(process.cwd(), slug, id);
+    if (!data) {
+      return res.status(404).json({ ok: false, error: "report not found" });
+    }
+    res.json({ ok: true, report: data });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/reports json]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+/**
+ * Shared contractor report PDF (binary).
+ */
+app.get("/api/reports/:projectSlug/:reportId/pdf", async (req, res) => {
+  try {
+    const { shareReportPdfPath } = await import("../workflow/modules/capabilities/contractorReportShare.js");
+    const slug = String(req.params.projectSlug ?? "").trim();
+    const id = String(req.params.reportId ?? "").trim();
+    if (!slug || !id || /[./\\]/.test(slug) || !/^[a-z0-9._-]+$/i.test(id)) {
+      return res.status(400).json({ ok: false, error: "invalid report path" });
+    }
+    const pdfAbs = shareReportPdfPath(process.cwd(), slug, id);
+    if (!existsSync(pdfAbs)) {
+      return res.status(404).json({ ok: false, error: "report PDF not found" });
+    }
+    const buf = readFileSync(pdfAbs);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="report-${id}.pdf"`);
+    res.send(buf);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/reports pdf]", msg);
     res.status(500).json({ ok: false, error: msg });
   }
 });

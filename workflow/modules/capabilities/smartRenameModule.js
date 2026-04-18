@@ -6,6 +6,7 @@ import { assertCapabilityModule } from "./capabilityContract.js";
 import { getDomainDefinition } from "./domainRegistry.js";
 import { basenameFromPath, extractTaxHintsFromBasename, fileExtensionFromPath } from "./taxFilenameHints.js";
 import { extractFitnessHintsFromPaths } from "./fitnessFilenameHints.js";
+import { extractContractorHintsFromPaths } from "./contractorFilenameHints.js";
 
 /**
  * @param {string} s
@@ -67,6 +68,23 @@ export const smartRenameModule = {
       return {
         suggestedFilename,
         baseSlug: hints.clientSlug,
+        summary: `Suggested: ${suggestedFilename}`,
+      };
+    }
+
+    if (getDomainDefinition(dm).id === "contractor") {
+      const path =
+        typeof input.primaryFile === "string" && input.primaryFile.trim()
+          ? input.primaryFile
+          : typeof input.sourcePath === "string"
+            ? input.sourcePath
+            : "";
+      const ext = fileExtensionFromPath(path);
+      const hints = extractContractorHintsFromPaths(path.replace(/\\/g, "/"));
+      const suggestedFilename = `${hints.projectSlug}_${hints.roomSlug}_${hints.stageSlug}${ext}`;
+      return {
+        suggestedFilename,
+        baseSlug: hints.projectSlug,
         summary: `Suggested: ${suggestedFilename}`,
       };
     }

@@ -555,6 +555,419 @@ export async function runFitnessTimelineScan(payload = {}) {
 }
 
 /**
+ * Scan `Projects/{project}/Rooms/{room}/Timeline/{stage}` for contractor images.
+ * @param {{ cwd?: string }} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runContractorTimelineScan(payload = {}) {
+  const body = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+  };
+  try {
+    const r = await fetch("/api/capabilities/contractor-timeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "contractorTimelineScan", ...body });
+}
+
+/**
+ * @param {{
+ *   cwd?: string,
+ *   project?: string,
+ *   initialCost?: number,
+ *   currentCost?: number,
+ *   receiptTotal?: number,
+ *   manualSpendSupplement?: number,
+ * }} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runContractorCostTracking(payload = {}) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+    ...(typeof payload.project === "string" ? { project: payload.project } : {}),
+    ...(typeof payload.initialCost === "number" && Number.isFinite(payload.initialCost)
+      ? { initialCost: payload.initialCost }
+      : {}),
+    ...(typeof payload.currentCost === "number" && Number.isFinite(payload.currentCost)
+      ? { currentCost: payload.currentCost }
+      : {}),
+    ...(typeof payload.receiptTotal === "number" && Number.isFinite(payload.receiptTotal)
+      ? { receiptTotal: payload.receiptTotal }
+      : {}),
+    ...(typeof payload.manualSpendSupplement === "number" && Number.isFinite(payload.manualSpendSupplement)
+      ? { manualSpendSupplement: payload.manualSpendSupplement }
+      : {}),
+  };
+  try {
+    const r = await fetch("/api/capabilities/contractor-cost", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "contractorCostTracking", ...bodyObj });
+}
+
+/**
+ * @param {{
+ *   cwd?: string,
+ *   vendor: string,
+ *   amount: number,
+ *   date?: string,
+ *   note?: string,
+ *   imageBase64: string,
+ *   filename?: string,
+ *   tags?: {
+ *     domain?: string,
+ *     path?: string[],
+ *     assignee?: string,
+ *     project?: string,
+ *     room?: string,
+ *     category?: string,
+ *   },
+ * }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runReceiptAdd(payload) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+    vendor: typeof payload.vendor === "string" ? payload.vendor : "",
+    amount: typeof payload.amount === "number" ? payload.amount : Number(payload.amount),
+    ...(typeof payload.date === "string" ? { date: payload.date } : {}),
+    ...(typeof payload.note === "string" ? { note: payload.note } : {}),
+    imageBase64: typeof payload.imageBase64 === "string" ? payload.imageBase64 : "",
+    filename: typeof payload.filename === "string" ? payload.filename : "",
+    ...(payload.tags != null && typeof payload.tags === "object" && !Array.isArray(payload.tags)
+      ? { tags: payload.tags }
+      : {}),
+  };
+  try {
+    const r = await fetch("/api/capabilities/receipt-add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "receiptAdd", ...bodyObj });
+}
+
+/**
+ * @param {{
+ *   cwd?: string,
+ *   tags?: {
+ *     domain?: string,
+ *     path?: string[],
+ *     assignee?: string,
+ *     project?: string,
+ *     room?: string,
+ *     category?: string,
+ *   },
+ * }} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runReceiptList(payload = {}) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+    ...(payload.tags != null && typeof payload.tags === "object" && !Array.isArray(payload.tags)
+      ? { tags: payload.tags }
+      : {}),
+  };
+  try {
+    const r = await fetch("/api/capabilities/receipt-list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "receiptList", ...bodyObj });
+}
+
+/**
+ * @param {{
+ *   cwd?: string,
+ *   name: string,
+ *   slug?: string,
+ *   budget: number,
+ *   assignees?: string[],
+ *   sections?: string[],
+ * }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runSaveProject(payload) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+    name: typeof payload.name === "string" ? payload.name : "",
+    ...(typeof payload.slug === "string" && payload.slug.trim() ? { slug: payload.slug.trim() } : {}),
+    budget: typeof payload.budget === "number" ? payload.budget : Number(payload.budget),
+    ...(Array.isArray(payload.assignees) ? { assignees: payload.assignees } : {}),
+    ...(Array.isArray(payload.sections) ? { sections: payload.sections } : {}),
+  };
+  try {
+    const r = await fetch("/api/capabilities/contractor-project-save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "contractorProjectSave", ...bodyObj });
+}
+
+/**
+ * @param {{ cwd?: string, slug: string }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runLoadProject(payload) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+    slug: typeof payload.slug === "string" ? payload.slug : "",
+  };
+  try {
+    const r = await fetch("/api/capabilities/contractor-project-load", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "contractorProjectLoad", ...bodyObj });
+}
+
+/**
+ * @param {{ cwd?: string }} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runListSavedProjects(payload = {}) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+  };
+  try {
+    const r = await fetch("/api/capabilities/contractor-project-list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "contractorProjectList", ...bodyObj });
+}
+
+/**
+ * @param {{ cwd?: string, project: string }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+function contractorBudgetPayload(payload) {
+  const o = /** @type {Record<string, unknown>} */ (payload && typeof payload === "object" ? payload : {});
+  const bc = o.budgetContext;
+  return {
+    ...(typeof o.cwd === "string" ? { cwd: o.cwd } : {}),
+    ...(typeof o.project === "string" ? { project: o.project } : {}),
+    ...(bc != null && typeof bc === "object" && !Array.isArray(bc) ? { budgetContext: bc } : {}),
+    ...(o.initialBudget != null ? { initialBudget: o.initialBudget } : {}),
+    ...(o.manualSpendSupplement != null ? { manualSpendSupplement: o.manualSpendSupplement } : {}),
+  };
+}
+
+export async function runExportProjectReport(payload) {
+  const bodyObj = contractorBudgetPayload(payload);
+  try {
+    const r = await fetch("/api/capabilities/contractor-project-export-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "contractorProjectExportReport", ...bodyObj });
+}
+
+/**
+ * @param {{ cwd?: string, project: string, budgetContext?: { initialBudget?: unknown, manualSpendSupplement?: unknown }, initialBudget?: unknown, manualSpendSupplement?: unknown }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runExportProjectPdf(payload) {
+  const bodyObj = contractorBudgetPayload(payload);
+  try {
+    const r = await fetch("/api/capabilities/contractor-project-export-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "contractorProjectExportPdf", ...bodyObj });
+}
+
+/**
+ * @param {{ cwd?: string, project: string, budgetContext?: { initialBudget?: unknown, manualSpendSupplement?: unknown }, initialBudget?: unknown, manualSpendSupplement?: unknown }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runGenerateShareLink(payload) {
+  const bodyObj = contractorBudgetPayload(payload);
+  try {
+    const r = await fetch("/api/capabilities/contractor-generate-share-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "contractorGenerateShareLink", ...bodyObj });
+}
+
+/**
+ * @param {{ imageBase64: string, cwd?: string }} payload
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runReceiptExtract(payload) {
+  const bodyObj = {
+    imageBase64: typeof payload.imageBase64 === "string" ? payload.imageBase64 : "",
+    ...(typeof payload.cwd === "string" ? { cwd: payload.cwd } : {}),
+  };
+  try {
+    const r = await fetch("/api/capabilities/receipt-extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "receiptExtract", ...bodyObj });
+}
+
+/** @deprecated Use runReceiptAdd with tags.project / tags.room */
+export async function runContractorReceiptAdd(payload) {
+  return runReceiptAdd({
+    cwd: payload.cwd,
+    vendor: payload.vendor,
+    amount: payload.amount,
+    date: payload.date,
+    note: payload.note,
+    imageBase64: payload.imageBase64,
+    filename: payload.filename,
+    tags: {
+      ...(typeof payload.project === "string" && payload.project.trim() ? { project: payload.project.trim() } : {}),
+      ...(typeof payload.room === "string" && payload.room.trim() ? { room: payload.room.trim() } : {}),
+    },
+  });
+}
+
+/** @deprecated Use runReceiptList with tags */
+export async function runContractorReceiptList(payload = {}) {
+  const project = typeof payload.project === "string" ? payload.project.trim() : "";
+  return runReceiptList({
+    cwd: payload.cwd,
+    ...(project ? { tags: { project } } : {}),
+  });
+}
+
+/**
  * Compare fitness images (read-only). Single pair, explicit imagePairs, or mode sequential/baseline with timeline.
  * @param {{
  *   cwd?: string,
@@ -563,6 +976,7 @@ export async function runFitnessTimelineScan(payload = {}) {
  *   stageA?: string,
  *   stageB?: string,
  *   mode?: "single" | "sequential" | "baseline",
+ *   domainMode?: "fitness" | "contractor",
  *   orderedStages?: string[],
  *   pathsByStage?: Record<string, string>,
  *   imagePairs?: Array<{ stageA?: string, stageB?: string, pathA?: string, pathB?: string }>,
@@ -570,9 +984,15 @@ export async function runFitnessTimelineScan(payload = {}) {
  * @returns {Promise<Record<string, unknown>>}
  */
 export async function runFitnessImageComparison(payload = {}) {
+  const dm =
+    payload.domainMode === "contractor"
+      ? "contractor"
+      : typeof payload.domainMode === "string" && payload.domainMode.trim()
+        ? payload.domainMode.trim()
+        : "fitness";
   const bodyObj = {
     cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
-    domainMode: "fitness",
+    domainMode: dm,
     ...(typeof payload.pathA === "string" ? { pathA: payload.pathA } : {}),
     ...(typeof payload.pathB === "string" ? { pathB: payload.pathB } : {}),
     ...(typeof payload.stageA === "string" ? { stageA: payload.stageA } : {}),

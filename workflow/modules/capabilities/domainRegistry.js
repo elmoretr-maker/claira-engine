@@ -32,6 +32,7 @@ const DOMAINS = {
       "batch_processor",
       "timer",
       "domain_template",
+      "receipt_tracking",
     ],
     preferredModules: ["metadata_extractor", "tagging", "smart_rename", "folder_structure"],
     defaultFlow: ["metadata_extractor", "tagging", "smart_rename", "folder_structure"],
@@ -79,10 +80,27 @@ const DOMAINS = {
       "folder_structure",
       "review",
       "tax_document_comparison",
+      "receipt_tracking",
     ],
     preferredModules: ["metadata_extractor", "tagging", "smart_rename", "folder_structure"],
     defaultFlow: ["metadata_extractor", "tagging", "smart_rename", "folder_structure"],
     tagHints: ["client_name", "tax_year", "document_type"],
+  },
+  contractor: {
+    id: "contractor",
+    purpose: "Construction projects, room-based timelines, and budget tracking (no tax/PDF pipelines).",
+    allowedModules: [
+      "metadata_extractor",
+      "tagging",
+      "smart_rename",
+      "folder_structure",
+      "fitness_image_comparison",
+      "contractor_cost_tracking",
+      "receipt_tracking",
+    ],
+    preferredModules: ["tagging", "smart_rename", "folder_structure"],
+    defaultFlow: ["tagging", "smart_rename", "folder_structure"],
+    tagHints: ["project_name", "room", "stage"],
   },
 };
 
@@ -90,7 +108,7 @@ const DOMAINS = {
  * @returns {string[]}
  */
 export function listDomainIds() {
-  return ["general", "game-dev", "fitness", "tax"];
+  return ["general", "game-dev", "fitness", "tax", "contractor"];
 }
 
 /**

@@ -56,6 +56,25 @@ import { assertFitnessImagePathUnderCwd } from "../workflow/modules/capabilities
 import { orderFitnessStages } from "../workflow/modules/capabilities/fitnessTimelineOrder.js";
 import { buildFitnessImagePairs } from "../workflow/modules/capabilities/fitnessComparisonPairs.js";
 import {
+  addReceipt,
+  calculateReceiptTotal,
+  listFilterHasContent,
+  listReceipts,
+  listReceiptsForContractorProject,
+  listReceiptTaggedProjects,
+} from "../workflow/modules/capabilities/receiptStore.js";
+import { slugReceiptSegment } from "../workflow/modules/capabilities/receiptPathSlug.js";
+import {
+  deriveAssigneesSectionsForProject,
+  discoverTimelineRootForSlug,
+  loadContractorProject,
+  listContractorProjects,
+  saveContractorProject,
+} from "../workflow/modules/capabilities/contractorProjectStore.js";
+import { scanContractorProjectFolder } from "../workflow/modules/capabilities/contractorTimelineFolderScan.js";
+import { buildContractorProjectReportExport } from "../workflow/modules/capabilities/contractorProjectReport.js";
+import { apiSystemUserFacing } from "./userFacingApiError.js";
+import {
   assertFitnessImagePairsArray,
   assertTaxPathsEntries,
   assertTaxUploadsEntries,
@@ -1251,6 +1270,702 @@ export function fitnessTimelineScanApi(payload = {}) {
 }
 
 /**
+ * Scan `Projects/{project}/Rooms/{room}/Timeline/{stage}` for contractor progress images (read-only).
+ * @param {{ cwd?: string, timelineRoot?: string }} [payload]
+ * @returns {{ ok: true, projects: unknown[], cwd: string, summary: string } | { ok: false, error: string }}
+ */
+export function contractorTimelineScanApi(payload = {}) {
+  const cwd =
+    typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+  const projectsDir = join(cwd, "Projects");
+  const timelineRootRaw =
+    typeof payload.timelineRoot === "string" ? payload.timelineRoot.trim().replace(/\\/g, "/") : "";
+
+  if (timelineRootRaw) {
+    try {
+      const abs = resolve(cwd, ...timelineRootRaw.split("/").filter(Boolean));
+      const projRoot = resolve(cwd, "Projects");
+      if (!abs.startsWith(projRoot) || !existsSync(abs)) {
+        return { ok: false, error: "timelineRoot must be an existing folder under Projects/" };
+      }
+      const single = scanContractorProjectFolder(cwd, abs);
+      return {
+        ok: true,
+        projects: [single],
+        cwd,
+        summary: `Timeline: ${basename(abs)}`,
+      };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  if (!existsSync(projectsDir)) {
+    return {
+      ok: true,
+      projects: [],
+      cwd,
+      summary: "No Projects folder found under workspace root.",
+    };
+  }
+
+  /** @type {Array<{ name: string, rooms: Array<{ name: string, stages: Array<{ name: string, images: Array<{ path: string, relPath: string, basename: string }> }>, orderedStages: string[] }> }>} */
+  const projects = [];
+  try {
+    for (const pEnt of readdirSync(projectsDir, { withFileTypes: true })) {
+      if (!pEnt.isDirectory()) continue;
+      const projectBase = join(projectsDir, pEnt.name);
+      const proj = scanContractorProjectFolder(cwd, projectBase);
+      if (proj.rooms.length > 0 || existsSync(join(projectBase, "Receipts"))) {
+        projects.push(proj);
+      }
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  projects.sort((a, b) => a.name.localeCompare(b.name));
+  const existing = new Set(
+    projects.map((p) => {
+      try {
+        return slugReceiptSegment(p.name);
+      } catch {
+        return p.name;
+      }
+    }),
+  );
+  for (const tagSlug of listReceiptTaggedProjects(cwd)) {
+    const matchedFolder = projects.some((p) => {
+      try {
+        return slugReceiptSegment(p.name) === tagSlug;
+      } catch {
+        return false;
+      }
+    });
+    if (matchedFolder) continue;
+    if (!existing.has(tagSlug)) {
+      projects.push({ name: tagSlug, rooms: [] });
+      existing.add(tagSlug);
+    }
+  }
+  projects.sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    ok: true,
+    projects,
+    cwd,
+    summary: `${projects.length} project(s) with timelines and/or receipts`,
+  };
+}
+
+/**
+ * Contractor budget vs actual (module wrapper).
+ * When the project has saved receipts, current spend defaults to sum(receipts.amount) + manualSpendSupplement.
+ * With no receipts, uses legacy currentCost.
+ * @param {{
+ *   cwd?: string,
+ *   project?: string,
+ *   initialCost?: number,
+ *   currentCost?: number,
+ *   receiptTotal?: number,
+ *   manualSpendSupplement?: number,
+ * }} [payload]
+ * @returns {Promise<{ ok: true, result: unknown } | { ok: false, error: string, result?: unknown }>}
+ */
+export async function contractorCostTrackingApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const { contractorCostTrackingModule } = await import(
+      "../workflow/modules/capabilities/contractorCostTrackingModule.js"
+    );
+    const ctx = {
+      intentCandidates: [],
+      refinedCategory: null,
+      inputData: { cwd, domainMode: "contractor" },
+    };
+
+    const projectStr = typeof payload.project === "string" ? payload.project.trim() : "";
+    /** @type {number | undefined} */
+    let receiptTotalParam;
+    if (payload.receiptTotal != null && payload.receiptTotal !== "") {
+      const n = typeof payload.receiptTotal === "number" ? payload.receiptTotal : Number(payload.receiptTotal);
+      if (Number.isFinite(n)) receiptTotalParam = n;
+    } else if (projectStr) {
+      const recs = listReceiptsForContractorProject(cwd, projectStr);
+      if (recs.length > 0) receiptTotalParam = calculateReceiptTotal(recs);
+    }
+
+    const supplementRaw = payload.manualSpendSupplement;
+    const manualSpendSupplement =
+      supplementRaw != null && supplementRaw !== ""
+        ? typeof supplementRaw === "number"
+          ? supplementRaw
+          : Number(supplementRaw)
+        : undefined;
+
+    const result = await contractorCostTrackingModule.run(
+      {
+        project: payload.project,
+        initialCost: payload.initialCost,
+        currentCost: payload.currentCost,
+        receiptTotal: receiptTotalParam,
+        manualSpendSupplement:
+          manualSpendSupplement != null && Number.isFinite(manualSpendSupplement) ? manualSpendSupplement : 0,
+      },
+      ctx,
+    );
+    if (result != null && typeof result === "object" && !Array.isArray(result) && result.error === true) {
+      return {
+        ok: false,
+        error: typeof result.message === "string" ? result.message : "Cost tracking failed",
+        result,
+      };
+    }
+    return { ok: true, result };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Save a receipt image + metadata under receipts/ (global store).
+ * @param {{
+ *   cwd?: string,
+ *   vendor: string,
+ *   amount: number,
+ *   date?: string,
+ *   note?: string,
+ *   imageBase64: string,
+ *   filename?: string,
+ *   tags?: {
+ *     domain?: string,
+ *     path?: string[],
+ *     assignee?: string,
+ *     project?: string,
+ *     room?: string,
+ *     category?: string,
+ *   },
+ * }} payload
+ * @returns {Promise<{ ok: true, receipt: unknown } | { ok: false, error: string }>}
+ */
+export async function receiptAddApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const rec = addReceipt(cwd, {
+      vendor: payload.vendor,
+      amount: payload.amount,
+      date: payload.date,
+      note: payload.note,
+      imageBase64: typeof payload.imageBase64 === "string" ? payload.imageBase64 : "",
+      filename: typeof payload.filename === "string" ? payload.filename : "",
+      tags: payload.tags,
+    });
+    return { ok: true, receipt: rec };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * List receipts (optional tag filter).
+ * @param {{
+ *   cwd?: string,
+ *   tags?: {
+ *     domain?: string,
+ *     path?: string[],
+ *     assignee?: string,
+ *     project?: string,
+ *     room?: string,
+ *     category?: string,
+ *   },
+ * }} [payload]
+ * @returns {{ ok: true, receipts: unknown[], total: number, cwd: string } | { ok: false, error: string }}
+ */
+export function receiptListApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const raw =
+      payload.tags != null && typeof payload.tags === "object" && !Array.isArray(payload.tags)
+        ? /** @type {Record<string, unknown>} */ (payload.tags)
+        : {};
+    const hasFilter = listFilterHasContent(raw);
+    const receipts = listReceipts(
+      cwd,
+      hasFilter
+        ? {
+            tags: /** @type {{ project?: string, room?: string, category?: string }} */ (raw),
+          }
+        : {},
+    );
+    const total = calculateReceiptTotal(receipts);
+    return { ok: true, receipts, total, cwd };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Contractor UI helper: hierarchical tags or legacy project/room → global receipt store.
+ * @param {{
+ *   cwd?: string,
+ *   project?: string,
+ *   subproject?: string,
+ *   section?: string,
+ *   assignee?: string,
+ *   room?: string,
+ *   tags?: Record<string, unknown>,
+ *   vendor: string,
+ *   amount: number,
+ *   date?: string,
+ *   note?: string,
+ *   imageBase64: string,
+ *   filename?: string,
+ * }} payload
+ */
+export async function contractorReceiptAddApi(payload = {}) {
+  const explicit =
+    payload.tags != null && typeof payload.tags === "object" && !Array.isArray(payload.tags)
+      ? /** @type {Record<string, unknown>} */ (payload.tags)
+      : null;
+  if (explicit && Object.keys(explicit).length > 0) {
+    return receiptAddApi({
+      cwd: payload.cwd,
+      vendor: payload.vendor,
+      amount: payload.amount,
+      date: payload.date,
+      note: payload.note,
+      imageBase64: payload.imageBase64,
+      filename: payload.filename,
+      tags: explicit,
+    });
+  }
+  const project = typeof payload.project === "string" ? payload.project.trim() : "";
+  const subproject = typeof payload.subproject === "string" ? payload.subproject.trim() : "";
+  const section = typeof payload.section === "string" ? payload.section.trim() : "";
+  const assignee = typeof payload.assignee === "string" ? payload.assignee.trim() : "";
+  if (project && subproject && section && assignee) {
+    return receiptAddApi({
+      cwd: payload.cwd,
+      vendor: payload.vendor,
+      amount: payload.amount,
+      date: payload.date,
+      note: payload.note,
+      imageBase64: payload.imageBase64,
+      filename: payload.filename,
+      tags: {
+        domain: "contractor",
+        path: [project, subproject, section],
+        assignee,
+      },
+    });
+  }
+  const room = typeof payload.room === "string" ? payload.room.trim() : "";
+  /** @type {{ project?: string, room?: string }} */
+  const tags = {};
+  if (project) tags.project = project;
+  if (room) tags.room = room;
+  return receiptAddApi({
+    cwd: payload.cwd,
+    vendor: payload.vendor,
+    amount: payload.amount,
+    date: payload.date,
+    note: payload.note,
+    imageBase64: payload.imageBase64,
+    filename: payload.filename,
+    tags,
+  });
+}
+
+/**
+ * @param {{ cwd?: string, project?: string }} [payload]
+ */
+export function contractorReceiptListApi(payload = {}) {
+  const project = typeof payload.project === "string" ? payload.project.trim() : "";
+  const cwd =
+    typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+  if (!project) return receiptListApi({ cwd });
+  const receipts = listReceiptsForContractorProject(cwd, project);
+  return {
+    ok: true,
+    receipts,
+    total: calculateReceiptTotal(receipts),
+    cwd,
+  };
+}
+
+/**
+ * Save contractor project snapshot to projects/{slug}/project.json
+ * @param {{
+ *   cwd?: string,
+ *   name: string,
+ *   slug?: string,
+ *   budget: number,
+ *   assignees?: string[],
+ *   sections?: string[],
+ *   timelineRoot?: string,
+ * }} payload
+ */
+export function saveProjectApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const name = typeof payload.name === "string" ? payload.name.trim() : "";
+    if (!name) return { ok: false, error: "project name required" };
+    const budgetRaw = payload.budget;
+    const budget = typeof budgetRaw === "number" ? budgetRaw : Number(budgetRaw);
+    if (!Number.isFinite(budget)) return { ok: false, error: "budget must be a finite number" };
+    let assignees = Array.isArray(payload.assignees)
+      ? payload.assignees.map((x) => String(x ?? "").trim()).filter(Boolean)
+      : [];
+    let sections = Array.isArray(payload.sections)
+      ? payload.sections.map((x) => String(x ?? "").trim()).filter(Boolean)
+      : [];
+    if (assignees.length === 0 && sections.length === 0) {
+      const d = deriveAssigneesSectionsForProject(cwd, name);
+      assignees = d.assignees;
+      sections = d.sections;
+    }
+    const slug = typeof payload.slug === "string" && payload.slug.trim() ? payload.slug.trim() : undefined;
+    const timelineRoot = typeof payload.timelineRoot === "string" ? payload.timelineRoot : undefined;
+    const project = saveContractorProject(cwd, {
+      name,
+      slug,
+      budget,
+      assignees,
+      sections,
+      ...(timelineRoot != null ? { timelineRoot } : {}),
+    });
+    return { ok: true, project, cwd };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Load projects/{slug}/project.json
+ * @param {{ cwd?: string, slug: string }} payload
+ */
+export function loadProjectApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const slug = typeof payload.slug === "string" ? payload.slug.trim() : "";
+    if (!slug) return { ok: false, error: "slug required" };
+    const project = loadContractorProject(cwd, slug);
+    if (!project) return { ok: false, error: "project not found" };
+    return { ok: true, project, cwd };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * List saved contractor projects under projects/
+ * @param {{ cwd?: string }} [payload]
+ */
+export function listProjectsApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const projects = listContractorProjects(cwd);
+    return { ok: true, projects, cwd };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * @param {Record<string, unknown>} payload
+ * @returns {{ initialBudget?: unknown, manualSpendSupplement?: unknown } | null}
+ */
+function parseContractorBudgetContext(payload) {
+  const nested = payload.budgetContext;
+  if (nested != null && typeof nested === "object" && !Array.isArray(nested)) {
+    const o = /** @type {Record<string, unknown>} */ (nested);
+    return {
+      initialBudget: o.initialBudget,
+      manualSpendSupplement: o.manualSpendSupplement,
+    };
+  }
+  if (payload.initialBudget != null || payload.manualSpendSupplement != null) {
+    return {
+      initialBudget: payload.initialBudget,
+      manualSpendSupplement: payload.manualSpendSupplement,
+    };
+  }
+  return null;
+}
+
+/**
+ * Single source for contractor report JSON / PDF / share snapshots.
+ * @param {{ cwd: string, project: string, budgetContext?: { initialBudget?: unknown, manualSpendSupplement?: unknown } | null }} args
+ * @returns {Promise<{ ok: true, report: Record<string, unknown>, cwd: string } | { ok: false, error: string }>}
+ */
+export async function buildContractorExportReportCore(args) {
+  /** @type {string | undefined} */
+  let timelineRoot;
+  try {
+    const projSlug = slugReceiptSegment(args.project);
+    const loaded = loadContractorProject(args.cwd, projSlug);
+    if (loaded && typeof loaded.timelineRoot === "string" && loaded.timelineRoot.trim()) {
+      const tr = loaded.timelineRoot.trim().replace(/\\/g, "/");
+      const abs = resolve(args.cwd, ...tr.split("/").filter(Boolean));
+      const projRoot = resolve(args.cwd, "Projects");
+      if (abs.startsWith(projRoot) && existsSync(abs)) timelineRoot = tr;
+    }
+    if (!timelineRoot) {
+      const auto = discoverTimelineRootForSlug(args.cwd, projSlug);
+      if (auto) timelineRoot = auto;
+    }
+  } catch {
+    timelineRoot = undefined;
+  }
+  const scan = contractorTimelineScanApi({
+    cwd: args.cwd,
+    ...(timelineRoot ? { timelineRoot } : {}),
+  });
+  if (!scan.ok) {
+    const err =
+      typeof /** @type {{ error?: string }} */ (scan).error === "string" ? scan.error : "timeline scan failed";
+    return {
+      ok: false,
+      error: err,
+      userFacing: apiSystemUserFacing(err, {
+        fallback: "Could not scan the project timeline.",
+        actionHint: "Confirm the workspace and Projects/ layout, then try again.",
+      }),
+    };
+  }
+  try {
+    const report = await buildContractorProjectReportExport({
+      cwd: args.cwd,
+      projectDisplayName: args.project,
+      scanProjects: Array.isArray(scan.projects) ? scan.projects : [],
+      ...(args.budgetContext != null ? { budgetContext: args.budgetContext } : {}),
+    });
+    return { ok: true, report, cwd: args.cwd };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: msg,
+      userFacing: apiSystemUserFacing(msg, {
+        fallback: "Could not build the contractor report.",
+        actionHint: "Check receipt data and project name, then try again.",
+      }),
+    };
+  }
+}
+
+/**
+ * Export JSON report: costs, per-assignee breakdown, progress metrics, alerts.
+ * @param {{
+ *   cwd?: string,
+ *   project: string,
+ *   budgetContext?: { initialBudget?: unknown, manualSpendSupplement?: unknown },
+ *   initialBudget?: unknown,
+ *   manualSpendSupplement?: unknown,
+ * }} payload
+ */
+export async function exportProjectReportApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const projectName = typeof payload.project === "string" ? payload.project.trim() : "";
+    if (!projectName) return { ok: false, error: "project (display name) required" };
+    const p = /** @type {Record<string, unknown>} */ (payload);
+    const budgetContext = parseContractorBudgetContext(p);
+    const core = await buildContractorExportReportCore({ cwd, project: projectName, budgetContext });
+    if (!core.ok) {
+      return {
+        ok: false,
+        error: core.error,
+        ...("userFacing" in core && core.userFacing ? { userFacing: core.userFacing } : {}),
+      };
+    }
+    return { ok: true, report: core.report, cwd };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: msg,
+      userFacing: apiSystemUserFacing(msg, {
+        fallback: "Export failed.",
+        actionHint: "Check the workspace path and try again.",
+      }),
+    };
+  }
+}
+
+/**
+ * Build the same report as JSON export and return PDF bytes (base64 for download).
+ * @param {{
+ *   cwd?: string,
+ *   project: string,
+ *   budgetContext?: { initialBudget?: unknown, manualSpendSupplement?: unknown },
+ *   initialBudget?: unknown,
+ *   manualSpendSupplement?: unknown,
+ * }} payload
+ */
+export async function exportProjectPdfApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const projectName = typeof payload.project === "string" ? payload.project.trim() : "";
+    if (!projectName) {
+      return {
+        ok: false,
+        error: "project (display name) required",
+        userFacing: apiSystemUserFacing(null, {
+          fallback: "Choose a project before exporting a PDF.",
+          actionHint: "Select a contractor project from the list, then try again.",
+        }),
+      };
+    }
+    const p = /** @type {Record<string, unknown>} */ (payload);
+    const budgetContext = parseContractorBudgetContext(p);
+    const core = await buildContractorExportReportCore({ cwd, project: projectName, budgetContext });
+    if (!core.ok) {
+      return {
+        ok: false,
+        error: core.error,
+        ...("userFacing" in core && core.userFacing ? { userFacing: core.userFacing } : {}),
+      };
+    }
+    const { generateContractorReportPdfBuffer } = await import(
+      "../workflow/modules/capabilities/contractorPdfReport.js"
+    );
+    const buf = await generateContractorReportPdfBuffer(/** @type {Record<string, unknown>} */ (core.report));
+    const slug =
+      core.report &&
+      typeof core.report === "object" &&
+      core.report.project &&
+      typeof core.report.project === "object" &&
+      /** @type {{ slug?: string }} */ (core.report.project).slug
+        ? String(/** @type {{ slug?: string }} */ (core.report.project).slug)
+        : "project";
+    return {
+      ok: true,
+      report: core.report,
+      cwd,
+      pdfBase64: buf.toString("base64"),
+      pdfFileName: `contractor-report-${slug.replace(/[^a-z0-9._-]+/gi, "_")}.pdf`,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: msg,
+      userFacing: apiSystemUserFacing(msg, {
+        fallback: "Could not generate the PDF report.",
+        actionHint: "Check disk space and workspace permissions, then try again.",
+      }),
+    };
+  }
+}
+
+/**
+ * Snapshot report to `reports/{projectSlug}/{reportId}.json` and `.pdf`; returns share path.
+ * @param {{
+ *   cwd?: string,
+ *   project: string,
+ *   budgetContext?: { initialBudget?: unknown, manualSpendSupplement?: unknown },
+ *   initialBudget?: unknown,
+ *   manualSpendSupplement?: unknown,
+ * }} payload
+ */
+export async function generateShareLinkApi(payload = {}) {
+  try {
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const projectName = typeof payload.project === "string" ? payload.project.trim() : "";
+    if (!projectName) {
+      return {
+        ok: false,
+        error: "project (display name) required",
+        userFacing: apiSystemUserFacing(null, {
+          fallback: "Choose a project before creating a share link.",
+          actionHint: "Select a contractor project from the list, then try again.",
+        }),
+      };
+    }
+    const p = /** @type {Record<string, unknown>} */ (payload);
+    const budgetContext = parseContractorBudgetContext(p);
+    const core = await buildContractorExportReportCore({ cwd, project: projectName, budgetContext });
+    if (!core.ok) {
+      return {
+        ok: false,
+        error: core.error,
+        ...("userFacing" in core && core.userFacing ? { userFacing: core.userFacing } : {}),
+      };
+    }
+    const { writeShareReportFiles } = await import("../workflow/modules/capabilities/contractorReportShare.js");
+    const rep = /** @type {Record<string, unknown>} */ (core.report);
+    const proj = rep.project && typeof rep.project === "object" ? /** @type {{ slug?: string }} */ (rep.project) : {};
+    const projectSlug = typeof proj.slug === "string" && proj.slug.trim() ? proj.slug.trim() : "project";
+    const { reportId, jsonPath, pdfPath } = await writeShareReportFiles(cwd, rep, projectSlug);
+    const sharePath = `/reports/${projectSlug}/${reportId}`;
+    return {
+      ok: true,
+      report: rep,
+      cwd,
+      reportId,
+      projectSlug,
+      sharePath,
+      jsonPath,
+      pdfPath,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: msg,
+      userFacing: apiSystemUserFacing(msg, {
+        fallback: "Could not create the share snapshot.",
+        actionHint: "Check reports/ folder permissions and disk space, then try again.",
+      }),
+    };
+  }
+}
+
+/**
+ * OCR helper for receipt images (best-effort; never required for save).
+ * @param {{ imageBase64?: string }} payload
+ */
+export async function receiptExtractApi(payload = {}) {
+  try {
+    const imageBase64 = typeof payload.imageBase64 === "string" ? payload.imageBase64 : "";
+    if (!imageBase64.trim()) {
+      return {
+        ok: false,
+        error: "imageBase64 required",
+        userFacing: apiSystemUserFacing(null, {
+          fallback: "No image was provided for OCR.",
+          actionHint: "Choose a receipt image file and try again.",
+        }),
+      };
+    }
+    const { extractReceiptData } = await import("../workflow/modules/capabilities/receiptOcr.js");
+    const data = await extractReceiptData(imageBase64);
+    const hasAny = Boolean(
+      String(data.vendor ?? "").trim() || String(data.amount ?? "").trim() || String(data.date ?? "").trim(),
+    );
+    return { ok: true, extract: data, partial: !hasAny };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      error: msg,
+      userFacing: apiSystemUserFacing(msg, {
+        fallback: "OCR could not read this image.",
+        actionHint: "Enter vendor, amount, and date manually, or try a clearer photo.",
+      }),
+    };
+  }
+}
+
+/**
  * Compare two fitness images under cwd (read-only).
  * @param {{
  *   cwd?: string,
@@ -1280,8 +1995,8 @@ export async function fitnessImageComparisonApi(payload = {}) {
       typeof payload.domainMode === "string" && payload.domainMode.trim()
         ? payload.domainMode.trim()
         : "fitness";
-    if (domainMode !== "fitness") {
-      return { ok: false, error: "fitnessImageComparison requires domainMode fitness" };
+    if (domainMode !== "fitness" && domainMode !== "contractor") {
+      return { ok: false, error: "fitnessImageComparison requires domainMode fitness or contractor" };
     }
 
     const { fitnessImageComparisonModule } = await import("../workflow/modules/capabilities/fitnessImageComparisonModule.js");
@@ -1299,7 +2014,7 @@ export async function fitnessImageComparisonApi(payload = {}) {
     const ctx = {
       intentCandidates: [],
       refinedCategory: null,
-      inputData: { cwd, domainMode: "fitness" },
+      inputData: { cwd, domainMode },
     };
     /** @type {Record<string, unknown>} */
     let moduleInput = { cwd, pathA, pathB, stageA, stageB };

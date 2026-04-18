@@ -50,6 +50,8 @@ import ModuleHealthPanel from "./components/ModuleHealthPanel.jsx";
 import WorkflowScreen from "./screens/WorkflowScreen.jsx";
 import TaxDocumentComparePanel from "./components/TaxDocumentComparePanel.jsx";
 import FitnessTrackingPanel from "./components/FitnessTrackingPanel.jsx";
+import ContractorTrackingPanel from "./components/ContractorTrackingPanel.jsx";
+import ContractorReportShareView from "./components/ContractorReportShareView.jsx";
 import { IndustryProvider, useIndustry } from "./IndustryContext.jsx";
 import { VoiceOnboardingProvider, useVoiceOnboarding } from "./voice/VoiceOnboardingContext.jsx";
 import OnboardingVoiceSync from "./voice/OnboardingVoiceSync.jsx";
@@ -307,6 +309,8 @@ function App() {
   const [sessionBypassLogSnapshot, setSessionBypassLogSnapshot] = useState(/** @type {unknown[]} */ ([]));
   const [suggestions, setSuggestions] = useState(/** @type {unknown[]} */ ([]));
   const [expectedItems, setExpectedItems] = useState(/** @type {string[]} */ ([]));
+  /** When set, show read-only shared contractor report (`#/reports/{slug}/{id}`). */
+  const [reportShareMatch, setReportShareMatch] = useState(/** @type {{ slug: string, id: string } | null} */ (null));
   const [packCategoryUi, setPackCategoryUi] = useState(
     /** @type {Record<string, { label: string, description: string }>} */ ({}),
   );
@@ -435,10 +439,12 @@ function App() {
     if (screen !== "tunnel") setTunnelCategoryScope(null);
   }, [screen]);
 
-  /** Shallow hash routes without a router: #/workflow → workflow hub (after industry gate). */
+  /** Shallow hash routes: #/workflow → workflow hub; #/reports/slug/id → shared contractor report. */
   useEffect(() => {
     function fromHash() {
       const raw = (window.location.hash || "").replace(/^#\/?/, "");
+      const rm = raw.match(/^reports\/([^/]+)\/([^/]+)$/);
+      setReportShareMatch(rm ? { slug: decodeURIComponent(rm[1]), id: decodeURIComponent(rm[2]) } : null);
       if (raw === "workflow" || raw.startsWith("workflow/")) {
         if (!industryGateDone) return;
         setScreen("workflow_hub");
@@ -660,6 +666,10 @@ function App() {
       </OnboardingNavProvider>
     );
   };
+
+  if (reportShareMatch) {
+    return <ContractorReportShareView projectSlug={reportShareMatch.slug} reportId={reportShareMatch.id} onClose={() => { window.location.hash = ""; }} />;
+  }
 
   if (!industryGateDone && preAppPhase === "welcome") {
     return shell(
@@ -1010,6 +1020,11 @@ function App() {
           {capabilityDomainMode === "fitness" ? (
             <div className="app-screen-padding" style={{ maxWidth: 960, margin: "0 auto" }}>
               <FitnessTrackingPanel />
+            </div>
+          ) : null}
+          {capabilityDomainMode === "contractor" ? (
+            <div className="app-screen-padding" style={{ maxWidth: 960, margin: "0 auto" }}>
+              <ContractorTrackingPanel />
             </div>
           ) : null}
         </div>

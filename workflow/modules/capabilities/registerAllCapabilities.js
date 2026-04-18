@@ -16,6 +16,8 @@ import { timerModule } from "./timerModule.js";
 import { domainTemplateModule } from "./domainTemplateModule.js";
 import { taxDocumentComparisonModule } from "./taxDocumentComparisonModule.js";
 import { fitnessImageComparisonModule } from "./fitnessImageComparisonModule.js";
+import { contractorCostTrackingModule } from "./contractorCostTrackingModule.js";
+import { receiptModule } from "./receiptModule.js";
 
 const ORDERED = [
   imageDiffModule,
@@ -30,6 +32,8 @@ const ORDERED = [
   domainTemplateModule,
   taxDocumentComparisonModule,
   fitnessImageComparisonModule,
+  contractorCostTrackingModule,
+  receiptModule,
 ];
 
 /**
