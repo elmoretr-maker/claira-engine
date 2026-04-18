@@ -21,16 +21,20 @@ This file tracks **planned category packs** (domain workflows), their intended f
 
 ---
 
-## Fitness Tracking (NEXT)
+## Fitness Tracking — **completed** (v1 pack + UI)
 
-**Features:**
+**Features (shipped in repo):**
 
-- Client profiles  
-- Progress photos (before / week / after)  
-- Visual comparison (image diff)  
-- Timeline tracking  
-- Body metrics tracking  
-- Transformation reports  
+- Pack registry + `packs/fitness` triad  
+- Domain `fitness` (timeline tagging, rename, folder hints, `fitness_image_comparison`)  
+- Filesystem scan of `Clients/*/Timeline/*`  
+- Client selector + stage timeline + pairwise image compare  
+- Label corrections via feedback store (`fitness_label_correction`)  
+
+**Roadmap / later:**
+
+- Richer client profiles and metrics dashboards  
+- Transformation PDF reports  
 
 ---
 
