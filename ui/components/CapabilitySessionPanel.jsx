@@ -10,6 +10,7 @@ import {
 import { stablePipelineRowId } from "../utils/pipelineRowId.js";
 import { listDomainIds } from "../../workflow/modules/capabilities/domainRegistry.js";
 import TaxDocumentComparePanel from "./TaxDocumentComparePanel.jsx";
+import FitnessTrackingPanel from "./FitnessTrackingPanel.jsx";
 
 /**
  * @param {unknown} row
@@ -552,6 +553,7 @@ export default function CapabilitySessionPanel({
       </div>
 
       {capabilityDomainMode === "tax" ? <TaxDocumentComparePanel /> : null}
+      {capabilityDomainMode === "fitness" ? <FitnessTrackingPanel /> : null}
 
       {sessionAppliedResults.length > 0 ? (
         <p style={{ fontSize: "0.78rem", color: "var(--text-muted, #6b7280)", marginBottom: "0.5rem" }}>

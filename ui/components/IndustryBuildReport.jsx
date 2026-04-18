@@ -17,9 +17,9 @@ function issueDisplay(iss) {
 
 /**
  * @param {unknown} iss
- * @param {number} i
+ * @param {number} _i
  */
-function issueClassName(iss, i) {
+function issueClassName(iss, _i) {
   if (iss && typeof iss === "object" && "severity" in iss) {
     const s = String(/** @type {{ severity?: string }} */ (iss).severity ?? "").toLowerCase();
     if (s === "high" || s === "medium" || s === "low") return `ibr-issue ibr-issue--${s}`;
