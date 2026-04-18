@@ -21,7 +21,6 @@ import {
   getGroupPatternEntry,
   recordGroupPattern,
   registerGroupPatternOutcome,
-  embeddingSignatureFrom,
 } from "../feedback/feedbackStore.js";
 
 /**
@@ -1051,7 +1050,7 @@ function detectGroup(bc, assetId, sourceRef, hfCat, labels, myEmb) {
 function tokenizeFilenameStem(stem) {
   const s = String(stem ?? "")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/[_\-]+/g, " ");
+    .replace(/[_-]+/g, " ");
   const parts = s
     .split(/[^a-zA-Z0-9]+/)
     .map((x) => x.trim().toLowerCase())

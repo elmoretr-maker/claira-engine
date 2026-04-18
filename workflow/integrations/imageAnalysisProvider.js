@@ -98,7 +98,6 @@ export function tryAnalyzeImage(asset) {
  * @returns {ImageAnalysisResult}
  */
 function normalizeAnalysisResult(raw, asset) {
-  const ref = String(asset?.ref ?? "");
   const labels = Array.isArray(raw.labels) ? raw.labels.map((x) => String(x)) : [];
   const conf = raw.confidence;
   const confidence =
