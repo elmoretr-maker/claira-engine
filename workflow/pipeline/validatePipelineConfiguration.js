@@ -5,7 +5,6 @@
 
 import { MODULE_REGISTRY } from "../modules/moduleRegistry.js";
 import { isRegisteredArtifactKind } from "./artifactKindRegistry.js";
-import { isModulePipelineType } from "./modulePipelineTypes.js";
 import { isProduceMode } from "./produceMode.js";
 
 /**

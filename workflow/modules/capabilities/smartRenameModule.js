@@ -5,6 +5,7 @@
 import { assertCapabilityModule } from "./capabilityContract.js";
 import { getDomainDefinition } from "./domainRegistry.js";
 import { basenameFromPath, extractTaxHintsFromBasename, fileExtensionFromPath } from "./taxFilenameHints.js";
+import { extractFitnessHintsFromPaths } from "./fitnessFilenameHints.js";
 
 /**
  * @param {string} s
@@ -46,6 +47,23 @@ export const smartRenameModule = {
       const ext = fileExtensionFromPath(path);
       const hints = extractTaxHintsFromBasename(basenameFromPath(path));
       const suggestedFilename = `${hints.clientSlug}_${hints.year}_${hints.documentType}${ext}`;
+      return {
+        suggestedFilename,
+        baseSlug: hints.clientSlug,
+        summary: `Suggested: ${suggestedFilename}`,
+      };
+    }
+
+    if (getDomainDefinition(dm).id === "fitness") {
+      const path =
+        typeof input.primaryFile === "string" && input.primaryFile.trim()
+          ? input.primaryFile
+          : typeof input.sourcePath === "string"
+            ? input.sourcePath
+            : "";
+      const ext = fileExtensionFromPath(path);
+      const hints = extractFitnessHintsFromPaths(path.replace(/\\/g, "/"));
+      const suggestedFilename = `${hints.clientSlug}_${hints.stageSlug}_${hints.bodyView}${ext}`;
       return {
         suggestedFilename,
         baseSlug: hints.clientSlug,

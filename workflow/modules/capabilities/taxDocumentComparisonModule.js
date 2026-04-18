@@ -87,6 +87,14 @@ function uniquePathsInOrder(rawList) {
   return out;
 }
 
+/**
+ * @typedef {object} TaxDocumentComparisonRunInput
+ * @property {string[]} fileList Absolute paths to 2–5 PDFs (staging or workspace paths).
+ * @property {string} [cwd] Workspace root for PDF path checks.
+ * @property {string[]} [selectedFields] Optional list of tax field ids to prioritize in the report.
+ * @property {number} [anomalyThresholdPct] Optional finite threshold for year-over-year anomaly highlighting.
+ */
+
 export const taxDocumentComparisonModule = {
   id: "tax_document_comparison",
   name: "Tax document comparison",
@@ -103,7 +111,7 @@ export const taxDocumentComparisonModule = {
   ],
 
   /**
-   * @param {Record<string, unknown>} input
+   * @param {TaxDocumentComparisonRunInput} input
    * @param {import("./capabilityContract.js").CapabilityRunContext} context
    */
   async run(input, context) {

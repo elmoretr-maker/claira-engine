@@ -15,6 +15,7 @@ import { batchProcessorModule } from "./batchProcessorModule.js";
 import { timerModule } from "./timerModule.js";
 import { domainTemplateModule } from "./domainTemplateModule.js";
 import { taxDocumentComparisonModule } from "./taxDocumentComparisonModule.js";
+import { fitnessImageComparisonModule } from "./fitnessImageComparisonModule.js";
 
 const ORDERED = [
   imageDiffModule,
@@ -28,6 +29,7 @@ const ORDERED = [
   timerModule,
   domainTemplateModule,
   taxDocumentComparisonModule,
+  fitnessImageComparisonModule,
 ];
 
 /**

@@ -13,7 +13,6 @@ const DEFAULT_REL = "workflow/feedback/data/applied_capabilities.json";
 function resolveFromCwd(relOrAbs) {
   const r = String(relOrAbs ?? "").trim();
   if (!r) return "";
-  const norm = r.replace(/\\/g, "/");
   if (/^[A-Za-z]:[\\/]/.test(r) || r.startsWith("/") || r.startsWith("\\\\")) return path.normalize(r);
   const cwd = typeof process.cwd === "function" ? process.cwd() : ".";
   return path.resolve(cwd, r);

@@ -5,6 +5,7 @@
 import { assertCapabilityModule } from "./capabilityContract.js";
 import { getDomainDefinition } from "./domainRegistry.js";
 import { basenameFromPath, extractTaxHintsFromBasename } from "./taxFilenameHints.js";
+import { extractFitnessHintsFromPaths } from "./fitnessFilenameHints.js";
 
 /**
  * @param {string} s
@@ -49,6 +50,23 @@ export const folderStructureModule = {
       const yearSeg = slug(hints.year) || "unknown_year";
       const docSeg = slug(hints.documentType) || "document";
       const suggestedFolderPath = `${root}/${hints.clientSlug}/${yearSeg}/${docSeg}`;
+      return {
+        suggestedFolderPath,
+        summary: `Would place under ${suggestedFolderPath}/ (dry-run).`,
+      };
+    }
+
+    if (getDomainDefinition(dm).id === "fitness") {
+      const path =
+        typeof input.primaryFile === "string" && input.primaryFile.trim()
+          ? input.primaryFile
+          : typeof input.sourcePath === "string"
+            ? input.sourcePath
+            : "";
+      const hints = extractFitnessHintsFromPaths(path.replace(/\\/g, "/"));
+      const root =
+        String(input.rootFolder ?? "Clients").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "") || "Clients";
+      const suggestedFolderPath = `${root}/${hints.clientSlug}/Timeline/${hints.stageSlug}`;
       return {
         suggestedFolderPath,
         summary: `Would place under ${suggestedFolderPath}/ (dry-run).`,

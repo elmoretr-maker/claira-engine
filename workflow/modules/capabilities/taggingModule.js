@@ -5,6 +5,7 @@
 import { assertCapabilityModule } from "./capabilityContract.js";
 import { getDomainDefinition } from "./domainRegistry.js";
 import { basenameFromPath, extractTaxHintsFromBasename } from "./taxFilenameHints.js";
+import { extractFitnessHintsFromPaths } from "./fitnessFilenameHints.js";
 
 /**
  * @param {string} s
@@ -55,6 +56,21 @@ export const taggingModule = {
       tags.add(`client_name:${hints.clientSlug}`);
       tags.add(`tax_year:${hints.year}`);
       tags.add(`document_type:${hints.documentType}`);
+    }
+
+    if (getDomainDefinition(dm).id === "fitness") {
+      const path =
+        typeof input.primaryFile === "string" && input.primaryFile.trim()
+          ? input.primaryFile
+          : typeof input.sourcePath === "string"
+            ? input.sourcePath
+            : "";
+      if (path) {
+        const hints = extractFitnessHintsFromPaths(path.replace(/\\/g, "/"));
+        tags.add(`client_name:${hints.clientSlug}`);
+        tags.add(`stage:${hints.stageSlug}`);
+        tags.add(`body_view:${hints.bodyView}`);
+      }
     }
 
     const list = [...tags].sort((a, b) => a.localeCompare(b));

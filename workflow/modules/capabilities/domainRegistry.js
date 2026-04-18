@@ -56,18 +56,17 @@ const DOMAINS = {
   },
   fitness: {
     id: "fitness",
-    purpose: "Progress imagery, review gates, session timing.",
+    purpose: "Client transformations, progress photos, and timeline-based fitness journeys.",
     allowedModules: [
       "metadata_extractor",
       "tagging",
-      "review",
-      "timer",
       "smart_rename",
       "folder_structure",
-      "image_diff",
+      "fitness_image_comparison",
     ],
-    preferredModules: ["metadata_extractor", "tagging", "review", "timer"],
-    defaultFlow: ["metadata_extractor", "tagging", "review", "timer"],
+    preferredModules: ["tagging", "smart_rename", "folder_structure"],
+    defaultFlow: ["tagging", "smart_rename", "folder_structure"],
+    tagHints: ["client_name", "stage", "body_view"],
   },
   tax: {
     id: "tax",

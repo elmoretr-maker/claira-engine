@@ -50,7 +50,7 @@ export function extractTaxHintsFromBasename(nameWithoutExt) {
     .replace(/1098[a-z-]*/gi, " ")
     .replace(/receipt|invoice/gi, " ")
     .replace(/schedule[\s_-]?c/gi, " ")
-    .replace(/[_\-]+/g, " ")
+    .replace(/[_-]+/g, " ")
     .trim();
 
   const tokens = clientPart

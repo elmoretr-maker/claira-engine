@@ -28,7 +28,6 @@ export const batchProcessorModule = {
    * @param {import("./capabilityContract.js").CapabilityRunContext} context
    */
   run(input, context) {
-    const cwd = String(input.cwd ?? context.inputData?.cwd ?? "").replace(/\\/g, "/");
     const fromList = Array.isArray(input.fileList)
       ? input.fileList.map((p) => String(p))
       : Array.isArray(context.inputData?.fileList)
