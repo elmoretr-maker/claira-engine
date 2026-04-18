@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "categories": {
+    "progress_photos": [
+      "Progress and timeline imagery (before/after, check-ins, poses)."
+    ],
+    "session_notes": [
+      "Coaching notes, workout logs, and session summaries."
+    ],
+    "metrics": [
+      "Numeric tracking: weight, measurements, PRs."
+    ],
+    "misc_fitness": [
+      "Other fitness-related assets."
+    ]
+  }
+}

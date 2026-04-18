@@ -1,0 +1,41 @@
+{
+  "categories": {
+    "progress_photos": [
+      "progress",
+      "before",
+      "after",
+      "transformation",
+      "checkin",
+      "check-in",
+      "physique",
+      "body photo",
+      "front pose",
+      "side pose",
+      "back pose"
+    ],
+    "session_notes": [
+      "workout",
+      "training",
+      "session",
+      "coach notes",
+      "plan",
+      "macros"
+    ],
+    "metrics": [
+      "weight",
+      "measurement",
+      "body fat",
+      "inches",
+      "cm",
+      "stats",
+      "pr",
+      "personal record"
+    ],
+    "misc_fitness": [
+      "fitness",
+      "gym",
+      "client file",
+      "wellness"
+    ]
+  }
+}
