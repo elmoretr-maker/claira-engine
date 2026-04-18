@@ -100,6 +100,7 @@ let fixed = 0;
 let skipped = 0;
 
 for (const p of listIndustryPacks()) {
+  if (p.valid === false) continue;
   const tmplPath = join(ROOT, "packs", p.slug, "workflow_template.json");
   if (!existsSync(tmplPath)) {
     skipped++;
@@ -137,6 +138,7 @@ for (const p of listIndustryPacks()) {
 
 let refFixed = 0;
 for (const p of listIndustryPacks()) {
+  if (p.valid === false) continue;
   const tmplPath = join(ROOT, "packs", p.slug, "workflow_template.json");
   if (!existsSync(tmplPath)) continue;
   const refPath = join(ROOT, "packs", p.slug, "reference.json");

@@ -29,6 +29,10 @@ import { huggingFaceProvider } from "../workflow/integrations/providers/huggingF
 
 loadRootEnv();
 
+/** Snapshot before tests mutate `process.env` (CI sets `HF_DISABLE=1`; section 2 deletes it). */
+const rawHfAtStart =
+  process.env.HUGGINGFACE_API_TOKEN || process.env.HF_TOKEN || process.env.HUGGING_FACE_HUB_TOKEN;
+
 /**
  * @param {string | undefined} t
  */
@@ -40,6 +44,11 @@ function looksLikeRealHuggingFaceToken(t) {
   if (lower === "your_token_here" || lower.startsWith("your_")) return false;
   return true;
 }
+
+const hasHfTokenAtStart = looksLikeRealHuggingFaceToken(rawHfAtStart);
+const hfDisableAtStart = process.env.HF_DISABLE === "1";
+/** Live CLIP only when a real token exists and HF was not disabled for the whole process (e.g. CI). */
+const allowLiveHuggingFaceClip = Boolean(hasHfTokenAtStart) && hfDisableAtStart !== true;
 
 const MVP_PIPELINE = ["image_input", "basic_classifier", "structured_output", "simple_presentation"];
 
@@ -120,11 +129,8 @@ clearImageAnalysisProvider();
 out = await runWorkflowWithOutputSwitch(runPipeline(), { outputMode: "internal" });
 assert("internal switch", out.output.destination === "internal");
 
-// --- 6) Optional real HF (CLIP Inference API) ---
-const rawHf =
-  process.env.HUGGINGFACE_API_TOKEN || process.env.HF_TOKEN || process.env.HUGGING_FACE_HUB_TOKEN;
-const hasHfToken = looksLikeRealHuggingFaceToken(rawHf);
-if (hasHfToken && process.env.HF_DISABLE !== "1") {
+// --- 6) Optional real HF (CLIP via worker) — skipped when HF_DISABLE=1 or no usable token ---
+if (allowLiveHuggingFaceClip) {
   console.log("\n--- HUGGINGFACE_API_TOKEN (or alias) present: attempting CLIP zero-shot ---");
   setImageAnalysisProvider(huggingFaceProvider);
   out = await runWorkflowWithOutputSwitch(runPipeline(), { outputMode: "external" });
@@ -135,6 +141,16 @@ if (hasHfToken && process.env.HF_DISABLE !== "1") {
   assert("real hf: features.provider", row?.features?.provider === "huggingface");
   assert("real hf: clip ranked", Array.isArray(row?.features?.ranked));
   clearImageAnalysisProvider();
+} else if (hfDisableAtStart) {
+  console.log("\n(skip) Live CLIP: HF_DISABLE=1 — expecting inactive provider / heuristic (CI mode).");
+  process.env.HF_DISABLE = "1";
+  setImageAnalysisProvider(huggingFaceProvider);
+  out = await runWorkflowWithOutputSwitch(runPipeline(), { outputMode: "external" });
+  del = out.output.payload.moduleResults?.simple_presentation?.data?.uiModel?.deliverable;
+  assert("ci mode: provider inactive", del?.intelligenceMeta?.providerWasActive === false);
+  assert("ci mode: heuristic source", del?.items?.[0]?.modelSource === "heuristic");
+  clearImageAnalysisProvider();
+  delete process.env.HF_DISABLE;
 } else {
   console.log(
     "\n(skip) Live CLIP: set HUGGINGFACE_API_TOKEN in .env (see .env.example) and omit HF_DISABLE.",
