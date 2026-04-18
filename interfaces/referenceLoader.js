@@ -5,7 +5,7 @@
 
 import { existsSync, readFileSync } from "fs";
 import { readdir } from "fs/promises";
-import { basename, dirname, extname, join } from "path";
+import { basename, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { isSupportedImageFilename } from "../adapters/supportedImages.js";
 import { getImageEmbedding, getTextEmbeddingsBatch } from "../vision/clipEmbedder.js";

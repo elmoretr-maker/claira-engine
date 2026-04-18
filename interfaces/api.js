@@ -15,7 +15,7 @@ import {
 } from "fs";
 import { randomBytes } from "crypto";
 import { tmpdir } from "os";
-import { basename, extname, join, resolve, sep } from "path";
+import { basename, extname, join, relative, resolve, sep } from "path";
 import { getAdapter, normalizeInput } from "../adapters/index.js";
 import { sendOutput } from "../outputs/index.js";
 import { generateSessionReport } from "./sessionLedger.js";
@@ -52,6 +52,18 @@ import {
 } from "./tunnelStaging.js";
 import { runProcessFolderPipeline, runProcessItemsPipeline } from "./processFolderPipeline.js";
 import { dispatchPostPipeline } from "../workflow/moduleHost/moduleHost.js";
+import { assertFitnessImagePathUnderCwd } from "../workflow/modules/capabilities/fitnessImagePathUnderCwd.js";
+import { orderFitnessStages } from "../workflow/modules/capabilities/fitnessTimelineOrder.js";
+import { buildFitnessImagePairs } from "../workflow/modules/capabilities/fitnessComparisonPairs.js";
+import {
+  assertFitnessImagePairsArray,
+  assertTaxPathsEntries,
+  assertTaxUploadsEntries,
+  optionalTrimmedString,
+  orderedStagesAsStrings,
+  pathsByStageAsStrings,
+  taxSelectedFieldsAsStrings,
+} from "../workflow/modules/capabilities/apiPayloadGuards.js";
 import { assertWorkflowTemplateContract } from "../workflow/validation/workflowTemplateContract.js";
 import { readWorkflowTemplateFromActivePack } from "../workflow/trainer/readWorkflowTemplate.js";
 import { TRAINER_ROOT } from "../workflow/trainer/paths.js";
@@ -100,7 +112,7 @@ function sanitizeTunnelCategory(raw) {
 function safeTunnelLeaf(name) {
   const b = basename(String(name ?? "file"));
   if (!b || b === "." || b === ".." || b.includes("..")) return `file_${Date.now()}.bin`;
-  const cleaned = b.replace(/[^\w.\-]+/g, "_").slice(0, 120);
+  const cleaned = b.replace(/[^\w.-]+/g, "_").slice(0, 120);
   return cleaned || `file_${Date.now()}.bin`;
 }
 
@@ -1138,27 +1150,223 @@ export function getTrainerClientApi(input = {}) {
  * }} [payload]
  * @returns {Promise<{ ok: true, result: unknown } | { ok: false, error: string, result?: unknown }>}
  */
-export async function taxDocumentComparisonApi(payload = {}) {
+/** @type {Set<string>} */
+const FITNESS_IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"]);
+
+/** @type {Record<string, string>} */
+const FITNESS_IMAGE_MIME = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".bmp": "image/bmp",
+};
+
+/**
+ * Read a single fitness image under cwd (base64) for UI preview (read-only).
+ * @param {{ cwd?: string, path?: string }} [payload]
+ * @returns {{ ok: true, mime: string, dataBase64: string, path: string } | { ok: false, error: string }}
+ */
+export function fitnessImageReadApi(payload = {}) {
   const cwd =
     typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
-  const domainMode =
-    typeof payload.domainMode === "string" && payload.domainMode.trim()
-      ? payload.domainMode.trim()
-      : "tax";
-  if (domainMode !== "tax") {
-    return { ok: false, error: "taxDocumentComparison requires domainMode tax" };
+  const userPath = String(payload.path ?? "").trim();
+  if (!userPath) {
+    return { ok: false, error: "fitnessImageRead: path required" };
+  }
+  try {
+    const { absPath } = assertFitnessImagePathUnderCwd(cwd, userPath);
+    const ext = extname(absPath).toLowerCase();
+    const mime = FITNESS_IMAGE_MIME[ext] ?? "application/octet-stream";
+    const buf = readFileSync(absPath);
+    return { ok: true, mime, dataBase64: buf.toString("base64"), path: absPath };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * Scan `Clients/{client}/Timeline/{stage}` folders for progress images (filesystem only, read-only).
+ * @param {{ cwd?: string }} [payload]
+ * @returns {{ ok: true, clients: unknown[], cwd: string, summary: string } | { ok: false, error: string }}
+ */
+export function fitnessTimelineScanApi(payload = {}) {
+  const cwd =
+    typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+  const clientsDir = join(cwd, "Clients");
+  if (!existsSync(clientsDir)) {
+    return {
+      ok: true,
+      clients: [],
+      cwd,
+      summary: "No Clients folder found under workspace root.",
+    };
   }
 
-  const { taxDocumentComparisonModule } = await import("../workflow/modules/capabilities/taxDocumentComparisonModule.js");
-  const { MAX_PDF_BYTES } = await import("../workflow/modules/capabilities/taxPathUnderCwd.js");
+  /** @type {Array<{ name: string, stages: Array<{ name: string, images: Array<{ path: string, relPath: string, basename: string }> }> }>} */
+  const clients = [];
+  try {
+    for (const ent of readdirSync(clientsDir, { withFileTypes: true })) {
+      if (!ent.isDirectory()) continue;
+      const clientName = ent.name;
+      const timelineDir = join(clientsDir, clientName, "Timeline");
+      if (!existsSync(timelineDir)) continue;
+      /** @type {Array<{ name: string, images: Array<{ path: string, relPath: string, basename: string }> }>} */
+      const stages = [];
+      for (const sEnt of readdirSync(timelineDir, { withFileTypes: true })) {
+        if (!sEnt.isDirectory()) continue;
+        const stageName = sEnt.name;
+        const stageDir = join(timelineDir, stageName);
+        /** @type {Array<{ path: string, relPath: string, basename: string }>} */
+        const images = [];
+        for (const f of readdirSync(stageDir, { withFileTypes: true })) {
+          if (!f.isFile()) continue;
+          const lower = f.name.toLowerCase();
+          const dot = lower.lastIndexOf(".");
+          const ext = dot >= 0 ? lower.slice(dot) : "";
+          if (!FITNESS_IMAGE_EXT.has(ext)) continue;
+          const absPath = join(stageDir, f.name);
+          const relPath = relative(cwd, absPath);
+          images.push({ path: absPath, relPath, basename: f.name });
+        }
+        images.sort((a, b) => a.basename.localeCompare(b.basename));
+        stages.push({ name: stageName, images });
+      }
+      const orderedStages = orderFitnessStages(stages);
+      const orderedStageNames = orderedStages.map((s) => s.name);
+      if (orderedStages.length)
+        clients.push({ name: clientName, stages: orderedStages, orderedStages: orderedStageNames });
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  clients.sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    ok: true,
+    clients,
+    cwd,
+    summary: `${clients.length} client(s) with Timeline folders`,
+  };
+}
 
+/**
+ * Compare two fitness images under cwd (read-only).
+ * @param {{
+ *   cwd?: string,
+ *   domainMode?: string,
+ *   pathA?: string,
+ *   pathB?: string,
+ *   stageA?: string,
+ *   stageB?: string,
+ *   mode?: "single" | "sequential" | "baseline",
+ *   orderedStages?: string[],
+ *   pathsByStage?: Record<string, string>,
+ *   imagePairs?: Array<{ stageA?: string, stageB?: string, pathA?: string, pathB?: string }>,
+ * }} [payload]
+ * @returns {Promise<{ ok: true, result: unknown } | { ok: false, error: string, result?: unknown }>}
+ */
+export async function fitnessImageComparisonApi(payload = {}) {
+  try {
+    if (payload.cwd != null && typeof payload.cwd !== "string") {
+      throw new TypeError("cwd must be a string when provided");
+    }
+    if (payload.domainMode != null && typeof payload.domainMode !== "string") {
+      throw new TypeError("domainMode must be a string when provided");
+    }
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const domainMode =
+      typeof payload.domainMode === "string" && payload.domainMode.trim()
+        ? payload.domainMode.trim()
+        : "fitness";
+    if (domainMode !== "fitness") {
+      return { ok: false, error: "fitnessImageComparison requires domainMode fitness" };
+    }
+
+    const { fitnessImageComparisonModule } = await import("../workflow/modules/capabilities/fitnessImageComparisonModule.js");
+
+    if (payload.mode != null && typeof payload.mode !== "string") {
+      throw new TypeError("mode must be a string when provided");
+    }
+    const pathA = optionalTrimmedString("pathA", payload.pathA);
+    const pathB = optionalTrimmedString("pathB", payload.pathB);
+    const stageA = optionalTrimmedString("stageA", payload.stageA);
+    const stageB = optionalTrimmedString("stageB", payload.stageB);
+    const modeRaw = String(payload.mode ?? "single").trim().toLowerCase();
+    const mode = modeRaw === "sequential" || modeRaw === "baseline" ? modeRaw : "single";
+
+    const ctx = {
+      intentCandidates: [],
+      refinedCategory: null,
+      inputData: { cwd, domainMode: "fitness" },
+    };
+    /** @type {Record<string, unknown>} */
+    let moduleInput = { cwd, pathA, pathB, stageA, stageB };
+
+    if (mode === "sequential" || mode === "baseline") {
+      const orderedStages = orderedStagesAsStrings(payload.orderedStages);
+      const pathsByStage =
+        payload.pathsByStage == null ? {} : pathsByStageAsStrings(payload.pathsByStage);
+      const built = buildFitnessImagePairs(mode, orderedStages, pathsByStage);
+      if (!built.ok) {
+        return { ok: false, error: built.error };
+      }
+      moduleInput = { cwd, imagePairs: built.pairs };
+    } else if (Array.isArray(payload.imagePairs) && payload.imagePairs.length > 0) {
+      moduleInput = { cwd, imagePairs: assertFitnessImagePairsArray(payload.imagePairs) };
+    }
+
+    const result = await fitnessImageComparisonModule.run(moduleInput, ctx);
+    if (result != null && typeof result === "object" && !Array.isArray(result) && result.error === true) {
+      return {
+        ok: false,
+        error: typeof result.message === "string" ? result.message : "Comparison failed",
+        result,
+      };
+    }
+    return { ok: true, result };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function taxDocumentComparisonApi(payload = {}) {
   /** @type {string | null} */
   let stagingDir = null;
   try {
+    if (payload.cwd != null && typeof payload.cwd !== "string") {
+      throw new TypeError("cwd must be a string when provided");
+    }
+    if (payload.domainMode != null && typeof payload.domainMode !== "string") {
+      throw new TypeError("domainMode must be a string when provided");
+    }
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+    const domainMode =
+      typeof payload.domainMode === "string" && payload.domainMode.trim()
+        ? payload.domainMode.trim()
+        : "tax";
+    if (domainMode !== "tax") {
+      return { ok: false, error: "taxDocumentComparison requires domainMode tax" };
+    }
+
+    const { taxDocumentComparisonModule } = await import("../workflow/modules/capabilities/taxDocumentComparisonModule.js");
+    const { MAX_PDF_BYTES } = await import("../workflow/modules/capabilities/taxPathUnderCwd.js");
+
     /** @type {string[]} */
     let fileList = [];
     const uploads = Array.isArray(payload.uploads) ? payload.uploads : [];
     const paths = Array.isArray(payload.paths) ? payload.paths : [];
+    assertTaxPathsEntries(paths);
+    assertTaxUploadsEntries(uploads);
+
+    if (
+      payload.anomalyThresholdPct != null &&
+      (typeof payload.anomalyThresholdPct !== "number" || !Number.isFinite(payload.anomalyThresholdPct))
+    ) {
+      throw new TypeError("anomalyThresholdPct must be a finite number when provided");
+    }
 
     if (uploads.length >= 2) {
       const job = randomBytes(8).toString("hex");
@@ -1195,7 +1403,7 @@ export async function taxDocumentComparisonApi(payload = {}) {
       };
     }
 
-    const selectedFields = Array.isArray(payload.selectedFields) ? payload.selectedFields : undefined;
+    const selectedFields = taxSelectedFieldsAsStrings(payload.selectedFields);
     const anomalyThresholdPct =
       typeof payload.anomalyThresholdPct === "number" && Number.isFinite(payload.anomalyThresholdPct)
         ? payload.anomalyThresholdPct

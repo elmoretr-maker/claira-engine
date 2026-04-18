@@ -9,7 +9,8 @@ void initClairaTtsService().catch((e) => {
 });
 
 /** Last POST /run body + extracted fields (in-memory only; resets on process restart). */
-let lastWixWebhook = null;
+/** @type {unknown} retained for future debugging / webhook echo */
+let _lastWixWebhook = null;
 
 /**
  * Best-effort extraction — Wix payload shapes vary by event.
@@ -361,6 +362,51 @@ app.post("/api/capabilities/tax-compare", async (req, res) => {
   }
 });
 
+app.post("/api/capabilities/fitness-timeline", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.fitnessTimelineScanApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/fitness-timeline]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/fitness-compare", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.fitnessImageComparisonApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/fitness-compare]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/fitness-image-read", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.fitnessImageReadApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/fitness-image-read]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
 app.get("/api/capabilities/applied", async (req, res) => {
   try {
     const api = await import("../interfaces/api.js");
@@ -453,7 +499,7 @@ app.post("/run", (req, res) => {
     }
     console.log("  full body:", JSON.stringify(body, null, 2));
 
-    lastWixWebhook = {
+    _lastWixWebhook = {
       receivedAt: new Date().toISOString(),
       raw: body,
       summary,
