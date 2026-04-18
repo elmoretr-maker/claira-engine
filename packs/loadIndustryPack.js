@@ -7,6 +7,7 @@ import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { writeActivePackMeta } from "../interfaces/packReference.js";
+import { InvalidPackError, validatePackTriad } from "../workflow/packs/validatePackTriad.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -32,6 +33,11 @@ export async function loadIndustryPack(industry) {
   const slug = sanitizeIndustry(industry);
   if (!slug) {
     throw new Error("loadIndustryPack: invalid industry (use letters, numbers, _ -)");
+  }
+
+  const triad = validatePackTriad(slug);
+  if (!triad.valid) {
+    throw new InvalidPackError(triad.errors);
   }
 
   const packDir = join(ROOT, "packs", slug);

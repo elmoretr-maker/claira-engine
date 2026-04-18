@@ -16,6 +16,7 @@ import { buildIndustryReport } from "./coverageEvaluator.js";
 import { validatePackIntegrity } from "./validatePackIntegrity.js";
 import { writeComposedWorkflowTemplateForPack } from "./writeWorkflowTemplateForPack.js";
 import { validateWorkflowModuleSelection } from "../../workflow/contracts/workflowRules.js";
+import { registerCustomPackEntry } from "../../workflow/packs/customPacksStore.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..");
@@ -238,6 +239,16 @@ export async function createIndustryFromInput(input) {
       validation,
       error: msg,
     };
+  }
+
+  try {
+    registerCustomPackEntry({
+      id: slug,
+      name: displayName,
+      domainMode: "general",
+    });
+  } catch (regErr) {
+    console.warn("registerCustomPackEntry:", regErr);
   }
 
   const report = buildIndustryReport(slug);

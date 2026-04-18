@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "pack": {
+    "label": "Tax Management",
+    "workflowSource": "prebuilt",
+    "inputVerb": "Add tax documents or client files",
+    "intents": [
+      { "value": "sort_assets", "label": "Sort tax documents by client and year" },
+      { "value": "organize_products", "label": "Organize returns and supporting files" },
+      { "value": "analyze_documents", "label": "Review forms and receipts" },
+      { "value": "custom", "label": "Custom" }
+    ]
+  },
+  "categories": {
+    "w2_forms": {
+      "label": "W-2 forms",
+      "description": "Wage and withholding statements per employer.",
+      "examples": ["w2", "w-2", "wage statement", "withholding"],
+      "subcategories": {}
+    },
+    "forms_1099": {
+      "label": "1099 forms",
+      "description": "Miscellaneous, interest, dividends, NEC, retirement, and related1099s.",
+      "examples": ["1099", "1099-int", "1099-div", "1099-nec"],
+      "subcategories": {}
+    },
+    "forms_1098": {
+      "label": "1098 forms",
+      "description": "Mortgage interest, tuition, and other 1098 statements.",
+      "examples": ["1098", "mortgage interest", "1098-t"],
+      "subcategories": {}
+    },
+    "receipts": {
+      "label": "Receipts",
+      "description": "Expense and deduction receipts.",
+      "examples": ["receipt", "business expense", "deduction receipt"],
+      "subcategories": {}
+    },
+    "schedules_estimates": {
+      "label": "Schedules & estimates",
+      "description": "Schedule attachments and estimated tax payments.",
+      "examples": ["schedule c", "1040-es", "estimated tax"],
+      "subcategories": {}
+    },
+    "prior_returns": {
+      "label": "Prior returns",
+      "description": "Archived or amended returns for reference.",
+      "examples": ["prior year return", "1040x", "amended return"],
+      "subcategories": {}
+    },
+    "client_correspondence": {
+      "label": "Client & agency correspondence",
+      "description": "Letters from tax agencies, CPAs, or clients.",
+      "examples": ["irs letter", "state tax notice", "cpa letter"],
+      "subcategories": {}
+    },
+    "other_documents": {
+      "label": "Other documents",
+      "description": "Supporting tax files that do not fit a specific bucket.",
+      "examples": ["tax organizer", "worksheet", "misc tax"],
+      "subcategories": {}
+    }
+  }
+}
