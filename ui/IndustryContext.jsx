@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { loadIndustryPack as apiLoadIndustryPack } from "../interfaces/api.js";
-import { STORAGE_INDUSTRY, clearTunnelState } from "./userPrefs.js";
+import { STORAGE_INDUSTRY, clearTunnelState, getPackDomainMode, setPackDomainMode } from "./userPrefs.js";
 
-/** @typedef {{ industrySlug: string, setIndustrySlug: (slug: string) => void, loadIndustryPack: (industry: string) => Promise<{ ok: boolean, industry: string }> }} IndustryContextValue */
+/** @typedef {{ industrySlug: string, packDomainMode: string, setIndustrySlug: (slug: string) => void, loadIndustryPack: (industry: string) => Promise<{ ok: boolean, industry: string, domainMode?: string }> }} IndustryContextValue */
 
 /** @type {import("react").Context<IndustryContextValue | null>} */
 const IndustryContext = createContext(null);
@@ -19,6 +19,8 @@ export function IndustryProvider({ children }) {
     }
   });
 
+  const [packDomainMode, setPackDomainModeState] = useState(() => getPackDomainMode() || "general");
+
   const setIndustrySlug = useCallback((slug) => {
     const s = String(slug ?? "").trim();
     setIndustrySlugState(s);
@@ -33,7 +35,17 @@ export function IndustryProvider({ children }) {
   const loadIndustryPack = useCallback(
     async (industry) => {
       const prev = industrySlug;
-      await apiLoadIndustryPack(industry);
+      const out = await apiLoadIndustryPack(industry);
+      if (out && /** @type {{ ok?: boolean }} */ (out).ok === false) {
+        const details = Array.isArray(/** @type {{ details?: string[] }} */ (out).details)
+          ? /** @type {{ details: string[] }} */ (out).details
+          : [];
+        const msg =
+          details.length > 0
+            ? `Cannot load pack — fix the following:\n${details.map((d) => `- ${d}`).join("\n")}`
+            : String(/** @type {{ error?: string }} */ (out).error ?? "Could not load pack");
+        throw new Error(msg);
+      }
       const slug = String(industry ?? "")
         .trim()
         .toLowerCase();
@@ -41,7 +53,13 @@ export function IndustryProvider({ children }) {
         clearTunnelState();
       }
       setIndustrySlug(slug);
-      return { ok: true, industry: slug };
+      const dm =
+        out && typeof /** @type {{ domainMode?: string }} */ (out).domainMode === "string"
+          ? /** @type {{ domainMode: string }} */ (out).domainMode.trim()
+          : "general";
+      setPackDomainModeState(dm);
+      setPackDomainMode(dm);
+      return { ok: true, industry: slug, domainMode: dm };
     },
     [industrySlug, setIndustrySlug],
   );
@@ -49,10 +67,11 @@ export function IndustryProvider({ children }) {
   const value = useMemo(
     () => ({
       industrySlug,
+      packDomainMode,
       setIndustrySlug,
       loadIndustryPack,
     }),
-    [industrySlug, setIndustrySlug, loadIndustryPack],
+    [industrySlug, packDomainMode, setIndustrySlug, loadIndustryPack],
   );
 
   return <IndustryContext.Provider value={value}>{children}</IndustryContext.Provider>;

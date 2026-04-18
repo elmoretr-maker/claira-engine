@@ -7,6 +7,8 @@ import { fingerprintSelectedCaps } from "./tunnelSteps.js";
 export const STORAGE_APP_MODE = "claira.appMode";
 export const STORAGE_OVERSIGHT = "claira.oversightLevel";
 export const STORAGE_INDUSTRY = "claira.selectedIndustry";
+/** Domain mode from loaded category pack (capability planner). */
+export const STORAGE_PACK_DOMAIN_MODE = "claira.packDomainMode";
 /** Set only after the final industry confirmation step (select-only); not when a pack is merely loaded mid-flow. */
 export const STORAGE_INDUSTRY_GATE_COMPLETE = "claira.industryGateComplete";
 const STORAGE_INDUSTRY_GATE_BOOTSTRAP = "claira.industryGateBootstrapV1";
@@ -50,6 +52,31 @@ export function setIndustryGateComplete(done) {
     /* private mode */
   }
 }
+
+/**
+ * @returns {string}
+ */
+export function getPackDomainMode() {
+  try {
+    return localStorage.getItem(STORAGE_PACK_DOMAIN_MODE) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * @param {string} mode
+ */
+export function setPackDomainMode(mode) {
+  const m = String(mode ?? "").trim();
+  try {
+    if (m) localStorage.setItem(STORAGE_PACK_DOMAIN_MODE, m);
+    else localStorage.removeItem(STORAGE_PACK_DOMAIN_MODE);
+  } catch {
+    /* private mode */
+  }
+}
+
 export const STORAGE_SETUP_CONFLICTS = "claira.setupConflictsResolved";
 export const STORAGE_CAPABILITIES = "claira.capabilitiesSelected";
 export const STORAGE_TUNNEL_STEP = "claira.tunnelStepIndex";
@@ -191,6 +218,7 @@ export function clearAllOnboardingLocalStorage() {
   try {
     localStorage.removeItem(STORAGE_SETUP_CONFLICTS);
     localStorage.removeItem(STORAGE_INDUSTRY);
+    localStorage.removeItem(STORAGE_PACK_DOMAIN_MODE);
     localStorage.removeItem(STORAGE_INDUSTRY_GATE_COMPLETE);
     localStorage.removeItem(STORAGE_OVERSIGHT);
     localStorage.removeItem(STORAGE_APP_MODE);

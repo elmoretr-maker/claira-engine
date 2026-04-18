@@ -3,6 +3,7 @@ import { defaultWidgetOrderByModule, getWorkflowWidgetEntry } from "../../workfl
 import { assertWorkflowTemplateContract } from "../../workflow/validation/workflowTemplateContract.js";
 import { getEntityTypeLabels, getWorkflowSectionTitles } from "../workflow/workflowLabelHelpers.js";
 import { getEntity } from "../../interfaces/api.js";
+import CapabilitySessionPanel from "../components/CapabilitySessionPanel.jsx";
 
 /**
  * @param {{
@@ -13,9 +14,22 @@ import { getEntity } from "../../interfaces/api.js";
  *     template?: Record<string, unknown>,
  *   },
  *   onBack: () => void,
+ *   pipelineResultRows?: unknown[],
+ *   capabilityDomainMode?: string,
+ *   onCapabilityDomainModeChange?: (v: string) => void,
+ *   capabilityPlanMode?: "single" | "planned",
+ *   onCapabilityPlanModeChange?: (v: "single" | "planned") => void,
  * }} props
  */
-export default function WorkflowScreen({ composition, onBack }) {
+export default function WorkflowScreen({
+  composition,
+  onBack,
+  pipelineResultRows = [],
+  capabilityDomainMode = "general",
+  onCapabilityDomainModeChange,
+  capabilityPlanMode = "single",
+  onCapabilityPlanModeChange,
+}) {
   const entryBlocked = composition?.workflowSource !== "generated";
   const tmpl = composition.template;
   const [contractError, setContractError] = useState(/** @type {string | null} */ (null));
@@ -57,8 +71,9 @@ export default function WorkflowScreen({ composition, onBack }) {
   const [highlightedEventId, setHighlightedEventId] = useState("");
   const [selectedEntityName, setSelectedEntityName] = useState("");
   const [loadingSelection, setLoadingSelection] = useState(false);
-
   const bump = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  const pipelineRows = Array.isArray(pipelineResultRows) ? pipelineResultRows : [];
 
   useEffect(() => {
     if (!entityId) {
@@ -164,7 +179,7 @@ export default function WorkflowScreen({ composition, onBack }) {
 
   if (entryBlocked) {
     return (
-      <div className="app-screen-padding" style={{ maxWidth: 900, margin: "0 auto" }}>
+      <div className="app-screen-padding" style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
           <button type="button" className="btn btn-secondary" onClick={onBack}>
             Back
@@ -180,7 +195,7 @@ export default function WorkflowScreen({ composition, onBack }) {
 
   if (contractError) {
     return (
-      <div className="app-screen-padding" style={{ maxWidth: 900, margin: "0 auto" }}>
+      <div className="app-screen-padding" style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1rem" }}>
           <button type="button" className="btn btn-secondary" onClick={onBack}>
             Back
@@ -210,7 +225,7 @@ export default function WorkflowScreen({ composition, onBack }) {
   }
 
   return (
-    <div className="app-screen-padding" style={{ maxWidth: 900, margin: "0 auto" }}>
+    <div className="app-screen-padding" style={{ maxWidth: 1100, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.75rem" }}>
         <button type="button" className="btn btn-secondary" onClick={onBack}>
           Back
@@ -254,7 +269,7 @@ export default function WorkflowScreen({ composition, onBack }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
           gap: "1.25rem",
           alignItems: "start",
         }}
@@ -286,6 +301,14 @@ export default function WorkflowScreen({ composition, onBack }) {
           ) : null}
         </div>
       </div>
+
+      <CapabilitySessionPanel
+        pipelineRows={pipelineRows}
+        capabilityDomainMode={capabilityDomainMode}
+        onCapabilityDomainModeChange={onCapabilityDomainModeChange}
+        capabilityPlanMode={capabilityPlanMode}
+        onCapabilityPlanModeChange={onCapabilityPlanModeChange}
+      />
     </div>
   );
 }

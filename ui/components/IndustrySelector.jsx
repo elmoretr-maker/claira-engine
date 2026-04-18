@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { listIndustryPacks } from "../../interfaces/api.js";
 import { useIndustry } from "../IndustryContext.jsx";
 import { afterCurrentClairaUtteranceOrNow, primeClairaVoicePlayback } from "../voice/clairaSpeech.js";
@@ -17,7 +17,9 @@ import "./IndustrySelector.css";
  */
 export default function IndustrySelector({ onLoaded, variant = "full" }) {
   const { loadIndustryPack } = useIndustry();
-  const [packs, setPacks] = useState(/** @type {Array<{ slug: string, label: string, inputVerb?: string }>} */ ([]));
+  const [packs, setPacks] = useState(
+    /** @type {Array<{ slug: string, label: string, inputVerb?: string, valid?: boolean, status?: string, errors?: string[] }>} */ ([]),
+  );
   const [value, setValue] = useState("");
   const [listError, setListError] = useState(/** @type {string | null} */ (null));
   const [status, setStatus] = useState(/** @type {string | null} */ (null));
@@ -51,11 +53,18 @@ export default function IndustrySelector({ onLoaded, variant = "full" }) {
     void loadPackList();
   }, [loadPackList]);
 
+  const selectedPack = useMemo(() => packs.find((p) => p.slug === value), [packs, value]);
+
   const handleApply = useCallback(async () => {
     setError(null);
     setStatus(null);
     if (!value) {
       setError("Pick a category first—I need to know which configuration we’re loading.");
+      return;
+    }
+    const sel = packs.find((p) => p.slug === value);
+    if (sel && sel.valid === false && Array.isArray(sel.errors) && sel.errors.length > 0) {
+      setError(`Cannot load pack — fix the following:\n${sel.errors.map((d) => `- ${d}`).join("\n")}`);
       return;
     }
     setBusy(true);
@@ -69,7 +78,7 @@ export default function IndustrySelector({ onLoaded, variant = "full" }) {
     } finally {
       setBusy(false);
     }
-  }, [value, loadIndustryPack, onLoaded]);
+  }, [value, packs, loadIndustryPack, onLoaded]);
 
   const activatePackWithAck = useCallback(
     async (slug) => {
@@ -116,11 +125,21 @@ export default function IndustrySelector({ onLoaded, variant = "full" }) {
               >
                 {packs.map((o) => (
                   <option key={o.slug} value={o.slug}>
-                    {o.label} ({o.slug})
+                    {o.valid === false && import.meta.env.DEV ? `${o.label} (INVALID)` : `${o.label} (${o.slug})`}
                   </option>
                 ))}
               </select>
             )}
+            {selectedPack?.valid === false && import.meta.env.DEV && Array.isArray(selectedPack.errors) ? (
+              <p className="industry-selector-error" role="status">
+                <strong className="industry-selector-invalid-badge">Invalid pack</strong> — cannot load until fixed.
+                <ul className="industry-selector-invalid-list">
+                  {selectedPack.errors.map((err) => (
+                    <li key={err}>{err}</li>
+                  ))}
+                </ul>
+              </p>
+            ) : null}
             <button
               type="button"
               className="btn btn-primary industry-selector-cta"
@@ -203,12 +222,22 @@ export default function IndustrySelector({ onLoaded, variant = "full" }) {
                   >
                     {packs.map((o) => (
                       <option key={o.slug} value={o.slug}>
-                        {o.label} ({o.slug})
+                        {o.valid === false && import.meta.env.DEV ? `${o.label} (INVALID)` : `${o.label} (${o.slug})`}
                       </option>
                     ))}
                   </select>
                 )}
 
+                {selectedPack?.valid === false && import.meta.env.DEV && Array.isArray(selectedPack.errors) ? (
+                  <p className="industry-selector-error" role="status">
+                    <strong className="industry-selector-invalid-badge">Invalid pack</strong> — cannot load until fixed.
+                    <ul className="industry-selector-invalid-list">
+                      {selectedPack.errors.map((err) => (
+                        <li key={err}>{err}</li>
+                      ))}
+                    </ul>
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   className="btn btn-primary industry-selector-cta"

@@ -92,6 +92,26 @@ export function applyDecision(payload) {
   });
 }
 
+/**
+ * Records user category override from the Reasoning panel (feedbackStore only).
+ * @param {{
+ *   originalCategory?: string | null,
+ *   correctedCategory?: string,
+ *   chosenCategory: string,
+ *   filename?: string,
+ *   originalLabels?: string[],
+ *   semanticTokens?: string[],
+ *   labelThemes?: string[],
+ *   reasoningContext?: Record<string, unknown>,
+ * }} payload
+ */
+export function recordReasoningOverrideFeedback(payload) {
+  return post({
+    kind: "recordReasoningOverrideFeedback",
+    payload: payload ?? {},
+  });
+}
+
 /** @returns {Promise<{ categories: unknown[], confusionPairs: unknown[], generatedAt: string }>} */
 export function getRiskInsights() {
   return post({ kind: "getRiskInsights" });
@@ -461,6 +481,249 @@ export function getActiveWorkflowTemplate() {
 /** @returns {Promise<Record<string, unknown>>} */
 export function listWorkflowCompositions() {
   return post({ kind: "listWorkflowCompositions" });
+}
+
+/**
+ * Compare two tax PDFs (read-only). Tries Express `/api/capabilities/tax-compare` when present, else `/__claira/run`.
+ * @param {{
+ *   cwd?: string,
+ *   paths?: string[],
+ *   uploads?: Array<{ name: string, dataBase64: string }>,
+ *   selectedFields?: string[],
+ *   anomalyThresholdPct?: number,
+ * }} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runTaxDocumentComparison(payload = {}) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+    domainMode: "tax",
+    ...(Array.isArray(payload.paths) ? { paths: payload.paths } : {}),
+    ...(Array.isArray(payload.uploads) ? { uploads: payload.uploads } : {}),
+    ...(Array.isArray(payload.selectedFields) ? { selectedFields: payload.selectedFields } : {}),
+    ...(typeof payload.anomalyThresholdPct === "number" && Number.isFinite(payload.anomalyThresholdPct)
+      ? { anomalyThresholdPct: payload.anomalyThresholdPct }
+      : {}),
+  };
+  try {
+    const r = await fetch("/api/capabilities/tax-compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* use Vite run */
+  }
+  return post({ kind: "taxDocumentComparison", ...bodyObj });
+}
+
+/**
+ * Attach per-row capability results (product modules). Tries production API first, then Vite dev `/__claira/run`.
+ * @param {unknown[]} rows
+ * @param {{ cwd?: string, domainMode?: string, planMode?: "single" | "planned" }} [options]
+ * @returns {Promise<unknown[]>}
+ */
+export async function attachPipelineCapabilities(rows, options = {}) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const cwd = typeof options?.cwd === "string" ? options.cwd : undefined;
+  const domainMode = typeof options?.domainMode === "string" ? options.domainMode : undefined;
+  const planMode = options?.planMode === "planned" ? "planned" : "single";
+  const body = JSON.stringify({
+    rows: safeRows,
+    ...(cwd ? { cwd } : {}),
+    ...(domainMode ? { domainMode } : {}),
+    planMode,
+  });
+
+  try {
+    const r = await fetch("/api/capabilities/attach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (r.ok && data != null && typeof data === "object" && Array.isArray(data.rows)) {
+      return data.rows;
+    }
+    console.warn(
+      "[attachPipelineCapabilities] POST /api/capabilities/attach failed:",
+      r.status,
+      typeof text === "string" ? text.slice(0, 400) : text,
+    );
+  } catch (e) {
+    console.warn("[attachPipelineCapabilities] /api/capabilities/attach unreachable:", e);
+  }
+
+  try {
+    const data = await post({
+      kind: "attachPipelineCapabilities",
+      rows: safeRows,
+      cwd,
+      ...(domainMode ? { domainMode } : {}),
+      planMode,
+    });
+    if (data != null && typeof data === "object" && Array.isArray(data.rows)) return data.rows;
+  } catch (e2) {
+    console.warn("[attachPipelineCapabilities] fallback POST /__claira/run failed:", e2);
+  }
+  return safeRows;
+}
+
+const LS_APPLIED_CAP = "claira.appliedCapabilities.v1";
+
+/**
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function fetchAppliedCapabilityByRowId() {
+  try {
+    const r = await fetch("/api/capabilities/applied");
+    if (r.ok) {
+      const data = await r.json();
+      if (data != null && typeof data === "object" && data.ok === true && data.byRowId != null && typeof data.byRowId === "object") {
+        try {
+          localStorage.setItem(LS_APPLIED_CAP, JSON.stringify(data.byRowId));
+        } catch {
+          /* ignore quota */
+        }
+        return /** @type {Record<string, unknown>} */ (data.byRowId);
+      }
+    }
+    console.warn("[fetchAppliedCapabilityByRowId] HTTP", r.status, await r.text().catch(() => ""));
+  } catch (e) {
+    console.warn("[fetchAppliedCapabilityByRowId] unreachable, trying localStorage:", e);
+  }
+  try {
+    const raw = localStorage.getItem(LS_APPLIED_CAP);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * @param {{
+ *   rowId: string,
+ *   moduleId: string,
+ *   originalValues: Record<string, unknown>,
+ *   finalValues: Record<string, unknown>,
+ *   timestamp: number,
+ *   simulation?: Record<string, unknown>,
+ * }} record
+ */
+export async function persistAppliedCapabilityRecord(record) {
+  try {
+    const r = await fetch("/api/capabilities/applied", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    });
+    if (r.ok) {
+      try {
+        const raw = localStorage.getItem(LS_APPLIED_CAP);
+        const byRowId = raw && typeof raw === "string" ? JSON.parse(raw) : {};
+        byRowId[record.rowId] = { ...record };
+        localStorage.setItem(LS_APPLIED_CAP, JSON.stringify(byRowId));
+      } catch {
+        /* ignore */
+      }
+      return { ok: true, localFallback: false };
+    }
+    const t = await r.text();
+    console.warn("[persistAppliedCapabilityRecord] server:", r.status, t.slice(0, 300));
+  } catch (e) {
+    console.warn("[persistAppliedCapabilityRecord] server unreachable:", e);
+  }
+  try {
+    const raw = localStorage.getItem(LS_APPLIED_CAP);
+    const byRowId = raw && typeof raw === "string" ? JSON.parse(raw) : {};
+    byRowId[record.rowId] = { ...record };
+    localStorage.setItem(LS_APPLIED_CAP, JSON.stringify(byRowId));
+    console.warn("[persistAppliedCapabilityRecord] used localStorage fallback");
+    return { ok: true, localFallback: true };
+  } catch (e2) {
+    console.warn("[persistAppliedCapabilityRecord] localStorage failed:", e2);
+    return { ok: false, error: String(e2) };
+  }
+}
+
+/**
+ * @param {{
+ *   rowId: string,
+ *   moduleId: string,
+ *   originalValues: Record<string, unknown>,
+ *   finalValues: Record<string, unknown>,
+ *   filename?: string,
+ *   timestamp?: number,
+ * }} payload
+ */
+export async function recordCapabilityOverride(payload) {
+  try {
+    const r = await fetch("/api/capabilities/record-override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data && data.ok !== false) return data;
+    console.warn("[recordCapabilityOverride] POST /api failed:", r.status, data);
+  } catch (e) {
+    console.warn("[recordCapabilityOverride] POST /api unreachable:", e);
+  }
+  return post({
+    kind: "recordCapabilityOverride",
+    rowId: typeof payload?.rowId === "string" ? payload.rowId : "",
+    moduleId: typeof payload?.moduleId === "string" ? payload.moduleId : "",
+    originalValues: payload?.originalValues,
+    finalValues: payload?.finalValues,
+    filename: payload?.filename,
+    timestamp: payload?.timestamp,
+  });
+}
+
+/**
+ * @param {{
+ *   row: unknown,
+ *   rowIndex: number,
+ *   allRows: unknown[],
+ *   cwd?: string,
+ *   inputOverrides?: Record<string, unknown>,
+ * }} payload
+ */
+export async function previewCapabilityRow(payload) {
+  try {
+    const r = await fetch("/api/capabilities/preview-row", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data && data.ok === true) return data;
+    console.warn("[previewCapabilityRow] POST /api failed:", r.status, data);
+  } catch (e) {
+    console.warn("[previewCapabilityRow] POST /api unreachable:", e);
+  }
+  return post({
+    kind: "previewCapabilityRow",
+    row: payload?.row,
+    rowIndex: payload?.rowIndex,
+    allRows: payload?.allRows,
+    cwd: payload?.cwd,
+    inputOverrides: payload?.inputOverrides,
+  });
 }
 
 /** @returns {Promise<string>} */

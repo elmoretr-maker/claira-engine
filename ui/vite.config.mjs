@@ -39,6 +39,11 @@ export default {
   },
   server: {
     proxy: {
+      /** Capability attach — Express route (production parity); requires API server on PORT. */
+      "/api/capabilities": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+      },
       /** TTS + status — requires `npm run start:server` (Express on PORT, default 3000). */
       "/__claira/tts": {
         target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
@@ -373,6 +378,53 @@ export default {
               out = api.getActiveWorkflowTemplateApi();
             } else if (body.kind === "listWorkflowCompositions") {
               out = api.listWorkflowCompositionsApi();
+            } else if (body.kind === "recordReasoningOverrideFeedback") {
+              out = api.recordReasoningOverrideFeedbackApi(
+                body.payload != null && typeof body.payload === "object" && !Array.isArray(body.payload)
+                  ? body.payload
+                  : body,
+              );
+            } else if (body.kind === "taxDocumentComparison") {
+              out = await api.taxDocumentComparisonApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                domainMode: typeof body.domainMode === "string" ? body.domainMode : "tax",
+                paths: Array.isArray(body.paths) ? body.paths : [],
+                uploads: Array.isArray(body.uploads) ? body.uploads : [],
+                selectedFields: Array.isArray(body.selectedFields) ? body.selectedFields : undefined,
+                anomalyThresholdPct:
+                  typeof body.anomalyThresholdPct === "number" && Number.isFinite(body.anomalyThresholdPct)
+                    ? body.anomalyThresholdPct
+                    : undefined,
+              });
+            } else if (body.kind === "attachPipelineCapabilities") {
+              out = await api.attachPipelineCapabilitiesApi({
+                rows: Array.isArray(body.rows) ? body.rows : [],
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                domainMode: typeof body.domainMode === "string" ? body.domainMode : undefined,
+                planMode: body.planMode === "planned" ? "planned" : "single",
+              });
+            } else if (body.kind === "recordCapabilityOverride") {
+              out = api.recordCapabilityOverrideApi(
+                body.payload != null && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : body,
+              );
+            } else if (body.kind === "getAppliedCapabilityRecords") {
+              out = await api.getAppliedCapabilityRecordsApi();
+            } else if (body.kind === "saveAppliedCapabilityRecord") {
+              out = await api.saveAppliedCapabilityRecordApi(
+                body.payload != null && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : body,
+              );
+            } else if (body.kind === "previewCapabilityRow") {
+              const p = body.payload != null && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : body;
+              out = await api.previewCapabilityRowApi({
+                row: p.row,
+                rowIndex: typeof p.rowIndex === "number" ? p.rowIndex : 0,
+                allRows: Array.isArray(p.allRows) ? p.allRows : [],
+                cwd: typeof p.cwd === "string" ? p.cwd : undefined,
+                inputOverrides:
+                  p.inputOverrides != null && typeof p.inputOverrides === "object" && !Array.isArray(p.inputOverrides)
+                    ? p.inputOverrides
+                    : {},
+              });
             } else {
               res.statusCode = 400;
               res.setHeader("Content-Type", "application/json");

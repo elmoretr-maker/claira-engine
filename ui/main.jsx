@@ -48,6 +48,7 @@ import WelcomeScreen from "./screens/WelcomeScreen.jsx";
 import WorkflowHubScreen from "./screens/WorkflowHubScreen.jsx";
 import ModuleHealthPanel from "./components/ModuleHealthPanel.jsx";
 import WorkflowScreen from "./screens/WorkflowScreen.jsx";
+import TaxDocumentComparePanel from "./components/TaxDocumentComparePanel.jsx";
 import { IndustryProvider, useIndustry } from "./IndustryContext.jsx";
 import { VoiceOnboardingProvider, useVoiceOnboarding } from "./voice/VoiceOnboardingContext.jsx";
 import OnboardingVoiceSync from "./voice/OnboardingVoiceSync.jsx";
@@ -58,6 +59,7 @@ import {
   isBypassReviewPipelineRow,
   isReviewPipelineRow,
 } from "./pipelineRowUtils.js";
+import { attachPipelineCapabilities } from "./clairaApiClient.js";
 import { buildTunnelSteps, fingerprintSelectedCaps, normalizeStoredTunnelSteps } from "./tunnelSteps.js";
 import { UiThemeProvider } from "./theme/UiThemeContext.jsx";
 import {
@@ -200,7 +202,7 @@ const START_OVER_CONFIRM = "Are you sure you want to start over? This will reset
 
 function App() {
   const { cancelAllSpeech } = useVoiceOnboarding();
-  const { industrySlug, setIndustrySlug } = useIndustry();
+  const { industrySlug, setIndustrySlug, packDomainMode } = useIndustry();
   const [industryGateDone, setIndustryGateDone] = useState(() => getIndustryGateComplete());
   const [preAppPhase, setPreAppPhase] = useState(/** @type {"packEntry" | "welcome"} */ () => getInitialPreAppPhase());
   const [industryHomeKey, setIndustryHomeKey] = useState(0);
@@ -231,6 +233,13 @@ function App() {
     /** @type {{ processed: number, moved: number, review: number } | null} */ (null),
   );
   const [pipelineResults, setPipelineResults] = useState(/** @type {unknown[]} */ ([]));
+  const [capabilityDomainMode, setCapabilityDomainMode] = useState("general");
+
+  useEffect(() => {
+    const dm = String(packDomainMode ?? "").trim();
+    if (dm) setCapabilityDomainMode(dm);
+  }, [packDomainMode]);
+  const [capabilityPlanMode, setCapabilityPlanMode] = useState(/** @type {"single" | "planned"} */ ("single"));
   const [rooms, setRooms] = useState(/** @type {{ name: string, destination: string }[]} */ ([]));
   const [reviewItems, setReviewItems] = useState(/** @type {unknown[]} */ ([]));
   /** Log lines from disk that match this run’s bypass events (same order as pipeline bypass rows when possible). */
@@ -793,6 +802,11 @@ function App() {
           {workflowComposition ? (
             <WorkflowScreen
               composition={workflowComposition}
+              pipelineResultRows={pipelineResults}
+              capabilityDomainMode={capabilityDomainMode}
+              onCapabilityDomainModeChange={setCapabilityDomainMode}
+              capabilityPlanMode={capabilityPlanMode}
+              onCapabilityPlanModeChange={setCapabilityPlanMode}
               onBack={() => {
                 setWorkflowComposition(null);
                 setScreen("workflow_hub");
@@ -927,6 +941,11 @@ function App() {
               setScreen("processing");
             }}
           />
+          {capabilityDomainMode === "tax" ? (
+            <div className="app-screen-padding" style={{ maxWidth: 960, margin: "0 auto" }}>
+              <TaxDocumentComparePanel />
+            </div>
+          ) : null}
         </div>
       </>,
     );
@@ -1098,18 +1117,28 @@ function App() {
           onProcessingComplete={async (out) => {
             const results = Array.isArray(out.results) ? out.results : [];
             const enriched = attachSessionBypassUiMetadata(results);
-            setPipelineResults(enriched);
+            let merged = enriched;
+                       try {
+              merged = await attachPipelineCapabilities(enriched, {
+                domainMode: capabilityDomainMode,
+                planMode: capabilityPlanMode,
+              });
+            } catch (e) {
+              console.warn("[session] attachPipelineCapabilities failed; using rows without capabilities:", e);
+              merged = enriched;
+            }
+            setPipelineResults(merged);
             let snap = /** @type {unknown[]} */ ([]);
             try {
               const uc = await getUserControlState();
               const log = Array.isArray(uc?.bypassLog) ? uc.bypassLog : [];
-              const bCount = enriched.filter(isBypassReviewPipelineRow).length;
+              const bCount = merged.filter(isBypassReviewPipelineRow).length;
               snap = bCount > 0 ? log.slice(-bCount) : [];
             } catch {
               snap = [];
             }
             setSessionBypassLogSnapshot(snap);
-            const derived = enriched.filter(isReviewPipelineRow).map(pipelineRowToWaitingRoomItem);
+            const derived = merged.filter(isReviewPipelineRow).map(pipelineRowToWaitingRoomItem);
             setReviewItems(derived);
 
             setSessionSummary({
