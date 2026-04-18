@@ -492,7 +492,7 @@ function generateKeywords(catKey, packSlug, allCategories, template = null) {
   const flavor = inferIndustryFlavor(packSlug);
   const label = humanLabel(catKey);
   const usedGlobally = new Set();
-  for (const [otherKey, words] of Object.entries(allCategories)) {
+  for (const [_otherKey, words] of Object.entries(allCategories)) {
     if (!Array.isArray(words)) continue;
     for (const w of words) {
       if (typeof w === "string" && w.trim()) usedGlobally.add(w.trim().toLowerCase());

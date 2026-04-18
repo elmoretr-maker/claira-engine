@@ -2,7 +2,7 @@
  * Phase 6: User control layer — force_review, bypass_review (execution only), confirm mode.
  */
 
-import { copyFileSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { applyUserControlAfterDecision } from "../policies/userControl.js";
