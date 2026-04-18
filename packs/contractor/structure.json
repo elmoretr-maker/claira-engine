@@ -1,0 +1,42 @@
+{
+  "categories": {
+    "site_progress": [
+      "progress",
+      "before",
+      "after",
+      "renovation",
+      "demo",
+      "framing",
+      "drywall",
+      "tile",
+      "paint",
+      "trim",
+      "punch list",
+      "site photo"
+    ],
+    "costs_and_bids": [
+      "estimate",
+      "bid",
+      "invoice",
+      "change order",
+      "budget",
+      "receipt",
+      "allowance"
+    ],
+    "permits_and_specs": [
+      "permit",
+      "plan",
+      "drawing",
+      "spec",
+      "submittal",
+      "inspection"
+    ],
+    "notes_and_comms": [
+      "note",
+      "meeting",
+      "rfi",
+      "daily log",
+      "client update"
+    ]
+  }
+}
