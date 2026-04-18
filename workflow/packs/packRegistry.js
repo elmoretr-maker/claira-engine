@@ -44,6 +44,13 @@ export const BUILTIN_PACK_REGISTRY = [
     description: "Organize, track, and manage client tax documents and yearly returns",
     inputVerb: "Add tax documents or client files",
   },
+  {
+    id: "fitness",
+    name: "Fitness Tracking",
+    domainMode: "fitness",
+    description: "Track client transformations, progress photos, and fitness journeys",
+    inputVerb: "Add progress photos or client folders",
+  },
 ];
 
 /**
