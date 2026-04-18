@@ -1,0 +1,61 @@
+/* Shared layout + type-based UX for UserFacingAlert (panels may tune message/hint further). */
+.user-facing-alert {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  box-sizing: border-box;
+}
+
+.user-facing-alert__icon {
+  flex-shrink: 0;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  margin-top: 0.06rem;
+  user-select: none;
+}
+
+.user-facing-alert__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-facing-alert__body > p {
+  margin: 0;
+}
+
+.user-facing-alert__body > p + p {
+  margin-top: 0.25rem;
+}
+
+.user-facing-alert--input {
+  color: #4da3ff;
+  --user-facing-alert-border: rgba(77, 163, 255, 0.55);
+  --user-facing-alert-bg: rgba(77, 163, 255, 0.09);
+}
+
+.user-facing-alert--validation {
+  color: #f5c542;
+  --user-facing-alert-border: rgba(245, 197, 66, 0.55);
+  --user-facing-alert-bg: rgba(245, 197, 66, 0.1);
+}
+
+.user-facing-alert--system {
+  color: #ff5c5c;
+  --user-facing-alert-border: rgba(255, 92, 92, 0.55);
+  --user-facing-alert-bg: rgba(255, 92, 92, 0.08);
+}
+
+.user-facing-alert--input,
+.user-facing-alert--validation,
+.user-facing-alert--system {
+  border-left: 3px solid var(--user-facing-alert-border);
+  padding: 0.35rem 0.5rem 0.35rem 0.55rem;
+  border-radius: 6px;
+  background: var(--user-facing-alert-bg);
+}
+
+.user-facing-alert--input .user-facing-alert__icon,
+.user-facing-alert--validation .user-facing-alert__icon,
+.user-facing-alert--system .user-facing-alert__icon {
+  color: inherit;
+}

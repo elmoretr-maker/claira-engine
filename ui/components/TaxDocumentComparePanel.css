@@ -149,10 +149,53 @@
   margin-bottom: 0;
 }
 
+.tax-doc-compare__feedback-wrap {
+  margin: 0 0 0.65rem;
+}
+
+.tax-doc-compare__feedback-wrap .tax-doc-compare__feedback {
+  margin: 0 0 0.2rem;
+}
+
 .tax-doc-compare__feedback {
   font-size: 0.85rem;
   color: var(--text-muted, #374151);
   margin: 0 0 0.65rem;
+}
+
+.tax-doc-compare__feedback--warning {
+  color: #b45309;
+}
+
+.tax-doc-compare__feedback-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted, #4b5563);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.tax-doc-compare__feedback-wrap.user-facing-alert--input .tax-doc-compare__feedback--warning {
+  color: #4da3ff;
+}
+
+.tax-doc-compare__feedback-wrap.user-facing-alert--input .tax-doc-compare__feedback-hint {
+  color: rgba(77, 163, 255, 0.92);
+}
+
+.tax-doc-compare__feedback-wrap.user-facing-alert--validation .tax-doc-compare__feedback--warning {
+  color: #f5c542;
+}
+
+.tax-doc-compare__feedback-wrap.user-facing-alert--validation .tax-doc-compare__feedback-hint {
+  color: rgba(245, 197, 66, 0.92);
+}
+
+.tax-doc-compare__feedback-wrap.user-facing-alert--system .tax-doc-compare__feedback--warning {
+  color: #ff5c5c;
+}
+
+.tax-doc-compare__feedback-wrap.user-facing-alert--system .tax-doc-compare__feedback-hint {
+  color: rgba(255, 92, 92, 0.92);
 }
 
 .tax-doc-compare__file {
@@ -198,10 +241,50 @@
   margin-bottom: 0.65rem;
 }
 
+.tax-doc-compare__error-wrap {
+  margin: 0 0 0.65rem;
+}
+
+.tax-doc-compare__error-wrap .tax-doc-compare__error {
+  margin: 0 0 0.2rem;
+}
+
 .tax-doc-compare__error {
   color: #b91c1c;
   font-size: 0.85rem;
-   margin: 0 0 0.65rem;
+  margin: 0 0 0.65rem;
+}
+
+.tax-doc-compare__error-hint {
+  font-size: 0.75rem;
+  color: #9f1239;
+  margin: 0;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.tax-doc-compare__error-wrap.user-facing-alert--input .tax-doc-compare__error {
+  color: #4da3ff;
+}
+
+.tax-doc-compare__error-wrap.user-facing-alert--input .tax-doc-compare__error-hint {
+  color: rgba(77, 163, 255, 0.92);
+}
+
+.tax-doc-compare__error-wrap.user-facing-alert--validation .tax-doc-compare__error {
+  color: #f5c542;
+}
+
+.tax-doc-compare__error-wrap.user-facing-alert--validation .tax-doc-compare__error-hint {
+  color: rgba(245, 197, 66, 0.92);
+}
+
+.tax-doc-compare__error-wrap.user-facing-alert--system .tax-doc-compare__error {
+  color: #ff5c5c;
+}
+
+.tax-doc-compare__error-wrap.user-facing-alert--system .tax-doc-compare__error-hint {
+  color: rgba(255, 92, 92, 0.92);
 }
 
 .tax-doc-compare__paths {

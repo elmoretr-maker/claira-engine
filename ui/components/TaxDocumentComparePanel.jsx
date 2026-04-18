@@ -14,7 +14,11 @@ import {
   taxComparePayloadToCsv,
 } from "../../workflow/modules/capabilities/taxCompareExportModel.js";
 import { recordCapabilityOverride, runTaxDocumentComparison } from "../clairaApiClient.js";
+import { UserFacingAlert } from "../UserFacingAlert.jsx";
+import { userFacingError } from "../userFacingErrorMessage.js";
 import "./TaxDocumentComparePanel.css";
+
+/** @typedef {import("../userFacingErrorMessage.js").UserFacingError} UserFacingError */
 
 const MAX_FILES = 5;
 const MODULE_ID = "tax_document_comparison";
@@ -84,8 +88,8 @@ export default function TaxDocumentComparePanel({ className = "" }) {
   const [anomalyThreshold, setAnomalyThreshold] = useState(50);
   const [viewMode, setViewMode] = useState(/** @type { "documents" | "clients" } */ ("documents"));
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(/** @type {string | null} */ (null));
-  const [feedbackMsg, setFeedbackMsg] = useState(/** @type {string | null} */ (null));
+  const [error, setError] = useState(/** @type {UserFacingError | null} */ (null));
+  const [feedbackMsg, setFeedbackMsg] = useState(/** @type {string | UserFacingError | null} */ (null));
   const [sessionLoadedMsg, setSessionLoadedMsg] = useState(/** @type {string | null} */ (null));
   /** @type {[unknown, React.Dispatch<React.SetStateAction<unknown>>]} */
   const [result, setResult] = useState(() => /** @type {unknown} */ (null));
@@ -282,7 +286,11 @@ export default function TaxDocumentComparePanel({ className = "" }) {
     setSessionLoadedMsg(null);
     setResult(null);
     if (files.length < 2) {
-      setError(`Choose between 2 and ${MAX_FILES} PDF files.`);
+      setError({
+        type: "validation",
+        message: `Choose between 2 and ${MAX_FILES} PDF files.`,
+        actionHint: "Use Choose files to add at least two PDFs, then run Compare.",
+      });
       return;
     }
     setBusy(true);
@@ -300,16 +308,27 @@ export default function TaxDocumentComparePanel({ className = "" }) {
       });
       if (!out || /** @type {{ ok?: boolean }} */ (out).ok !== true) {
         setError(
-          typeof /** @type {{ error?: string }} */ (out).error === "string"
-            ? /** @type {{ error: string }} */ (out).error
-            : "Comparison failed",
+          userFacingError(
+            typeof /** @type {{ error?: string }} */ (out).error === "string"
+              ? /** @type {{ error: string }} */ (out).error
+              : null,
+            {
+              fallback: "Comparison failed",
+              fallbackHint: "Check your PDFs and try again, or pick smaller files if the upload failed.",
+            },
+          ),
         );
         return;
       }
       setSessionFileNames(files.map((f) => f.name));
       setResult(/** @type {{ result?: unknown }} */ (out).result ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(
+        userFacingError(e, {
+          fallback: "Comparison failed",
+          fallbackHint: "Check your PDFs and try again, or pick smaller files if the upload failed.",
+        }),
+      );
     } finally {
       setBusy(false);
     }
@@ -345,7 +364,11 @@ export default function TaxDocumentComparePanel({ className = "" }) {
   const saveCorrections = useCallback(async () => {
     setFeedbackMsg(null);
     if (!hasDraftChanges) {
-      setFeedbackMsg("No edits to save.");
+      setFeedbackMsg({
+        type: "input",
+        message: "No edits to save yet.",
+        actionHint: "Change a cell value or remap a field, then click Save corrections.",
+      });
       return;
     }
     /** @type {Record<string, unknown>[]} */
@@ -386,7 +409,11 @@ export default function TaxDocumentComparePanel({ className = "" }) {
       }
     }
     if (editsBad.length === 0) {
-      setFeedbackMsg("No edits to save.");
+      setFeedbackMsg({
+        type: "input",
+        message: "No edits to save yet.",
+        actionHint: "Change a cell value or remap a field, then click Save corrections.",
+      });
       return;
     }
     setSaveBusy(true);
@@ -403,15 +430,26 @@ export default function TaxDocumentComparePanel({ className = "" }) {
       });
       if (out && typeof out === "object" && /** @type {{ ok?: boolean }} */ (out).ok === false) {
         setFeedbackMsg(
-          typeof /** @type {{ error?: string }} */ (out).error === "string"
-            ? /** @type {{ error: string }} */ (out).error
-            : "Could not record feedback.",
+          userFacingError(
+            typeof /** @type {{ error?: string }} */ (out).error === "string"
+              ? /** @type {{ error: string }} */ (out).error
+              : null,
+            {
+              fallback: "Could not record feedback.",
+              fallbackHint: "Try again shortly. If it keeps failing, check that the feedback store path is writable.",
+            },
+          ),
         );
         return;
       }
       setFeedbackMsg("Corrections saved to feedback store.");
     } catch (e) {
-      setFeedbackMsg(e instanceof Error ? e.message : String(e));
+      setFeedbackMsg(
+        userFacingError(e, {
+          fallback: "Could not record feedback.",
+          fallbackHint: "Try again shortly. If it keeps failing, check that the feedback store path is writable.",
+        }),
+      );
     } finally {
       setSaveBusy(false);
     }
@@ -596,15 +634,25 @@ export default function TaxDocumentComparePanel({ className = "" }) {
         </button>
       </div>
 
-      {error ? (
-        <p className="tax-doc-compare__error" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <UserFacingAlert
+        value={error}
+        className="tax-doc-compare__error"
+        hintClassName="tax-doc-compare__error-hint"
+        role="alert"
+      />
       {feedbackMsg ? (
-        <p className="tax-doc-compare__feedback" role="status">
-          {feedbackMsg}
-        </p>
+        typeof feedbackMsg === "string" ? (
+          <p className="tax-doc-compare__feedback" role="status">
+            {feedbackMsg}
+          </p>
+        ) : (
+          <UserFacingAlert
+            value={feedbackMsg}
+            className="tax-doc-compare__feedback tax-doc-compare__feedback--warning"
+            hintClassName="tax-doc-compare__feedback-hint"
+            role="status"
+          />
+        )
       ) : null}
 
       {paths.length >= 2 ? (
