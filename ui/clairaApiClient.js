@@ -526,6 +526,115 @@ export async function runTaxDocumentComparison(payload = {}) {
 }
 
 /**
+ * Scan `Clients/{client}/Timeline/{stage}` for fitness progress images.
+ * @param {{ cwd?: string }} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runFitnessTimelineScan(payload = {}) {
+  const body = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+  };
+  try {
+    const r = await fetch("/api/capabilities/fitness-timeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "fitnessTimelineScan", ...body });
+}
+
+/**
+ * Compare fitness images (read-only). Single pair, explicit imagePairs, or mode sequential/baseline with timeline.
+ * @param {{
+ *   cwd?: string,
+ *   pathA?: string,
+ *   pathB?: string,
+ *   stageA?: string,
+ *   stageB?: string,
+ *   mode?: "single" | "sequential" | "baseline",
+ *   orderedStages?: string[],
+ *   pathsByStage?: Record<string, string>,
+ *   imagePairs?: Array<{ stageA?: string, stageB?: string, pathA?: string, pathB?: string }>,
+ * }} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runFitnessImageComparison(payload = {}) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+    domainMode: "fitness",
+    ...(typeof payload.pathA === "string" ? { pathA: payload.pathA } : {}),
+    ...(typeof payload.pathB === "string" ? { pathB: payload.pathB } : {}),
+    ...(typeof payload.stageA === "string" ? { stageA: payload.stageA } : {}),
+    ...(typeof payload.stageB === "string" ? { stageB: payload.stageB } : {}),
+    ...(payload.mode === "sequential" || payload.mode === "baseline" || payload.mode === "single" ? { mode: payload.mode } : {}),
+    ...(Array.isArray(payload.orderedStages) ? { orderedStages: payload.orderedStages } : {}),
+    ...(payload.pathsByStage != null && typeof payload.pathsByStage === "object" && !Array.isArray(payload.pathsByStage)
+      ? { pathsByStage: payload.pathsByStage }
+      : {}),
+    ...(Array.isArray(payload.imagePairs) ? { imagePairs: payload.imagePairs } : {}),
+  };
+  try {
+    const r = await fetch("/api/capabilities/fitness-compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "fitnessImageComparison", ...bodyObj });
+}
+
+/**
+ * Read a single fitness image as base64 (for UI preview).
+ * @param {{ cwd?: string, path?: string }} [payload]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function runFitnessImageRead(payload = {}) {
+  const bodyObj = {
+    cwd: typeof payload.cwd === "string" ? payload.cwd : undefined,
+    ...(typeof payload.path === "string" ? { path: payload.path } : {}),
+  };
+  try {
+    const r = await fetch("/api/capabilities/fitness-image-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
+  } catch {
+    /* Vite */
+  }
+  return post({ kind: "fitnessImageRead", ...bodyObj });
+}
+
+/**
  * Attach per-row capability results (product modules). Tries production API first, then Vite dev `/__claira/run`.
  * @param {unknown[]} rows
  * @param {{ cwd?: string, domainMode?: string, planMode?: "single" | "planned" }} [options]

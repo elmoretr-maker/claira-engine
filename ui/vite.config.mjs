@@ -34,6 +34,8 @@ export default {
   resolve: {
     alias: [
       { find: "node:fs", replacement: path.join(uiDir, "shims", "node-fs-browser.mjs") },
+      /** Bare `fs` (e.g. `interfaces/api.js`) must not hit Node in the browser graph. */
+      { find: "fs", replacement: path.join(uiDir, "shims", "node-fs-browser.mjs") },
       { find: "node:path", replacement: path.join(uiDir, "shims", "node-path-browser.mjs") },
     ],
   },
@@ -56,7 +58,7 @@ export default {
       name: "claira-api-browser-stub",
       enforce: "pre",
       resolveId(id) {
-        const n = id.replace(/\\/g, "/");
+        const n = String(id).replace(/\\/g, "/").split("?")[0].split("#")[0];
         if (n.endsWith("/interfaces/api.js")) {
           return path.join(uiDir, "clairaApiClient.js");
         }
@@ -395,6 +397,31 @@ export default {
                   typeof body.anomalyThresholdPct === "number" && Number.isFinite(body.anomalyThresholdPct)
                     ? body.anomalyThresholdPct
                     : undefined,
+              });
+            } else if (body.kind === "fitnessTimelineScan") {
+              out = api.fitnessTimelineScanApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+              });
+            } else if (body.kind === "fitnessImageComparison") {
+              out = await api.fitnessImageComparisonApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                domainMode: typeof body.domainMode === "string" ? body.domainMode : "fitness",
+                pathA: typeof body.pathA === "string" ? body.pathA : "",
+                pathB: typeof body.pathB === "string" ? body.pathB : "",
+                stageA: typeof body.stageA === "string" ? body.stageA : "",
+                stageB: typeof body.stageB === "string" ? body.stageB : "",
+                mode: typeof body.mode === "string" ? body.mode : undefined,
+                orderedStages: Array.isArray(body.orderedStages) ? body.orderedStages : undefined,
+                pathsByStage:
+                  body.pathsByStage != null && typeof body.pathsByStage === "object" && !Array.isArray(body.pathsByStage)
+                    ? body.pathsByStage
+                    : undefined,
+                imagePairs: Array.isArray(body.imagePairs) ? body.imagePairs : undefined,
+              });
+            } else if (body.kind === "fitnessImageRead") {
+              out = api.fitnessImageReadApi({
+                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
+                path: typeof body.path === "string" ? body.path : "",
               });
             } else if (body.kind === "attachPipelineCapabilities") {
               out = await api.attachPipelineCapabilitiesApi({

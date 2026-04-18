@@ -7,7 +7,7 @@ import "../core/integrationEngine.js";
 import "../core/intentEngine.js";
 import { SYSTEM_MODE } from "../core/systemMode.js";
 import "../outputs/externalOutput.js";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   applyDecision,
@@ -49,6 +49,7 @@ import WorkflowHubScreen from "./screens/WorkflowHubScreen.jsx";
 import ModuleHealthPanel from "./components/ModuleHealthPanel.jsx";
 import WorkflowScreen from "./screens/WorkflowScreen.jsx";
 import TaxDocumentComparePanel from "./components/TaxDocumentComparePanel.jsx";
+import FitnessTrackingPanel from "./components/FitnessTrackingPanel.jsx";
 import { IndustryProvider, useIndustry } from "./IndustryContext.jsx";
 import { VoiceOnboardingProvider, useVoiceOnboarding } from "./voice/VoiceOnboardingContext.jsx";
 import OnboardingVoiceSync from "./voice/OnboardingVoiceSync.jsx";
@@ -75,7 +76,6 @@ import {
   clearAllOnboardingLocalStorage,
   maybeCompleteSetupAfterSession,
   setAppMode,
-  setOversightLevel,
   setTunnelStepIndex,
   getIndustryGateComplete,
   setIndustryGateComplete,
@@ -84,6 +84,67 @@ import {
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root missing");
+
+if (typeof window !== "undefined") {
+  window.onerror = (message, source, lineno, colno, error) => {
+    console.error("Global Error:", message, source, lineno, colno, error);
+    return false;
+  };
+  window.addEventListener("unhandledrejection", (event) => {
+    console.error("Global unhandledrejection:", event.reason);
+  });
+}
+
+/**
+ * Surfaces React render errors instead of an empty dark viewport (body background only).
+ */
+class AppErrorBoundary extends Component {
+  /** @param {{ children: import("react").ReactNode }} props */
+  constructor(props) {
+    super(props);
+    /** @type {{ error: Error | null }} */
+    this.state = { error: null };
+  }
+
+  /** @param {Error} error */
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  /** @param {Error} error @param {import("react").ErrorInfo} info */
+  componentDidCatch(error, info) {
+    console.error("[AppErrorBoundary]", error?.message ?? error);
+    if (error?.stack) console.error("[AppErrorBoundary] stack:", error.stack);
+    if (info?.componentStack) console.error("[AppErrorBoundary] componentStack:", info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          style={{
+            minHeight: "100vh",
+            boxSizing: "border-box",
+            padding: "2rem",
+            background: "#12141a",
+            color: "#f4f6fa",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+          }}
+        >
+          <h1 style={{ fontSize: "1.2rem", fontWeight: 600, margin: "0 0 1rem" }}>Claira UI could not render</h1>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.85rem", opacity: 0.92, margin: 0 }}>
+            {String(this.state.error.message)}
+          </pre>
+          <p style={{ marginTop: "1.25rem", fontSize: "0.82rem", opacity: 0.78, maxWidth: "36rem", lineHeight: 1.5 }}>
+            Check the browser console for the stack trace. If you just fixed a compile error, hard-refresh (Ctrl+Shift+R)
+            or restart the Vite dev server so the latest bundle loads.
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const AUTO_CHECK_INTERVAL = 60000; // 60 seconds
 
@@ -946,6 +1007,11 @@ function App() {
               <TaxDocumentComparePanel />
             </div>
           ) : null}
+          {capabilityDomainMode === "fitness" ? (
+            <div className="app-screen-padding" style={{ maxWidth: 960, margin: "0 auto" }}>
+              <FitnessTrackingPanel />
+            </div>
+          ) : null}
         </div>
       </>,
     );
@@ -1171,24 +1237,26 @@ function App() {
 }
 
 createRoot(root).render(
-  <UiThemeProvider>
-    <IndustryProvider>
-      <VoiceOnboardingProvider>
-        <div className="app-brand-backdrop">
-          <div className="app-brand-main">
-            <App />
+  <AppErrorBoundary>
+    <UiThemeProvider>
+      <IndustryProvider>
+        <VoiceOnboardingProvider>
+          <div className="app-brand-backdrop">
+            <div className="app-brand-main">
+              <App />
+            </div>
+            <footer
+              className="app-brand-tagline"
+              title="Classification, Learning, and Intelligent Resource Assistant — clarity for your work, files, and folders."
+            >
+              <span className="app-brand-tagline-line">
+                Claira Engine — Classification, Learning, and Intelligent Resource Assistant
+              </span>
+              <span className="app-brand-tagline-line app-brand-tagline-line--sub">Claira is clarity for your work.</span>
+            </footer>
           </div>
-          <footer
-            className="app-brand-tagline"
-            title="Classification, Learning, and Intelligent Resource Assistant — clarity for your work, files, and folders."
-          >
-            <span className="app-brand-tagline-line">
-              Claira Engine — Classification, Learning, and Intelligent Resource Assistant
-            </span>
-            <span className="app-brand-tagline-line app-brand-tagline-line--sub">Claira is clarity for your work.</span>
-          </footer>
-        </div>
-      </VoiceOnboardingProvider>
-    </IndustryProvider>
-  </UiThemeProvider>,
+        </VoiceOnboardingProvider>
+      </IndustryProvider>
+    </UiThemeProvider>
+  </AppErrorBoundary>,
 );
