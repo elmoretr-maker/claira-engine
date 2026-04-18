@@ -58,7 +58,7 @@ export function extraKeywordHints(catKey, label) {
  * @param {string} label
  * @param {string[]} _keywords
  */
-export function patternStructure(catKey, label, _keywords) {
+export function patternStructure(catKey, _label, _keywords) {
   const k = catKey.toLowerCase();
   const expected = [
     "document type or form title aligned to clinical or administrative workflow",

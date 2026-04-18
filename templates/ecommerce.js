@@ -59,7 +59,7 @@ export function extraKeywordHints(catKey, label) {
  * @param {string} label
  * @param {string[]} keywords
  */
-export function patternStructure(catKey, label, keywords) {
+export function patternStructure(catKey, _label, _keywords) {
   const k = catKey.toLowerCase();
   const expected = [
     "primary product or document title",
