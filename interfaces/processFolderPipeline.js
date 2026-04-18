@@ -31,8 +31,71 @@ import {
   applyUserControlAfterDecision,
   appendBypassReviewLogEntry,
 } from "../policies/userControl.js";
+import { runPhase10Pipeline } from "../workflow/watcher/runPhase10Pipeline.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Full Phase 10 workflow (includes claira_reasoning) for UI / serialization — dry-run mover only;
+ * physical moves remain in this pipeline’s own branch.
+ *
+ * @param {string} cwd
+ * @param {string} imageAbsPath
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function fetchPhase10ModuleResultsForUi(cwd, imageAbsPath) {
+  if (typeof imageAbsPath !== "string" || !imageAbsPath.trim() || !existsSync(imageAbsPath)) {
+    return {
+      claira_reasoning: {
+        status: "skipped",
+        data: { items: [] },
+        errors: ["Image path missing or not on disk"],
+      },
+    };
+  }
+  try {
+    const { output } = await runPhase10Pipeline({
+      cwd,
+      imagePaths: [imageAbsPath],
+      destinationRoot: "Assets",
+      dryRun: true,
+    });
+    const ox = output && typeof output === "object" && !Array.isArray(output) ? output : null;
+    const payload =
+      ox && /** @type {{ destination?: unknown }} */ (ox).destination === "external" && ox.payload != null && typeof ox.payload === "object"
+        ? /** @type {{ moduleResults?: unknown }} */ (ox.payload)
+        : null;
+    const mr = payload?.moduleResults;
+    if (mr && typeof mr === "object" && !Array.isArray(mr)) {
+      return /** @type {Record<string, unknown>} */ (JSON.parse(JSON.stringify(mr)));
+    }
+    return {
+      claira_reasoning: {
+        status: "error",
+        data: { items: [] },
+        errors: ["phase10: missing moduleResults in workflow payload"],
+      },
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      claira_reasoning: {
+        status: "error",
+        data: { items: [] },
+        errors: [msg],
+      },
+    };
+  }
+}
+
+/**
+ * @param {string} cwd
+ * @param {Record<string, unknown>} row
+ * @param {string} imageAbsPath
+ */
+async function attachPhase10ModuleResults(cwd, row, imageAbsPath) {
+  row.moduleResults = await fetchPhase10ModuleResultsForUi(cwd, imageAbsPath);
+}
 
 async function collectRasterImageFilesRecursive(rootDir) {
   /** @type {string[]} */
@@ -302,7 +365,10 @@ export async function runProcessItemsPipeline(items, options = {}) {
     const { absPath, rel } = item;
     const embRes = await getImageEmbedding(absPath);
     if (embRes.error) {
-      resultsArray.push({ rel, filePath: absPath, place_card: null, error: "embedding_failed" });
+      /** @type {Record<string, unknown>} */
+      const row = { rel, filePath: absPath, place_card: null, error: "embedding_failed" };
+      await attachPhase10ModuleResults(cwd, row, absPath);
+      resultsArray.push(row);
       continue;
     }
     const inputEmbedding = new Float32Array(embRes.embedding);
@@ -319,7 +385,10 @@ export async function runProcessItemsPipeline(items, options = {}) {
       const { priority } = assignPriority({ reason });
       bumpPriorityCount(reviewPriorityCounts, priority);
       reviewCount += 1;
-      resultsArray.push({ rel, filePath: absPath, place_card: null, priority, reason });
+      /** @type {Record<string, unknown>} */
+      const row = { rel, filePath: absPath, place_card: null, priority, reason };
+      await attachPhase10ModuleResults(cwd, row, absPath);
+      resultsArray.push(row);
       continue;
     }
 
@@ -370,14 +439,17 @@ export async function runProcessItemsPipeline(items, options = {}) {
       const { priority } = assignPriority({ reason: "rejected_by_room" });
       bumpPriorityCount(reviewPriorityCounts, priority);
       reviewCount += 1;
-      resultsArray.push({
+      /** @type {Record<string, unknown>} */
+      const row = {
         rel,
         filePath: absPath,
         place_card: placeCard ?? null,
         priority,
         room_validation: roomValidation,
         ...textParts,
-      });
+      };
+      await attachPhase10ModuleResults(cwd, row, absPath);
+      resultsArray.push(row);
     } else if (treatAsAutoPath) {
       if (bypassAuto) {
         appendBypassReviewLogEntry({
@@ -402,6 +474,17 @@ export async function runProcessItemsPipeline(items, options = {}) {
           }
         }
       }
+      /** @type {Record<string, unknown>} */
+      const textReview = textReviewFieldsForAutoPath(textParts);
+      /** @type {Record<string, unknown>} */
+      const okRow = {
+        rel,
+        filePath: absPath,
+        place_card: placeCard ?? null,
+        ...textParts,
+        ...textReview,
+      };
+      await attachPhase10ModuleResults(cwd, okRow, absPath);
       /** @type {string | null} */
       let movedTo = null;
       /** @type {string | null} */
@@ -424,17 +507,8 @@ export async function runProcessItemsPipeline(items, options = {}) {
           moveError = e instanceof Error ? e.message : String(e);
         }
       }
-      /** @type {Record<string, unknown>} */
-      const textReview = textReviewFieldsForAutoPath(textParts);
       const finalPath = movedTo ?? absPath;
-      /** @type {Record<string, unknown>} */
-      const okRow = {
-        rel,
-        filePath: finalPath,
-        place_card: placeCard ?? null,
-        ...textParts,
-        ...textReview,
-      };
+      okRow.filePath = finalPath;
       if (movedTo != null) okRow.moved_to = movedTo;
       if (moveError != null) okRow.move_error = moveError;
       if (reference_learning != null) okRow.reference_learning = reference_learning;
@@ -454,6 +528,7 @@ export async function runProcessItemsPipeline(items, options = {}) {
       const reviewRow = { rel, filePath: absPath, place_card: placeCard ?? null, priority, reason, ...textParts };
       const cc = buildClassificationConflictPayload(result, absPath, runtimeContext);
       if (cc) reviewRow.classification_conflict = cc;
+      await attachPhase10ModuleResults(cwd, reviewRow, absPath);
       resultsArray.push(reviewRow);
     }
   }

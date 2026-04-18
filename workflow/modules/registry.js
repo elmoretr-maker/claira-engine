@@ -1,6 +1,7 @@
 /**
  * Module registry — whitelist of built-in modules (post_pipeline handlers).
- * Modules consume SealedEngineOutput only; no pipeline imports.
+ * Keys MUST match REGISTERED_WORKFLOW_MODULE_IDS in moduleRegistry.js (single source of truth).
+ * Modules without post_pipeline are stubs (pipeline-only); ModuleHost only dispatches handlers for template-listed IDs.
  */
 
 import { REGISTERED_WORKFLOW_MODULE_IDS } from "./moduleRegistry.js";
@@ -17,8 +18,8 @@ import { postPipelineEventLog } from "./eventLog.js";
  * }} ModuleDefinition
  */
 
-/** @type {Record<string, ModuleDefinition>} */
-export const moduleRegistry = {
+/** Modules that implement post_pipeline (SealedEngineOutput consumers). */
+const POST_PIPELINE_HANDLERS = {
   entity_tracking: {
     id: "entity_tracking",
     post_pipeline: postPipelineEntityTracking,
@@ -37,12 +38,18 @@ export const moduleRegistry = {
     ui: {},
     data_schema: {},
   },
-  /* TEMPORARY — test harness ids (workflow/modules/test_modules/); no post_pipeline */
-  test_pass: { id: "test_pass", ui: {}, data_schema: {} },
-  test_dispatch: { id: "test_dispatch", ui: {}, data_schema: {} },
-  test_error: { id: "test_error", ui: {}, data_schema: {} },
-  test_reader: { id: "test_reader", ui: {}, data_schema: {} },
 };
+
+/** @type {Record<string, ModuleDefinition>} */
+export const moduleRegistry = {};
+
+for (const id of REGISTERED_WORKFLOW_MODULE_IDS) {
+  if (POST_PIPELINE_HANDLERS[id]) {
+    moduleRegistry[id] = POST_PIPELINE_HANDLERS[id];
+  } else {
+    moduleRegistry[id] = { id, ui: {}, data_schema: {} };
+  }
+}
 
 const registryKeyStr = Object.keys(moduleRegistry)
   .sort()

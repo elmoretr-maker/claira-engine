@@ -201,6 +201,13 @@ export const clairaReasoningModule = {
         ...(result.signalState != null && result.signalState !== ""
           ? { signalState: result.signalState }
           : {}),
+        ...(typeof result.memoryInfluenceScore === "number" ? { memoryInfluenceScore: result.memoryInfluenceScore } : {}),
+        ...(result.weightTier != null && result.weightTier !== ""
+          ? { weightTier: result.weightTier }
+          : {}),
+        ...(typeof result.historicalConfidence === "number" ? { historicalConfidence: result.historicalConfidence } : {}),
+        ...(typeof result.usageCount === "number" ? { usageCount: result.usageCount } : {}),
+        ...(typeof result.successRate === "number" ? { successRate: result.successRate } : {}),
       };
       items.push(rowOut);
 

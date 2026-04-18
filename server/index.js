@@ -261,7 +261,7 @@ function detectAndLogProductsFromData(body) {
 }
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 app.get("/", (req, res) => {
   res.json({
@@ -324,6 +324,104 @@ app.post("/__claira/tts", async (req, res) => {
     return res.status(503).json({
       error: msg,
     });
+  }
+});
+
+/**
+ * Per-row capability attach (same behavior as Vite dev middleware `attachPipelineCapabilities`).
+ */
+app.post("/api/capabilities/attach", async (req, res) => {
+  try {
+    const { attachPipelineCapabilitiesApi } = await import("../interfaces/api.js");
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    const cwd = typeof req.body?.cwd === "string" ? req.body.cwd : undefined;
+    const domainMode = typeof req.body?.domainMode === "string" ? req.body.domainMode : undefined;
+    const planMode = req.body?.planMode === "planned" ? "planned" : "single";
+    const out = await attachPipelineCapabilitiesApi({ rows, cwd, domainMode, planMode });
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/attach]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/tax-compare", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.taxDocumentComparisonApi(req.body ?? {});
+    if (!out.ok) {
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/tax-compare]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.get("/api/capabilities/applied", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.getAppliedCapabilityRecordsApi();
+    if (!out.ok) {
+      console.warn("[api/capabilities/applied] read failed:", out.error);
+      return res.status(500).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/applied]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/applied", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.saveAppliedCapabilityRecordApi(req.body ?? {});
+    if (!out.ok) {
+      console.warn("[api/capabilities/applied] save rejected:", out.error);
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/applied] save error:", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/preview-row", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = await api.previewCapabilityRowApi(req.body ?? {});
+    if (!out.ok) {
+      console.warn("[api/capabilities/preview-row]", out.error);
+      return res.status(400).json(out);
+    }
+    res.json(out);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/preview-row]", msg);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
+app.post("/api/capabilities/record-override", async (req, res) => {
+  try {
+    const api = await import("../interfaces/api.js");
+    const out = api.recordCapabilityOverrideApi(req.body ?? {});
+    if (!out.ok) {
+      console.warn("[api/capabilities/record-override]", out.error);
+      return res.status(400).json(out);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[api/capabilities/record-override]", msg);
+    res.status(500).json({ ok: false, error: msg });
   }
 });
 

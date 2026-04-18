@@ -13,6 +13,7 @@ import {
   statSync,
   writeFileSync,
 } from "fs";
+import { randomBytes } from "crypto";
 import { tmpdir } from "os";
 import { basename, extname, join, resolve, sep } from "path";
 import { getAdapter, normalizeInput } from "../adapters/index.js";
@@ -24,6 +25,8 @@ import { captureUserDecision } from "./decisionCapture.js";
 import { loadRooms } from "../rooms/index.js";
 import { applyDecision as engineApplyDecision, getRiskInsights as engineGetRiskInsights } from "../index.js";
 import { loadIndustryPack as applyIndustryPack } from "../packs/loadIndustryPack.js";
+import { InvalidPackError } from "../workflow/packs/validatePackTriad.js";
+import { getPackRegistryEntry } from "../workflow/packs/packRegistry.js";
 import { listIndustryPacks } from "../packs/listIndustryPacks.js";
 import { checkInternetConnection } from "../packs/industryAutogen/internetCheck.js";
 import { autoImproveIndustryPack } from "../packs/industryAutogen/autoImproveIndustryPack.js";
@@ -61,6 +64,7 @@ import {
   removeUserControlRule,
   setUserControlRule,
 } from "../policies/userControl.js";
+import { recordCapabilityOverrideFeedback, recordFeedbackEntry } from "../workflow/feedback/feedbackStore.js";
 export {
   addTrackingSnapshotApi,
   categorySupportsProgressTracking,
@@ -218,11 +222,36 @@ export async function processFolder(inputPath, options = {}) {
  */
 /**
  * @param {string} industry — pack folder under packs/<industry>/
- * @returns {Promise<{ ok: true, industry: string }>}
+ * @returns {Promise<
+ *   | { ok: true, industry: string, domainMode: string }
+ *   | { ok: false, error: string, details: string[] }
+ * >}
  */
 export async function loadIndustryPack(industry) {
-  await applyIndustryPack(industry);
-  return { ok: true, industry: String(industry ?? "").trim() };
+  const slug = String(industry ?? "")
+    .trim()
+    .toLowerCase();
+  if (!slug || !/^[a-z0-9_-]+$/.test(slug)) {
+    return { ok: false, error: "Invalid pack", details: ["invalid industry slug"] };
+  }
+  try {
+    await applyIndustryPack(industry);
+  } catch (e) {
+    if (e instanceof InvalidPackError) {
+      return { ok: false, error: "Invalid pack", details: e.details };
+    }
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+      details: [],
+    };
+  }
+  const entry = getPackRegistryEntry(slug);
+  const domainMode =
+    entry && typeof entry.domainMode === "string" && entry.domainMode.trim()
+      ? entry.domainMode.trim()
+      : "general";
+  return { ok: true, industry: slug, domainMode };
 }
 
 /**
@@ -650,6 +679,76 @@ export function setUserControlRuleApi(payload = {}) {
 }
 
 /**
+ * UI-only category override: persists corrective feedback via feedbackStore (does not re-run pipeline).
+ * @param {{
+ *   originalCategory?: string | null,
+ *   correctedCategory?: string,
+ *   chosenCategory?: string,
+ *   filename?: string,
+ *   originalLabels?: string[],
+ *   semanticTokens?: string[],
+ *   labelThemes?: string[],
+ *   reasoningContext?: Record<string, unknown>,
+ * }} input
+ * @returns {{ ok: true } | { ok: false, error: string }}
+ */
+export function recordReasoningOverrideFeedbackApi(input = {}) {
+  const correctedCategory = String(input.correctedCategory ?? input.chosenCategory ?? "").trim();
+  const originalCategoryRaw = input.originalCategory != null ? String(input.originalCategory).trim() : "";
+  if (!correctedCategory) return { ok: false, error: "correctedCategory (or chosenCategory) required" };
+  if (!originalCategoryRaw) return { ok: false, error: "originalCategory required" };
+  const o = originalCategoryRaw.toLowerCase();
+  const c = correctedCategory.toLowerCase();
+  if (o === c) return { ok: false, error: "originalCategory and correctedCategory must differ" };
+
+  const filename = String(input.filename ?? "").trim() || "unknown";
+  const originalLabels = Array.isArray(input.originalLabels)
+    ? input.originalLabels.map(String)
+    : originalCategoryRaw
+      ? [originalCategoryRaw]
+      : [];
+  const reasoningContext =
+    input.reasoningContext != null && typeof input.reasoningContext === "object" && !Array.isArray(input.reasoningContext)
+      ? input.reasoningContext
+      : undefined;
+
+  recordFeedbackEntry({
+    feedbackType: "override",
+    incorrectCount: 0,
+    lastFeedbackType: "override",
+    originalLabels,
+    refinedCategory: originalCategoryRaw,
+    userCorrectedCategory: correctedCategory,
+    filename,
+    ...(reasoningContext
+      ? {
+          reasoningContext: {
+            ...reasoningContext,
+            userOverride: true,
+            originalCategory: originalCategoryRaw,
+            correctedCategory,
+            feedbackType: "override",
+          },
+        }
+      : {
+          reasoningContext: {
+            userOverride: true,
+            originalCategory: originalCategoryRaw,
+            correctedCategory,
+            feedbackType: "override",
+          },
+        }),
+    ...(Array.isArray(input.semanticTokens) && input.semanticTokens.length > 0
+      ? { semanticTokens: input.semanticTokens.map(String) }
+      : {}),
+    ...(Array.isArray(input.labelThemes) && input.labelThemes.length > 0
+      ? { labelThemes: input.labelThemes.map(String) }
+      : {}),
+  });
+  return { ok: true };
+}
+
+/**
  * Export result rows to a configured target (filesystem or simulated external).
  * @param {{
  *   target: string,
@@ -972,6 +1071,7 @@ export function listWorkflowCompositionsApi() {
   /** @type {unknown[]} */
   const workflows = [];
   for (const p of packs) {
+    if (p.valid === false) continue;
     const tmplPath = join(TRAINER_ROOT, "packs", p.slug, "workflow_template.json");
     if (!existsSync(tmplPath)) continue;
     const wfSrc = readPackWorkflowSource(p.slug);
@@ -1024,4 +1124,233 @@ export function getTrainerClientApi(input = {}) {
     .slice()
     .sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")));
   return { ok: true, client: r.client, events, assets: listTrainerAssets(clientId) };
+}
+
+/**
+ * Compare 2–5 tax PDFs (read-only). Accepts workspace paths or base64 uploads staged under cwd.
+ * @param {{
+ *   cwd?: string,
+ *   domainMode?: string,
+ *   paths?: string[],
+ *   uploads?: Array<{ name?: string, dataBase64?: string }>,
+ *   selectedFields?: string[],
+ *   anomalyThresholdPct?: number,
+ * }} [payload]
+ * @returns {Promise<{ ok: true, result: unknown } | { ok: false, error: string, result?: unknown }>}
+ */
+export async function taxDocumentComparisonApi(payload = {}) {
+  const cwd =
+    typeof payload.cwd === "string" && payload.cwd.trim() ? resolve(payload.cwd.trim()) : process.cwd();
+  const domainMode =
+    typeof payload.domainMode === "string" && payload.domainMode.trim()
+      ? payload.domainMode.trim()
+      : "tax";
+  if (domainMode !== "tax") {
+    return { ok: false, error: "taxDocumentComparison requires domainMode tax" };
+  }
+
+  const { taxDocumentComparisonModule } = await import("../workflow/modules/capabilities/taxDocumentComparisonModule.js");
+  const { MAX_PDF_BYTES } = await import("../workflow/modules/capabilities/taxPathUnderCwd.js");
+
+  /** @type {string | null} */
+  let stagingDir = null;
+  try {
+    /** @type {string[]} */
+    let fileList = [];
+    const uploads = Array.isArray(payload.uploads) ? payload.uploads : [];
+    const paths = Array.isArray(payload.paths) ? payload.paths : [];
+
+    if (uploads.length >= 2) {
+      const job = randomBytes(8).toString("hex");
+      stagingDir = join(cwd, ".claira_tax_compare", job);
+      mkdirSync(stagingDir, { recursive: true });
+      for (const u of uploads.slice(0, 5)) {
+        const rawName = typeof u?.name === "string" ? u.name : "document.pdf";
+        const base = basename(String(rawName).replace(/[/\\]/g, ""));
+        const name = base.toLowerCase().endsWith(".pdf")
+          ? base.slice(0, 120)
+          : `${base.replace(/\.[^.]+$/, "").slice(0, 100) || "document"}.pdf`;
+        const safe = name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const b64 = typeof u?.dataBase64 === "string" ? u.dataBase64 : "";
+        const buf = Buffer.from(b64, "base64");
+        if (buf.length > MAX_PDF_BYTES) {
+          return { ok: false, error: `PDF exceeds max size (${MAX_PDF_BYTES} bytes)` };
+        }
+        if (buf.length === 0) {
+          return { ok: false, error: "Empty PDF upload" };
+        }
+        const dest = join(stagingDir, safe);
+        writeFileSync(dest, buf);
+        fileList.push(dest);
+      }
+    } else if (paths.length >= 2) {
+      fileList = paths
+        .slice(0, 5)
+        .map((p) => String(p ?? "").trim())
+        .filter(Boolean);
+    } else {
+      return {
+        ok: false,
+        error: "Provide 2–5 PDFs via paths (under workspace) or uploads (base64)",
+      };
+    }
+
+    const selectedFields = Array.isArray(payload.selectedFields) ? payload.selectedFields : undefined;
+    const anomalyThresholdPct =
+      typeof payload.anomalyThresholdPct === "number" && Number.isFinite(payload.anomalyThresholdPct)
+        ? payload.anomalyThresholdPct
+        : undefined;
+    const ctx = {
+      intentCandidates: [],
+      refinedCategory: null,
+      inputData: { cwd, domainMode: "tax" },
+    };
+    const result = await taxDocumentComparisonModule.run(
+      { fileList, selectedFields, cwd, anomalyThresholdPct },
+      ctx,
+    );
+    if (result != null && typeof result === "object" && !Array.isArray(result) && result.error === true) {
+      return {
+        ok: false,
+        error: typeof result.message === "string" ? result.message : "Comparison failed",
+        result,
+      };
+    }
+    return { ok: true, result };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  } finally {
+    if (stagingDir) {
+      try {
+        rmSync(stagingDir, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
+/**
+ * Per-row product capabilities (read-only / dry-run). Does not touch workflow MODULE_REGISTRY.
+ * @param {{ rows?: unknown[], cwd?: string, domainMode?: string, planMode?: "single" | "planned" }} [payload]
+ * @returns {Promise<{ ok: true, rows: unknown[] }>}
+ */
+export async function attachPipelineCapabilitiesApi(payload = {}) {
+  const { attachCapabilityResults } = await import("../workflow/modules/capabilities/attachCapabilityResults.js");
+  const rows = Array.isArray(payload.rows) ? payload.rows : [];
+  const cwd =
+    typeof payload.cwd === "string" && payload.cwd.trim() ? String(payload.cwd).trim() : undefined;
+  const domainMode =
+    typeof payload.domainMode === "string" && payload.domainMode.trim() ? String(payload.domainMode).trim() : undefined;
+  const planMode = payload.planMode === "planned" ? "planned" : "single";
+  const enriched = await attachCapabilityResults(rows, {
+    ...(cwd ? { cwd } : {}),
+    ...(domainMode ? { domainMode } : {}),
+    planMode,
+  });
+  return { ok: true, rows: enriched };
+}
+
+/**
+ * @returns {Promise<{ ok: true, version: number, byRowId: Record<string, unknown> } | { ok: false, error: string }>}
+ */
+export async function getAppliedCapabilityRecordsApi() {
+  try {
+    const { readAppliedCapabilityStore } = await import("../workflow/modules/capabilities/appliedCapabilityStore.js");
+    const s = readAppliedCapabilityStore();
+    return { ok: true, version: s.version, byRowId: s.byRowId };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * @param {{
+ *   rowId: string,
+ *   moduleId: string,
+ *   originalValues?: Record<string, unknown>,
+ *   finalValues?: Record<string, unknown>,
+ *   timestamp?: number,
+ *   simulation?: Record<string, unknown>,
+ * }} payload
+ */
+export async function saveAppliedCapabilityRecordApi(payload = {}) {
+  try {
+    const { upsertAppliedCapabilityRecord } = await import("../workflow/modules/capabilities/appliedCapabilityStore.js");
+    const rowId = String(payload.rowId ?? "").trim();
+    if (!rowId) return { ok: false, error: "rowId required" };
+    upsertAppliedCapabilityRecord({
+      rowId,
+      moduleId: String(payload.moduleId ?? ""),
+      originalValues:
+        payload.originalValues != null && typeof payload.originalValues === "object" && !Array.isArray(payload.originalValues)
+          ? payload.originalValues
+          : {},
+      finalValues:
+        payload.finalValues != null && typeof payload.finalValues === "object" && !Array.isArray(payload.finalValues)
+          ? payload.finalValues
+          : {},
+      timestamp: typeof payload.timestamp === "number" && Number.isFinite(payload.timestamp) ? payload.timestamp : Date.now(),
+      ...(payload.simulation != null && typeof payload.simulation === "object" && !Array.isArray(payload.simulation)
+        ? { simulation: payload.simulation }
+        : {}),
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * @param {{
+ *   rowId: string,
+ *   moduleId: string,
+ *   originalValues?: Record<string, unknown>,
+ *   finalValues?: Record<string, unknown>,
+ *   filename?: string,
+ *   timestamp?: number,
+ * }} payload
+ */
+export function recordCapabilityOverrideApi(payload = {}) {
+  return recordCapabilityOverrideFeedback({
+    rowId: String(payload.rowId ?? "").trim(),
+    moduleId: String(payload.moduleId ?? "").trim(),
+    originalValues:
+      payload.originalValues != null && typeof payload.originalValues === "object" && !Array.isArray(payload.originalValues)
+        ? payload.originalValues
+        : {},
+    finalValues:
+      payload.finalValues != null && typeof payload.finalValues === "object" && !Array.isArray(payload.finalValues)
+        ? payload.finalValues
+        : {},
+    filename: typeof payload.filename === "string" ? payload.filename : undefined,
+    timestamp: typeof payload.timestamp === "number" && Number.isFinite(payload.timestamp) ? payload.timestamp : Date.now(),
+  });
+}
+
+/**
+ * @param {{
+ *   row: unknown,
+ *   rowIndex: number,
+ *   allRows: unknown[],
+ *   cwd?: string,
+ *   inputOverrides?: Record<string, unknown>,
+ * }} payload
+ */
+export async function previewCapabilityRowApi(payload = {}) {
+  try {
+    const { previewCapabilityForRow } = await import("../workflow/modules/capabilities/attachCapabilityResults.js");
+    const rowIndex = typeof payload.rowIndex === "number" && payload.rowIndex >= 0 ? payload.rowIndex : 0;
+    const allRows = Array.isArray(payload.allRows) ? payload.allRows : [];
+    const row = payload.row ?? allRows[rowIndex];
+    const cwd = typeof payload.cwd === "string" ? payload.cwd : undefined;
+    const inputOverrides =
+      payload.inputOverrides != null && typeof payload.inputOverrides === "object" && !Array.isArray(payload.inputOverrides)
+        ? payload.inputOverrides
+        : {};
+    const cap = await previewCapabilityForRow({ row, rowIndex, allRows, cwd, inputOverrides });
+    return { ok: true, capability: cap };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }

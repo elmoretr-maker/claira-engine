@@ -14,6 +14,32 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKER = path.join(__dirname, "hfInferenceWorker.mjs");
 
 /**
+ * Mirrors dev/validatePhase8 token heuristic — placeholder tokens must not trigger worker spawn.
+ * @param {string | undefined} t
+ * @returns {boolean}
+ */
+function looksLikeUsableHuggingFaceToken(t) {
+  if (t == null || typeof t !== "string") return false;
+  const s = t.trim();
+  if (s.length < 8) return false;
+  const lower = s.toLowerCase();
+  if (lower === "your_token_here" || lower.startsWith("your_")) return false;
+  return true;
+}
+
+/**
+ * When HF is disabled or no real token: do not spawn the worker (no subprocess, no model load).
+ * @returns {boolean} true if inference must be skipped (caller returns null → heuristic path).
+ */
+function mustSkipHuggingFaceInference() {
+  loadRootEnv();
+  if (process.env.HF_DISABLE === "1") return true;
+  const raw =
+    process.env.HUGGINGFACE_API_TOKEN || process.env.HF_TOKEN || process.env.HUGGING_FACE_HUB_TOKEN || "";
+  return !looksLikeUsableHuggingFaceToken(raw);
+}
+
+/**
  * Run HF worker synchronously (blocks until complete, timeout, or parse error).
  * @param {{ id: string, ref: string, entityId?: string }} asset
  * @returns {import("../imageAnalysisProvider.js").ImageAnalysisResult | null}
@@ -60,6 +86,7 @@ export const huggingFaceProvider = {
    */
   analyzeImage(asset) {
     if (asset == null || typeof asset !== "object") return null;
+    if (mustSkipHuggingFaceInference()) return null;
     return runHfWorkerSync(asset);
   },
 };

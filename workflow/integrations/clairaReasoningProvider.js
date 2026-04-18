@@ -6,17 +6,21 @@
  * Phase 17.1: batch-aware precedence, smart fallback, fallback observability + batch metrics.
  * Phase 17.2: signal agreement score, conflict level, context-aware thresholds + confidence shaping.
  * Phase 17.3: signalState (strong / moderate / conflict / weak_signals) for observability.
+ * Phase 18: deterministic group-pattern memory reinforcement + historical confidence blend.
  */
 
 import {
   basenameOnly,
   computeFilenamePatternTokens,
   computeSemanticMatchScoreIntrinsicDetailed,
+  computeGroupPatternMemoryMetrics,
   findGroupPatternMatch,
   findLearningMatch,
   findSemanticMemoryMatch,
   getDominantFeedbackCategories,
+  getGroupPatternEntry,
   recordGroupPattern,
+  registerGroupPatternOutcome,
   embeddingSignatureFrom,
 } from "../feedback/feedbackStore.js";
 
@@ -88,6 +92,11 @@ import {
  *   signalConflictLevel?: "low" | "medium" | "high",
  *   effectiveThreshold?: number,
  *   signalState?: "strong_agreement" | "moderate_agreement" | "conflict" | "weak_signals",
+ *   memoryInfluenceScore?: number | null,
+ *   weightTier?: "high" | "medium" | "low" | null,
+ *   historicalConfidence?: number | null,
+ *   usageCount?: number | null,
+ *   successRate?: number | null,
  * }} ClairaReasoningResult
  */
 
@@ -1574,6 +1583,11 @@ export function finalizeGroupClairaResults(items) {
       semanticTokens: Array.isArray(cr.semanticTokens) ? cr.semanticTokens.map((x) => String(x)) : [],
       labelThemes: themes,
       groupType: gType,
+      routeContext: {
+        hierarchyHint: typeof cr.hierarchyHint === "string" ? cr.hierarchyHint : null,
+        groupType: gType,
+        finalCategory: winner,
+      },
     });
   }
 }
@@ -1936,6 +1950,21 @@ export function defaultWorkflowClairaReasoning(input) {
     reasoningConfidence = Math.min(1, reasoningConfidence + 0.026);
   }
 
+  /** @type {ReturnType<typeof computeGroupPatternMemoryMetrics> | null} */
+  let phase18Memory = null;
+  if (groupPat != null) {
+    const gs = String(groupPat.groupSignature);
+    const baseSem = groupPat.patternMatchScore ?? groupPat.patternScore ?? 0;
+    registerGroupPatternOutcome(gs, reviewRecommended ? "review" : refinedCategory);
+    const entry = getGroupPatternEntry(gs);
+    if (entry != null) {
+      phase18Memory = computeGroupPatternMemoryMetrics(entry, baseSem, contextFactor);
+      const hc = phase18Memory.historicalConfidence;
+      reasoningConfidence = Number((0.7 * reasoningConfidence + 0.3 * hc).toFixed(6));
+      reasoningConfidence = Math.min(1, reasoningConfidence);
+    }
+  }
+
   const confidenceBreakdown = {
     perceptionConfidence,
     validationConfidence,
@@ -2038,6 +2067,11 @@ export function defaultWorkflowClairaReasoning(input) {
     signalAgreementScore: phase172Ag.signalAgreementScore,
     signalConflictLevel: phase172Ag.signalConflictLevel,
     signalState,
+    memoryInfluenceScore: phase18Memory != null ? phase18Memory.memoryInfluenceScore : null,
+    weightTier: phase18Memory != null ? phase18Memory.weightTier : null,
+    historicalConfidence: phase18Memory != null ? phase18Memory.historicalConfidence : null,
+    usageCount: phase18Memory != null ? phase18Memory.usageCount : null,
+    successRate: phase18Memory != null ? phase18Memory.successRate : null,
     effectiveThreshold,
     effectiveThresholds: {
       cosineSemantic: effectiveCosineThreshold,
@@ -2055,6 +2089,12 @@ export function defaultWorkflowClairaReasoning(input) {
       phase17_1: true,
       phase17_2: true,
       phase17_3: true,
+      phase18: true,
+      memoryInfluenceScore: phase18Memory != null ? phase18Memory.memoryInfluenceScore : null,
+      weightTier: phase18Memory != null ? phase18Memory.weightTier : null,
+      historicalConfidence: phase18Memory != null ? phase18Memory.historicalConfidence : null,
+      usageCount: phase18Memory != null ? phase18Memory.usageCount : null,
+      successRate: phase18Memory != null ? phase18Memory.successRate : null,
       filename,
       hfLabels: labels,
       labelThemes: themes,
@@ -2187,6 +2227,12 @@ function inactiveResult(input) {
       fallbackReason: "missing_data",
       fallbackRate: null,
       signalState: "weak_signals",
+      phase18: false,
+      memoryInfluenceScore: null,
+      weightTier: null,
+      historicalConfidence: null,
+      usageCount: null,
+      successRate: null,
     },
     active: false,
     semanticSimilarityScore: null,
@@ -2220,6 +2266,11 @@ function inactiveResult(input) {
     signalAgreementScore: 0,
     signalConflictLevel: "low",
     signalState: "weak_signals",
+    memoryInfluenceScore: null,
+    weightTier: null,
+    historicalConfidence: null,
+    usageCount: null,
+    successRate: null,
     effectiveThreshold: 0.82,
   };
 }
