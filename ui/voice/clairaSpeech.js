@@ -74,6 +74,16 @@ function describeHtmlMediaError(media) {
 }
 
 /**
+ * Chromium often reports a broken audio *sink* as MEDIA_ERR_DECODE with PipelineStatus::AUDIO_RENDERER_*.
+ * Web Audio uses the same output path, so it will usually fail or hang — go straight to speechSynthesis.
+ * @param {HTMLAudioElement | null} media
+ */
+function shouldSkipWebAudioAfterHtmlFailure(media) {
+  const s = describeHtmlMediaError(media);
+  return /AUDIO_RENDERER|RENDERER_ERROR|PipelineStatus|audio render error/i.test(s);
+}
+
+/**
  * Wait until the element can play through, or error — validates decode for many browsers.
  * @param {HTMLAudioElement} media
  * @param {number} myGen
@@ -292,7 +302,12 @@ function speakViaBrowserSpeechSynthesis(text, myGen) {
       resolve(ok);
     };
     u.onend = () => done(true);
-    u.onerror = () => done(false);
+    u.onerror = (ev) => {
+      if (import.meta.env?.DEV) {
+        console.warn("[Claira] speechSynthesis utterance error:", ev);
+      }
+      done(false);
+    };
     try {
       window.speechSynthesis.speak(u);
     } catch {
@@ -810,9 +825,22 @@ async function playClairaTtsUtterance(t, myGen) {
     }
 
     if (wait === "element_failed") {
-      voiceDbg("HTMLAudio playback error; trying Web Audio / speechSynth");
+      const skipWebAudio = shouldSkipWebAudioAfterHtmlFailure(audio);
+      voiceDbg("HTMLAudio playback error; fallback", { skipWebAudio });
       dropLocals();
       if (myGen !== playbackGeneration) return false;
+      if (skipWebAudio) {
+        logEmbeddedAudioFallbackHint();
+        const synthOk = await speakViaBrowserSpeechSynthesis(t, myGen);
+        if (synthOk) {
+          if (import.meta.env?.DEV) {
+            console.log("[Claira] speechSynthesis fallback finished OK");
+          }
+          notifyClairaSpeechComplete();
+          return true;
+        }
+        return false;
+      }
       return await playWebAudioOrSpeechSynthFallback(t, ab, myGen);
     }
 
