@@ -237,6 +237,97 @@ function playArrayBufferWithWebAudio(ab, myGen) {
   });
 }
 
+/** Log once — embedded IDE browsers often have no working audio output path. */
+let loggedEmbeddedAudioFallbackHint = false;
+
+function logEmbeddedAudioFallbackHint() {
+  if (loggedEmbeddedAudioFallbackHint) return;
+  loggedEmbeddedAudioFallbackHint = true;
+  console.warn(
+    "[Claira] This browser’s audio output failed (common in embedded IDE previews). " +
+      "For full Edge TTS quality, open http://127.0.0.1:8151 in Chrome or Edge. " +
+      "Using the OS/browser speech synthesizer as a fallback.",
+  );
+}
+
+/**
+ * Last resort when MP3 playback cannot render (AUDIO_RENDERER_ERROR, broken Web Audio device, etc.).
+ * @param {string} text
+ * @param {number} myGen
+ * @returns {Promise<boolean>}
+ */
+function speakViaBrowserSpeechSynthesis(text, myGen) {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      resolve(false);
+      return;
+    }
+    const line = String(text ?? "").trim();
+    if (!line) {
+      resolve(false);
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      /* ignore */
+    }
+    const u = new SpeechSynthesisUtterance(line);
+    u.lang = "en-US";
+    let iv = setInterval(() => {
+      if (myGen !== playbackGeneration) {
+        if (iv) clearInterval(iv);
+        iv = null;
+        try {
+          window.speechSynthesis.cancel();
+        } catch {
+          /* ignore */
+        }
+        resolve(false);
+      }
+    }, 80);
+    const done = (/** @type {boolean} */ ok) => {
+      if (iv) clearInterval(iv);
+      iv = null;
+      resolve(ok);
+    };
+    u.onend = () => done(true);
+    u.onerror = () => done(false);
+    try {
+      window.speechSynthesis.speak(u);
+    } catch {
+      done(false);
+    }
+  });
+}
+
+/**
+ * Try Web Audio; on failure, optional speechSynthesis (renderer / device errors).
+ * @param {string} line
+ * @param {ArrayBuffer} ab
+ * @param {number} myGen
+ */
+async function playWebAudioOrSpeechSynthFallback(line, ab, myGen) {
+  try {
+    const ok = await playArrayBufferWithWebAudio(ab, myGen);
+    if (ok) {
+      notifyClairaSpeechComplete();
+      return true;
+    }
+    return false;
+  } catch (we) {
+    if (myGen !== playbackGeneration) return false;
+    console.error("[Claira] Web Audio playback failed:", we);
+    logEmbeddedAudioFallbackHint();
+    const synthOk = await speakViaBrowserSpeechSynthesis(line, myGen);
+    if (synthOk) {
+      notifyClairaSpeechComplete();
+      return true;
+    }
+    return false;
+  }
+}
+
 /**
  * @param {HTMLMediaElement} media
  * @param {number} myGen
@@ -491,6 +582,13 @@ export function cancelClairaSpeech() {
     }
     cancelWebAudioUtterance = null;
   }
+  if (typeof window !== "undefined") {
+    try {
+      window.speechSynthesis?.cancel();
+    } catch {
+      /* ignore */
+    }
+  }
   if (currentAudio) {
     try {
       currentAudio.pause();
@@ -648,19 +746,10 @@ async function playClairaTtsUtterance(t, myGen) {
         dropLocals();
         return false;
       }
-      voiceDbg("HTMLAudio load/decode failed; trying Web Audio", loadErr);
+      voiceDbg("HTMLAudio load/decode failed; trying Web Audio / speechSynth", loadErr);
       dropLocals();
       if (myGen !== playbackGeneration) return false;
-      try {
-        const ok = await playArrayBufferWithWebAudio(ab, myGen);
-        if (!ok) return false;
-        notifyClairaSpeechComplete();
-        return true;
-      } catch (we) {
-        console.error("[Claira] Web Audio fallback failed after load error:", we);
-        if (myGen !== playbackGeneration) return false;
-        throw we;
-      }
+      return await playWebAudioOrSpeechSynthFallback(t, ab, myGen);
     }
 
     if (myGen !== playbackGeneration) {
@@ -721,19 +810,10 @@ async function playClairaTtsUtterance(t, myGen) {
     }
 
     if (wait === "element_failed") {
-      voiceDbg("HTMLAudio playback error; trying Web Audio decode path");
+      voiceDbg("HTMLAudio playback error; trying Web Audio / speechSynth");
       dropLocals();
       if (myGen !== playbackGeneration) return false;
-      try {
-        const ok = await playArrayBufferWithWebAudio(ab, myGen);
-        if (!ok) return false;
-        notifyClairaSpeechComplete();
-        return true;
-      } catch (we) {
-        console.error("[Claira] Web Audio fallback failed after element error:", we);
-        if (myGen !== playbackGeneration) return false;
-        throw we;
-      }
+      return await playWebAudioOrSpeechSynthFallback(t, ab, myGen);
     }
 
     dropLocals();
