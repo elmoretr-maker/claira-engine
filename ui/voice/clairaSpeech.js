@@ -56,6 +56,188 @@ function logIfUnexpectedAudioMime(headerCt, blobType, blobSize) {
 }
 
 /**
+ * @param {HTMLMediaElement | null} media
+ * @returns {string}
+ */
+function describeHtmlMediaError(media) {
+  const e = media?.error;
+  if (!e) return "unknown media error (no MediaError)";
+  /** @type {Record<number, string>} */
+  const names = {
+    1: "MEDIA_ERR_ABORTED",
+    2: "MEDIA_ERR_NETWORK",
+    3: "MEDIA_ERR_DECODE",
+    4: "MEDIA_ERR_SRC_NOT_SUPPORTED",
+  };
+  const label = names[e.code] ?? `code_${e.code}`;
+  return `${label}${e.message ? `: ${e.message}` : ""}`;
+}
+
+/**
+ * Wait until the element can play through, or error — validates decode for many browsers.
+ * @param {HTMLAudioElement} media
+ * @param {number} myGen
+ * @param {number} [timeoutMs]
+ * @returns {Promise<void>}
+ */
+function waitForAudioElementCanPlayThrough(media, myGen, timeoutMs = 60_000) {
+  return new Promise((resolve, reject) => {
+    if (myGen !== playbackGeneration) {
+      resolve();
+      return;
+    }
+    try {
+      if (media.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+        resolve();
+        return;
+      }
+    } catch {
+      /* continue */
+    }
+    let to = 0;
+    const cleanup = () => {
+      if (to) window.clearTimeout(to);
+      media.removeEventListener("canplaythrough", onReady);
+      media.removeEventListener("error", onErr);
+    };
+    const onReady = () => {
+      if (myGen !== playbackGeneration) {
+        cleanup();
+        reject(new Error("superseded"));
+        return;
+      }
+      cleanup();
+      resolve();
+    };
+    const onErr = () => {
+      cleanup();
+      reject(new Error(`audio load/decode: ${describeHtmlMediaError(media)}`));
+    };
+    to = window.setTimeout(() => {
+      if (myGen !== playbackGeneration) {
+        cleanup();
+        reject(new Error("superseded"));
+        return;
+      }
+      cleanup();
+      reject(new Error("audio load timeout (canplaythrough)"));
+    }, timeoutMs);
+    media.addEventListener("canplaythrough", onReady, { once: true });
+    media.addEventListener("error", onErr, { once: true });
+  });
+}
+
+/** Stops Web Audio fallback when {@link cancelClairaSpeech} runs mid-utterance. */
+let cancelWebAudioUtterance = null;
+
+/**
+ * Decode MP3 (or other supported codec) and play via Web Audio — works when HTMLAudioElement fails (e.g. some embedded webviews).
+ * @param {ArrayBuffer} ab
+ * @param {number} myGen
+ * @returns {Promise<boolean>} true if playback finished
+ */
+function playArrayBufferWithWebAudio(ab, myGen) {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Web Audio: no window"));
+      return;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) {
+      reject(new Error("Web Audio API unavailable"));
+      return;
+    }
+    const ctx = new AC();
+    let source = /** @type {AudioBufferSourceNode | null} */ (null);
+    let iv = /** @type {ReturnType<typeof setInterval> | null} */ (null);
+
+    const teardown = () => {
+      if (iv) {
+        clearInterval(iv);
+        iv = null;
+      }
+      cancelWebAudioUtterance = null;
+      try {
+        void ctx.close();
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const stopAll = () => {
+      try {
+        source?.stop(0);
+      } catch {
+        /* ignore */
+      }
+      source = null;
+      teardown();
+    };
+
+    cancelWebAudioUtterance = () => {
+      stopAll();
+    };
+
+    iv = setInterval(() => {
+      if (myGen !== playbackGeneration) {
+        stopAll();
+        resolve(false);
+      }
+    }, 80);
+
+    ctx
+      .decodeAudioData(ab.slice(0))
+      .then((buffer) => {
+        if (myGen !== playbackGeneration) {
+          stopAll();
+          resolve(false);
+          return;
+        }
+        source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.onended = () => {
+          if (iv) {
+            clearInterval(iv);
+            iv = null;
+          }
+          cancelWebAudioUtterance = null;
+          try {
+            void ctx.close();
+          } catch {
+            /* ignore */
+          }
+          resolve(true);
+        };
+
+        const start = () => {
+          if (myGen !== playbackGeneration) {
+            stopAll();
+            resolve(false);
+            return;
+          }
+          try {
+            source?.start(0);
+          } catch (e) {
+            stopAll();
+            reject(e instanceof Error ? e : new Error(String(e)));
+          }
+        };
+
+        if (ctx.state === "suspended") {
+          void ctx.resume().then(start).catch(reject);
+        } else {
+          start();
+        }
+      })
+      .catch((e) => {
+        stopAll();
+        reject(e instanceof Error ? e : new Error(String(e)));
+      });
+  });
+}
+
+/**
  * @param {HTMLMediaElement} media
  * @param {number} myGen
  * @returns {Promise<void>}
@@ -301,6 +483,14 @@ export function cancelClairaSpeech() {
   voiceDbg("cancelClairaSpeech()");
   playbackGeneration += 1;
   queuedNonInterruptText = null;
+  if (cancelWebAudioUtterance) {
+    try {
+      cancelWebAudioUtterance();
+    } catch {
+      /* ignore */
+    }
+    cancelWebAudioUtterance = null;
+  }
   if (currentAudio) {
     try {
       currentAudio.pause();
@@ -400,13 +590,17 @@ async function playClairaTtsUtterance(t, myGen) {
       return false;
     }
 
-    const blob = await res.blob();
+    const ab = await res.arrayBuffer();
     const headerCt = res.headers.get("content-type") || "";
-    console.log("[Claira] blob size:", blob.size);
+    const mimePart = headerCt.split(";")[0].trim().toLowerCase();
+    const blobMime = mimePart.startsWith("audio/") ? mimePart : "audio/mpeg";
+    const safeBlob = new Blob([ab], { type: blobMime });
 
-    logIfUnexpectedAudioMime(headerCt, blob.type, blob.size);
+    console.log("[Claira] buffer size:", ab.byteLength);
 
-    if (!blob.size || blob.type.includes("json") || headerCt.includes("application/json")) {
+    logIfUnexpectedAudioMime(headerCt, blobMime, ab.byteLength);
+
+    if (!ab.byteLength || headerCt.includes("application/json")) {
       console.warn(
         "[Claira] TTS response was not audio — check API on PORT and POST /__claira/tts (Edge).",
       );
@@ -416,11 +610,11 @@ async function playClairaTtsUtterance(t, myGen) {
     }
 
     if (myGen !== playbackGeneration) {
-      voiceDbg("aborted: generation changed after blob");
+      voiceDbg("aborted: generation changed after buffer");
       return false;
     }
 
-    url = URL.createObjectURL(blob);
+    url = URL.createObjectURL(safeBlob);
     voiceDbg("object URL created");
 
     if (myGen !== playbackGeneration) {
@@ -431,9 +625,43 @@ async function playClairaTtsUtterance(t, myGen) {
     currentObjectUrl = url;
     audio = new Audio();
     currentAudio = audio;
+    try {
+      audio.playsInline = true;
+      audio.setAttribute("playsInline", "");
+    } catch {
+      /* ignore */
+    }
     audio.preload = "auto";
     audio.src = url;
     audio.load();
+
+    if (myGen !== playbackGeneration) {
+      dropLocals();
+      return false;
+    }
+
+    try {
+      await waitForAudioElementCanPlayThrough(audio, myGen);
+    } catch (loadErr) {
+      const msg = loadErr instanceof Error ? loadErr.message : String(loadErr);
+      if (msg === "superseded" || msg.includes("superseded")) {
+        dropLocals();
+        return false;
+      }
+      voiceDbg("HTMLAudio load/decode failed; trying Web Audio", loadErr);
+      dropLocals();
+      if (myGen !== playbackGeneration) return false;
+      try {
+        const ok = await playArrayBufferWithWebAudio(ab, myGen);
+        if (!ok) return false;
+        notifyClairaSpeechComplete();
+        return true;
+      } catch (we) {
+        console.error("[Claira] Web Audio fallback failed after load error:", we);
+        if (myGen !== playbackGeneration) return false;
+        throw we;
+      }
+    }
 
     if (myGen !== playbackGeneration) {
       dropLocals();
@@ -455,7 +683,7 @@ async function playClairaTtsUtterance(t, myGen) {
       return false;
     }
 
-    const wait = await new Promise((resolve, reject) => {
+    const wait = await new Promise((resolve) => {
       let iv = setInterval(() => {
         if (myGen !== playbackGeneration) {
           if (iv) clearInterval(iv);
@@ -481,8 +709,8 @@ async function playClairaTtsUtterance(t, myGen) {
       };
       audio.onerror = () => {
         stopIv();
-        console.error("[Claira] audio element onerror");
-        reject(new Error("audio playback failed"));
+        console.error("[Claira] audio element onerror", describeHtmlMediaError(audio));
+        resolve(/** @type {const} */ ("element_failed"));
       };
     });
 
@@ -490,6 +718,22 @@ async function playClairaTtsUtterance(t, myGen) {
       voiceDbg("playback superseded");
       dropLocals();
       return false;
+    }
+
+    if (wait === "element_failed") {
+      voiceDbg("HTMLAudio playback error; trying Web Audio decode path");
+      dropLocals();
+      if (myGen !== playbackGeneration) return false;
+      try {
+        const ok = await playArrayBufferWithWebAudio(ab, myGen);
+        if (!ok) return false;
+        notifyClairaSpeechComplete();
+        return true;
+      } catch (we) {
+        console.error("[Claira] Web Audio fallback failed after element error:", we);
+        if (myGen !== playbackGeneration) return false;
+        throw we;
+      }
     }
 
     dropLocals();
