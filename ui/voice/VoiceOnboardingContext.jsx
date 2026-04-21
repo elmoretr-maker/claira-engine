@@ -6,19 +6,43 @@ import {
   speakClaira,
   speakClairaByMode,
 } from "./clairaSpeech.js";
+import { getVoiceScriptForStep } from "./clairaVoiceSteps.js";
+import {
+  getHtmlVoiceAudio,
+  isVoiceOutputMuted,
+  pauseVoiceAudio,
+  resumeVoiceAudio,
+  setVoiceOutputMuted,
+  subscribeVoiceAudio,
+} from "./localVoicePlayback.js";
+import { ONBOARDING_TOTAL_STEPS } from "../onboarding/onboardingFlowMeta.js";
 
 const DEBOUNCE_MS = 380;
 
-/** @type {import("react").Context<unknown>} */
-const VoiceOnboardingContext = createContext(null);
+/**
+ * Exported so `useVoiceOnboarding.js` can import the context object without
+ * re-exporting it from this file (keeping Fast Refresh happy — all exports here
+ * are React components, not hooks).
+ *
+ * @type {import("react").Context<unknown>}
+ */
+export const VoiceOnboardingContext = createContext(null);
 
 /**
  * @param {{ children: import("react").ReactNode }} props
  */
 export function VoiceOnboardingProvider({ children }) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  /** Voice output uses server Edge TTS only (no browser speechSynthesis). */
+  /** Mirrors {@link isVoiceOutputMuted} for UI (volume mute, not OS mixer). */
+  const [voiceOutputMuted, setVoiceOutputMutedState] = useState(() => isVoiceOutputMuted());
+  /** Voice: local pre-baked MP3 first (voice-manifest), then stream fallback — in-browser `HTMLAudioElement` only. */
   const [voiceSupported] = useState(() => typeof window !== "undefined");
+
+  /** Route-derived voice step (0–9) for the current onboarding page; drives replay and "current line". */
+  const [currentVoiceStep, setCurrentVoiceStep] = useState(/** @type {number | null} */ (null));
+  const [currentVoiceScript, setCurrentVoiceScript] = useState("");
+  const currentVoiceScriptRef = useRef("");
+  const routeVoiceStepRef = useRef(/** @type {number | null} */ (null));
 
   const voiceEnabledRef = useRef(voiceEnabled);
   const scheduleRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
@@ -28,7 +52,15 @@ export function VoiceOnboardingProvider({ children }) {
   }, [voiceEnabled]);
 
   useEffect(() => {
+    currentVoiceScriptRef.current = currentVoiceScript;
+  }, [currentVoiceScript]);
+
+  useEffect(() => {
     void initClairaVoiceClient();
+  }, []);
+
+  useEffect(() => {
+    return subscribeVoiceAudio(() => setVoiceOutputMutedState(isVoiceOutputMuted()));
   }, []);
 
   useEffect(() => {
@@ -85,9 +117,12 @@ export function VoiceOnboardingProvider({ children }) {
         if (import.meta.env?.DEV) console.warn("[Claira] speakOnboardingLine: voice disabled, skip");
         return;
       }
+      if (isVoiceOutputMuted()) {
+        if (import.meta.env?.DEV) console.warn("[Claira] speakOnboardingLine: output muted, skip");
+        return;
+      }
 
       if (interrupt) {
-        cancelClairaSpeech();
         void speakClairaByMode(t, { interrupt: true });
         return;
       }
@@ -106,46 +141,107 @@ export function VoiceOnboardingProvider({ children }) {
     speakOnboardingLineRef.current = speakOnboardingLine;
   }, [speakOnboardingLine]);
 
-  const replayOnboardingLine = useCallback(
-    (text) => {
-      if (import.meta.env?.DEV) console.log("[Claira] replayOnboardingLine (Hear it again)");
-      clearSchedule();
-      cancelClairaSpeech();
-      const t = String(text ?? "").trim();
-      if (!t || !voiceEnabledRef.current) return;
-      void speakClaira(t, { interrupt: true });
+  /**
+   * Sync route → current page script. On step change, stops prior speech so autoplay/replay never overlap.
+   * @param {number | null} step
+   */
+  const syncVoiceFromRoute = useCallback(
+    (step) => {
+      let n = null;
+      if (typeof step === "number" && Number.isFinite(step)) {
+        n = Math.floor(step);
+      }
+      const prev = routeVoiceStepRef.current;
+      if (prev !== n) {
+        routeVoiceStepRef.current = n;
+        cancelClairaSpeech();
+      }
+      setCurrentVoiceStep(n);
+      let text = "";
+      if (n != null && n >= 0 && n <= ONBOARDING_TOTAL_STEPS) {
+        text = String(getVoiceScriptForStep(n) ?? "").trim();
+      }
+      currentVoiceScriptRef.current = text;
+      setCurrentVoiceScript(text);
+      // Step 0 = Welcome screen: user-triggered only, never autoplay on mount.
+      if (prev !== n && n !== 0 && text && voiceEnabledRef.current && !isVoiceOutputMuted()) {
+        void speakClaira(text, { interrupt: true });
+      }
     },
-    [clearSchedule],
+    [cancelClairaSpeech],
   );
 
+  const replayCurrentVoice = useCallback(async () => {
+    if (import.meta.env?.DEV) console.log("[Claira] replayCurrentVoice (Hear it again)");
+    await primeClairaVoicePlayback();
+    clearSchedule();
+    const t = String(currentVoiceScriptRef.current ?? "").trim();
+    if (!t || !voiceEnabledRef.current) return;
+    if (isVoiceOutputMuted()) return;
+    cancelClairaSpeech();
+    void speakClaira(t, { interrupt: true });
+  }, [clearSchedule]);
+
+  const pauseVoicePlayback = useCallback(() => {
+    pauseVoiceAudio();
+  }, []);
+
+  const playOrResumeCurrentPageVoice = useCallback(async () => {
+    await primeClairaVoicePlayback();
+    if (!voiceEnabledRef.current || isVoiceOutputMuted()) return;
+    const html = getHtmlVoiceAudio();
+    if (html && !html.paused && !html.ended) {
+      return;
+    }
+    if (html && html.paused && !html.ended) {
+      const ok = await resumeVoiceAudio();
+      if (ok) return;
+    }
+    const t = String(currentVoiceScriptRef.current ?? "").trim();
+    if (!t) return;
+    void speakClaira(t, { interrupt: true });
+  }, []);
+
+  /**
+   * Toggles output **mute** — sets `audio.volume` to 0 or restores it.
+   * Does NOT pause the audio element; video keeps playing, audio plays silently when muted.
+   */
   const toggleVoice = useCallback(() => {
-    void (async () => {
-      await primeClairaVoicePlayback();
-      setVoiceEnabled((v) => {
-        if (v) cancelAllSpeech();
-        return !v;
-      });
-    })();
-  }, [cancelAllSpeech]);
+    const nextMuted = !isVoiceOutputMuted();
+    setVoiceOutputMuted(nextMuted);
+    setVoiceOutputMutedState(nextMuted);
+  }, []);
 
   const value = useMemo(
     () => ({
       voiceEnabled,
+      voiceOutputMuted,
       voiceSupported,
+      currentVoiceStep,
+      currentVoiceScript,
       setVoiceEnabled,
       toggleVoice,
       speakOnboardingLine,
       speakOnboardingLineRef,
-      replayOnboardingLine,
+      syncVoiceFromRoute,
+      replayCurrentVoice,
+      pauseVoicePlayback,
+      playOrResumeCurrentPageVoice,
       cancelAllSpeech,
       cancelPendingVoiceSchedule,
     }),
     [
       voiceEnabled,
+      voiceOutputMuted,
       voiceSupported,
+      currentVoiceStep,
+      currentVoiceScript,
       toggleVoice,
       speakOnboardingLine,
-      replayOnboardingLine,
+      syncVoiceFromRoute,
+      replayCurrentVoice,
+      pauseVoicePlayback,
+      playOrResumeCurrentPageVoice,
       cancelAllSpeech,
       cancelPendingVoiceSchedule,
     ],
@@ -154,8 +250,21 @@ export function VoiceOnboardingProvider({ children }) {
   return <VoiceOnboardingContext.Provider value={value}>{children}</VoiceOnboardingContext.Provider>;
 }
 
-export function useVoiceOnboarding() {
-  const ctx = useContext(VoiceOnboardingContext);
-  if (!ctx) throw new Error("useVoiceOnboarding must be used within VoiceOnboardingProvider");
-  return ctx;
+/**
+ * Keeps {@link VoiceOnboardingProvider}'s `currentVoiceStep` / `currentVoiceScript` aligned with route
+ * and triggers one autoplay per step change via `speakClaira` inside `syncVoiceFromRoute`.
+ *
+ * Uses `useContext` directly (not the `useVoiceOnboarding` hook) to avoid a circular
+ * module dependency with `useVoiceOnboarding.js`.
+ *
+ * @param {{ step: number | null }} props
+ */
+export function VoiceOnboardingRouteSync({ step }) {
+  const { syncVoiceFromRoute } = /** @type {{ syncVoiceFromRoute: (s: number | null) => void }} */ (
+    useContext(VoiceOnboardingContext)
+  );
+  useEffect(() => {
+    syncVoiceFromRoute(step);
+  }, [step, syncVoiceFromRoute]);
+  return null;
 }

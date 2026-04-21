@@ -169,6 +169,28 @@ body {
   border-color: color-mix(in srgb, var(--text-secondary) 35%, transparent);
 }
 
+/* Inline speaker button — sits absolute top-right inside a position:relative wrapper */
+.inline-voice-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.inline-voice-btn:hover {
+  opacity: 1;
+  border-color: var(--text-secondary);
+}
+
 /* Screen change (see also .app-screen-fade keyframes) */
 .fade-enter {
   opacity: 0;

@@ -117,6 +117,20 @@
   z-index: 2;
 }
 
+.welcome-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.welcome-play-btn {
+  font-size: 0.95rem;
+  padding: 0.35rem 0.85rem;
+  white-space: nowrap;
+}
+
 .welcome-page-title {
   text-align: center;
   font-size: clamp(2rem, 5.2vw, 2.85rem);

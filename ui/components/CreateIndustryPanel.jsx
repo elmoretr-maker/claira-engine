@@ -35,6 +35,7 @@ import {
   transitionSelectToConfirm,
 } from "../../workflow/state/workflowBuildState.js";
 import IndustryBuildReport from "./IndustryBuildReport.jsx";
+import { InlineVoiceButton } from "../voice/InlineVoiceButton.jsx";
 import "./CreateIndustryPanel.css";
 
 /**
@@ -104,7 +105,15 @@ export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreat
     setQualityGate(null);
     const trimmed = buildState.industryName.trim();
     if (!trimmed) {
-      setError("Enter an industry name.");
+      setError("Please enter a category name before reviewing modules.");
+      return;
+    }
+    if (!net?.connected) {
+      setError(
+        net === null
+          ? "Please check your internet connection first — click the \"Check connection\" button above."
+          : "An internet connection is required to analyze modules. Please fix your connection and try again.",
+      );
       return;
     }
     setPreviewBusy(true);
@@ -399,7 +408,8 @@ export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreat
         Create Your Category
       </h2>
 
-      <div className="create-industry-intro">
+      <div className="create-industry-intro create-industry-intro--with-voice">
+        <InlineVoiceButton voiceKey="industry_create_intro" />
         <p>
           If you don’t have a category yet—or you want a fresh one shaped around what you do—we’ll build one from the
           name you give, after you confirm which workflow modules you want.
@@ -649,7 +659,7 @@ export default function CreateIndustryPanel({ reloadPacks, activatePack, onCreat
           <button
             type="button"
             className="btn btn-primary create-industry-build"
-            disabled={!canReview}
+            disabled={inputLocked}
             onClick={() => void runReviewModules()}
           >
             {previewBusy ? "Analyzing…" : "Review modules"}

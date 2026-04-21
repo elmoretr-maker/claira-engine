@@ -1,33 +1,33 @@
-import { primeClairaVoicePlayback } from "./clairaSpeech.js";
-import { getVoiceScriptForStep } from "./clairaVoiceSteps.js";
-import { useVoiceOnboarding } from "./VoiceOnboardingContext.jsx";
+import { useVoiceOnboarding } from "./useVoiceOnboarding.js";
 import "./ClairaVoiceChrome.css";
 
 /**
- * @param {{ step?: number, overrideScript?: string }} props
+ * "Hear it again" button.
+ * @param {{ onReplay?: () => void | Promise<void> }} props
+ *   When `onReplay` is provided (Welcome screen), clicking restarts both video and voice.
+ *   Otherwise falls back to `replayCurrentVoice` (voice only).
  */
-export function ClairaVoiceReplay({ step, overrideScript }) {
-  const { replayOnboardingLine, voiceEnabled, voiceSupported } = useVoiceOnboarding();
+export function ClairaVoiceReplay({ onReplay }) {
+  const { replayCurrentVoice, voiceEnabled, voiceOutputMuted, voiceSupported, currentVoiceScript } = useVoiceOnboarding();
   if (!voiceSupported) return null;
 
-  const fromOverride = typeof overrideScript === "string" ? overrideScript.trim() : "";
-  const fromStep =
-    typeof step === "number" && Number.isFinite(step) ? getVoiceScriptForStep(step) ?? "" : "";
-  const resolved = fromOverride || fromStep;
+  const resolved = String(currentVoiceScript ?? "").trim();
+  const handleClick = onReplay ?? (() => void replayCurrentVoice());
 
   return (
     <button
       type="button"
       className="claira-voice-replay btn btn-secondary"
-      disabled={!voiceEnabled || !resolved}
-      onClick={() =>
-        void (async () => {
-          await primeClairaVoicePlayback();
-          replayOnboardingLine(resolved);
-        })()
+      disabled={!voiceEnabled || voiceOutputMuted || !resolved}
+      onClick={() => void handleClick()}
+      title={
+        !voiceEnabled
+          ? "Turn on voice guidance to hear it again"
+          : voiceOutputMuted
+            ? "Unmute voice to hear it again"
+            : "Hear Claira's line again"
       }
-      title={voiceEnabled ? "Hear Claira’s line again" : "Turn on voice to hear it again"}
-      aria-label="Hear Claira’s guidance again"
+      aria-label="Hear Claira's guidance again"
     >
       Hear it again
     </button>

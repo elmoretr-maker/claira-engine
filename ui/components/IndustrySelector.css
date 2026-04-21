@@ -164,6 +164,11 @@
   line-height: 1.45;
 }
 
+.industry-selector-desc--with-voice {
+  position: relative;
+  padding-top: 1.75rem;
+}
+
 .industry-selector-label {
   display: block;
   margin-bottom: var(--space-sm);

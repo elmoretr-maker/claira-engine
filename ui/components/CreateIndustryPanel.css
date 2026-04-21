@@ -16,6 +16,11 @@
   margin-bottom: 1rem;
 }
 
+.create-industry-intro--with-voice {
+  position: relative;
+  padding-top: 1.75rem;
+}
+
 .create-industry-intro p {
   margin: 0 0 0.65rem;
 }

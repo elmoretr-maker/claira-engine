@@ -2,20 +2,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { listIndustryPacks } from "../../interfaces/api.js";
 import { useIndustry } from "../IndustryContext.jsx";
 import { afterCurrentClairaUtteranceOrNow, primeClairaVoicePlayback } from "../voice/clairaSpeech.js";
+import { InlineVoiceButton } from "../voice/InlineVoiceButton.jsx";
 import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
 import { ONBOARDING_STEP } from "../onboarding/onboardingFlowMeta.js";
 import CreateIndustryPanel from "./CreateIndustryPanel.jsx";
 import ClairaClaritySignature from "./ClairaClaritySignature.jsx";
 import "../screens/WelcomeScreen.css";
+import "../screens/CatalogBuilderScreen.css";
 import "./IndustrySelector.css";
 
 /**
  * @param {{
  *   onLoaded: (industry: string) => void,
  *   variant?: "full" | "selectOnly",
+ *   tools?: Array<{ icon: string, title: string, description: string, onClick: () => void }>,
  * }} props
  */
-export default function IndustrySelector({ onLoaded, variant = "full" }) {
+export default function IndustrySelector({ onLoaded, variant = "full", tools }) {
   const { loadIndustryPack } = useIndustry();
   const [packs, setPacks] = useState(
     /** @type {Array<{ slug: string, label: string, inputVerb?: string, valid?: boolean, status?: string, errors?: string[] }>} */ ([]),
@@ -179,7 +182,8 @@ export default function IndustrySelector({ onLoaded, variant = "full" }) {
             <div className="industry-selector-columns industry-selector-columns--split">
               <div className="industry-selector-card industry-selector-card--choose card category-glass-panel">
                 <h1 className="industry-selector-title">Choose your category</h1>
-                <div className="industry-selector-desc industry-selector-desc--prose">
+                <div className="industry-selector-desc industry-selector-desc--prose industry-selector-desc--with-voice">
+                  <InlineVoiceButton voiceKey="industry_existing_intro" />
                   <p>
                     This path is for when you already have a category you trust—something you or your team set up
                     earlier and want to keep using.
@@ -270,6 +274,26 @@ export default function IndustrySelector({ onLoaded, variant = "full" }) {
                 className="category-glass-panel"
               />
             </div>
+
+            {Array.isArray(tools) && tools.length > 0 ? (
+              <div className="catalog-entry-section">
+                <div className="catalog-entry-divider">
+                  <span>or use a standalone tool</span>
+                </div>
+                <div className="catalog-entry-grid">
+                  {tools.map(({ icon, title, description, onClick }) => (
+                    <button key={title} type="button" className="catalog-entry-card" onClick={onClick}>
+                      <span className="catalog-entry-card__icon">{icon}</span>
+                      <span className="catalog-entry-card__body">
+                        <span className="catalog-entry-card__title">{title}</span>
+                        <span className="catalog-entry-card__desc">{description}</span>
+                      </span>
+                      <span className="catalog-entry-card__arrow">→</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </GuidedStepChrome>
       </div>

@@ -1,29 +1,31 @@
-import { existsSync, readFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { resetTunnelStagingTree } from "../interfaces/tunnelStaging.js";
 
 const uiDir = path.dirname(fileURLToPath(import.meta.url));
 const engineRoot = path.resolve(uiDir, "..");
-const apiJs = path.join(engineRoot, "interfaces", "api.js");
 
 const CLAIRA_API_PORT = Number(process.env.PORT) || 3000;
 
 /**
- * @param {string} name
+ * Returns a Vite proxy `configure` callback that catches connection errors (e.g. Express
+ * not running) and responds with a JSON `{ error }` payload instead of letting the request
+ * fall through to Vite's own middleware, which would return an unhelpful HTML 404/502 page.
+ *
+ * @param {string} route - Path prefix, used only in the error message.
  */
-function contentTypeForBasename(name) {
-  const lower = name.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  if (lower.endsWith(".gif")) return "image/gif";
-  if (lower.endsWith(".json")) return "application/json";
-  if (lower.endsWith(".txt")) return "text/plain; charset=utf-8";
-  if (lower.endsWith(".pdf")) return "application/pdf";
-  return "application/octet-stream";
+function proxyErrorHandler(route) {
+  return (proxy) => {
+    proxy.on("error", (_err, _req, res) => {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: `API server unavailable on port ${CLAIRA_API_PORT} (${route}). Run \`npm run start:server\` or \`npm run dev:full\`.`,
+        }),
+      );
+    });
+  };
 }
 
 export default {
@@ -41,19 +43,70 @@ export default {
   },
   server: {
     proxy: {
-      /** Capability attach — Express route (production parity); requires API server on PORT. */
-      "/api/capabilities": {
+      /**
+       * All /__claira/* and /api/* routes are proxied to the Express server.
+       * In dev, run `npm run dev:full` (or `npm run start:server` alongside `npm run dev`)
+       * so the Express server is available on PORT (default 3000).
+       * In production, the static build is served behind the same host as Express.
+       *
+       * The `configure` callback on each entry handles connection errors — when the
+       * Express server is down it returns JSON instead of falling through to Vite's own
+       * middleware (which would produce an unhelpful "404 Cannot POST" HTML page).
+       */
+
+      /** Core engine API — platform-agnostic execution interface. */
+      "/__claira/run": {
         target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
         changeOrigin: true,
+        configure: proxyErrorHandler("/__claira/run"),
       },
-      "/api/reports": {
-        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
-        changeOrigin: true,
-      },
-      /** TTS + status — requires `npm run start:server` (Express on PORT, default 3000). */
+      /** TTS synthesis + status. */
       "/__claira/tts": {
         target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
         changeOrigin: true,
+        configure: proxyErrorHandler("/__claira/tts"),
+      },
+      /** Pack reference-asset file server. */
+      "/__claira/pack-asset": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+        configure: proxyErrorHandler("/__claira/pack-asset"),
+      },
+      /** Tracking entity snapshot image server. */
+      "/__claira/tracking-asset": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+        configure: proxyErrorHandler("/__claira/tracking-asset"),
+      },
+      /** Capability APIs. */
+      "/api/capabilities": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+        configure: proxyErrorHandler("/api/capabilities"),
+      },
+      /** Shared contractor reports. */
+      "/api/reports": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+        configure: proxyErrorHandler("/api/reports"),
+      },
+      /** Moves log. */
+      "/api/logs": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+        configure: proxyErrorHandler("/api/logs"),
+      },
+      /** External integration API (/api/claira/health, /api/claira/run, etc.). */
+      "/api/claira": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+        configure: proxyErrorHandler("/api/claira"),
+      },
+      /** Integration layer — platform webhook receivers (/api/integrations/wix, etc.). */
+      "/api/integrations": {
+        target: `http://127.0.0.1:${CLAIRA_API_PORT}`,
+        changeOrigin: true,
+        configure: proxyErrorHandler("/api/integrations"),
       },
     },
   },
@@ -72,508 +125,14 @@ export default {
     react(),
     {
       name: "claira-api-run",
-      configureServer(server) {
+      configureServer() {
+        /**
+         * Reset the tunnel staging tree when the Vite dev server starts or restarts.
+         * All API routes (/__claira/run, /api/logs, /__claira/pack-asset,
+         * /__claira/tracking-asset) are now handled by the Express server and
+         * proxied here via server.proxy — no middleware request handlers needed.
+         */
         resetTunnelStagingTree();
-        server.middlewares.use(async (req, res, next) => {
-          if (req.method === "GET") {
-            const pathname = req.url?.split("?")[0];
-            if (pathname === "/api/logs") {
-              try {
-                const logPath = path.join(engineRoot, "logs", "moves.log");
-                const body = existsSync(logPath) ? await readFile(logPath, "utf8") : "";
-                res.setHeader("Content-Type", "text/plain; charset=utf-8");
-                res.end(body);
-              } catch (e) {
-                res.statusCode = 500;
-                res.setHeader("Content-Type", "text/plain; charset=utf-8");
-                res.end(e instanceof Error ? e.message : String(e));
-              }
-              return;
-            }
-            if (pathname === "/__claira/pack-asset") {
-              try {
-                const u = new URL(req.url || "/", "http://claira.local");
-                const industry = String(u.searchParams.get("industry") ?? "")
-                  .trim()
-                  .toLowerCase();
-                const category = String(u.searchParams.get("category") ?? "").trim();
-                const kindRaw = String(u.searchParams.get("kind") ?? "images").toLowerCase();
-                const kind = kindRaw === "documents" ? "documents" : "images";
-                const file = String(u.searchParams.get("file") ?? "").trim();
-                if (!/^[a-z0-9_-]+$/i.test(industry)) {
-                  res.statusCode = 400;
-                  res.end("invalid industry");
-                  return;
-                }
-                if (!category || category.includes("..") || /[/\\]/.test(category)) {
-                  res.statusCode = 400;
-                  res.end("invalid category");
-                  return;
-                }
-                if (!/^[\w.-]+$/i.test(file)) {
-                  res.statusCode = 400;
-                  res.end("invalid file");
-                  return;
-                }
-                const base = path.resolve(
-                  engineRoot,
-                  "packs",
-                  industry,
-                  "reference_assets",
-                  kind,
-                  category,
-                );
-                const full = path.resolve(base, file);
-                const rel = path.relative(base, full);
-                if (rel.startsWith("..") || path.isAbsolute(rel)) {
-                  res.statusCode = 403;
-                  res.end("forbidden");
-                  return;
-                }
-                if (!existsSync(full)) {
-                  res.statusCode = 404;
-                  res.end("not found");
-                  return;
-                }
-                const buf = readFileSync(full);
-                res.setHeader("Content-Type", contentTypeForBasename(file));
-                res.end(buf);
-              } catch (e) {
-                res.statusCode = 500;
-                res.setHeader("Content-Type", "text/plain; charset=utf-8");
-                res.end(e instanceof Error ? e.message : String(e));
-              }
-              return;
-            }
-            if (pathname === "/__claira/tracking-asset") {
-              try {
-                const u = new URL(req.url || "/", "http://claira.local");
-                const entity = String(u.searchParams.get("entity") ?? "")
-                  .trim()
-                  .toLowerCase();
-                const file = String(u.searchParams.get("file") ?? "").trim();
-                if (!/^e_[a-z0-9_-]+$/i.test(entity)) {
-                  res.statusCode = 400;
-                  res.end("invalid entity");
-                  return;
-                }
-                if (!/^[\w.-]+$/i.test(file)) {
-                  res.statusCode = 400;
-                  res.end("invalid file");
-                  return;
-                }
-                const base = path.resolve(engineRoot, "tracking", "images", entity);
-                const full = path.resolve(base, file);
-                const rel = path.relative(base, full);
-                if (rel.startsWith("..") || path.isAbsolute(rel)) {
-                  res.statusCode = 403;
-                  res.end("forbidden");
-                  return;
-                }
-                if (!existsSync(full)) {
-                  res.statusCode = 404;
-                  res.end("not found");
-                  return;
-                }
-                const buf = readFileSync(full);
-                res.setHeader("Content-Type", contentTypeForBasename(file));
-                res.end(buf);
-              } catch (e) {
-                res.statusCode = 500;
-                res.setHeader("Content-Type", "text/plain; charset=utf-8");
-                res.end(e instanceof Error ? e.message : String(e));
-              }
-              return;
-            }
-          }
-          if (req.url !== "/__claira/run" || req.method !== "POST") return next();
-          try {
-            const chunks = [];
-            for await (const chunk of req) chunks.push(chunk);
-            const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-            const api = await import(pathToFileURL(apiJs).href);
-            let out;
-            if (body.kind === "processFolder") {
-              const opts = {};
-              if (body.cwd) opts.cwd = body.cwd;
-              if (body.runtimeContext && typeof body.runtimeContext === "object") {
-                opts.runtimeContext = body.runtimeContext;
-              }
-              if (body.workflowContext && typeof body.workflowContext === "object") {
-                opts.workflowContext = body.workflowContext;
-              }
-              out = await api.processFolder(body.folderPath, opts);
-            } else if (body.kind === "processData") {
-              const opts = {};
-              if (body.cwd) opts.cwd = body.cwd;
-              if (body.runtimeContext && typeof body.runtimeContext === "object") {
-                opts.runtimeContext = body.runtimeContext;
-              }
-              if (body.workflowContext && typeof body.workflowContext === "object") {
-                opts.workflowContext = body.workflowContext;
-              }
-              out = await api.processData(body.items, opts);
-            } else if (body.kind === "applyDecision") {
-              out = await api.applyDecision({
-                decision_type: body.decision_type,
-                predicted_label: body.predicted_label,
-                selected_label: body.selected_label ?? body.selected_room,
-                selected_room: body.selected_room,
-                confidence: body.confidence,
-                filePath: body.filePath,
-                file: body.filePath ?? body.file,
-                scope: body.scope,
-                extractedText: body.extractedText,
-                classification: body.classification,
-                mismatchSeverity: body.mismatchSeverity,
-                mismatchFingerprint: body.mismatchFingerprint,
-                mismatchReason: body.mismatchReason,
-              });
-            } else if (body.kind === "getRiskInsights") {
-              out = api.getRiskInsights();
-            } else if (body.kind === "ingestData") {
-              out = await api.ingestData(body.payload, body.cwd ? { cwd: body.cwd } : {});
-            } else if (body.kind === "getRooms") {
-              out = api.getRooms();
-            } else if (body.kind === "getSuggestions") {
-              out = api.getSuggestions();
-            } else if (body.kind === "getUserControlState") {
-              out = api.getUserControlState();
-            } else if (body.kind === "setUserControlRule") {
-              out = api.setUserControlRuleApi({
-                predicted_label: typeof body.predicted_label === "string" ? body.predicted_label : "",
-                effect: body.effect,
-                enabled: body.enabled,
-                remove: body.remove === true,
-              });
-            } else if (body.kind === "loadIndustryPack") {
-              out = await api.loadIndustryPack(body.industry);
-            } else if (body.kind === "listIndustryPacks") {
-              out = api.listIndustryPacksApi();
-            } else if (body.kind === "checkInternetConnection") {
-              out = await api.checkInternetConnectionApi();
-            } else if (body.kind === "previewIndustryModuleComposition") {
-              out = api.previewIndustryModuleCompositionApi({
-                industryName: typeof body.industryName === "string" ? body.industryName : "",
-                buildIntent: typeof body.buildIntent === "string" ? body.buildIntent : "",
-                guidedModuleSignals:
-                  body.guidedModuleSignals != null && typeof body.guidedModuleSignals === "object"
-                    ? body.guidedModuleSignals
-                    : undefined,
-              });
-            } else if (body.kind === "createIndustryFromInput") {
-              out = await api.createIndustryFromInputApi({
-                industryName: typeof body.industryName === "string" ? body.industryName : "",
-                buildIntent: typeof body.buildIntent === "string" ? body.buildIntent : "",
-                selectedModules: Array.isArray(body.selectedModules) ? body.selectedModules : [],
-              });
-            } else if (body.kind === "confirmIndustryPackActivation") {
-              out = await api.confirmIndustryPackActivationApi({
-                slug: typeof body.slug === "string" ? body.slug : "",
-              });
-            } else if (body.kind === "getIndustryBuildReport") {
-              out = api.getIndustryBuildReportApi({
-                slug: typeof body.slug === "string" ? body.slug : "",
-              });
-            } else if (body.kind === "autoImproveIndustryPack") {
-              out = api.autoImproveIndustryPackApi({
-                slug: typeof body.slug === "string" ? body.slug : "",
-              });
-            } else if (body.kind === "getActiveReferenceAssets") {
-              out = api.getActiveReferenceAssetsApi(
-                typeof body.category === "string" ? body.category : "",
-                typeof body.industry === "string" ? body.industry : undefined,
-              );
-            } else if (body.kind === "getStructureCategories") {
-              out = api.getStructureCategories(body.cwd ? { cwd: body.cwd } : {});
-            } else if (body.kind === "getPackReference") {
-              out = api.getPackReference(body.cwd ? { cwd: body.cwd } : {});
-            } else if (body.kind === "getPackProcesses") {
-              out = api.getPackProcesses({
-                industry: typeof body.industry === "string" ? body.industry : undefined,
-                cwd: body.cwd ? body.cwd : undefined,
-              });
-            } else if (body.kind === "ensureCapabilityOutputFolders") {
-              out = api.ensureCapabilityOutputFoldersApi(
-                Array.isArray(body.selectedKeys) ? body.selectedKeys : [],
-                body.cwd ? { cwd: body.cwd } : {},
-              );
-            } else if (body.kind === "tunnelUploadStaged") {
-              const files = Array.isArray(body.files) ? body.files : [];
-              out = api.tunnelUploadStaged(body.category, files, {
-                uploadTag: body.uploadTag,
-              });
-            } else if (body.kind === "getIndustryFeatures") {
-              out = api.getIndustryFeaturesApi({
-                industry: typeof body.industry === "string" ? body.industry : "",
-              });
-            } else if (body.kind === "getTrackingConfig") {
-              out = api.getTrackingConfigApi({
-                industry: typeof body.industry === "string" ? body.industry : "",
-              });
-            } else if (body.kind === "categoryTrackingSupport") {
-              out = api.categoryTrackingSupportApi({
-                industry: typeof body.industry === "string" ? body.industry : "",
-                categoryKey: typeof body.categoryKey === "string" ? body.categoryKey : "",
-              });
-            } else if (body.kind === "listTrackingEntities") {
-              out = api.listTrackingEntitiesApi({
-                industry: typeof body.industry === "string" ? body.industry : "",
-              });
-            } else if (body.kind === "createTrackingEntity") {
-              out = api.createTrackingEntityApi({
-                name: typeof body.name === "string" ? body.name : "",
-                category: typeof body.category === "string" ? body.category : "",
-                industry: typeof body.industry === "string" ? body.industry : "",
-              });
-            } else if (body.kind === "addTrackingSnapshot") {
-              out = await api.addTrackingSnapshotApi({
-                entityId: typeof body.entityId === "string" ? body.entityId : "",
-                imageBase64: typeof body.imageBase64 === "string" ? body.imageBase64 : "",
-                manualMetrics:
-                  body.manualMetrics && typeof body.manualMetrics === "object" ? body.manualMetrics : undefined,
-                categoryKey: typeof body.categoryKey === "string" ? body.categoryKey : "",
-                industrySlug: typeof body.industrySlug === "string" ? body.industrySlug : "",
-              });
-            } else if (body.kind === "listTrackingSnapshots") {
-              out = api.listTrackingSnapshotsApi({
-                entityId: typeof body.entityId === "string" ? body.entityId : "",
-              });
-            } else if (body.kind === "getTrackingProgress") {
-              out = api.getTrackingProgressApi({
-                entityId: typeof body.entityId === "string" ? body.entityId : "",
-              });
-            } else if (body.kind === "workspaceScan") {
-              out = api.workspaceScanApi({
-                accountId: typeof body.accountId === "string" ? body.accountId : undefined,
-                mode: typeof body.mode === "string" ? body.mode : undefined,
-                industry: typeof body.industry === "string" ? body.industry : "",
-              });
-            } else if (body.kind === "workspaceSync") {
-              out = api.workspaceSyncApi({
-                accountId: typeof body.accountId === "string" ? body.accountId : undefined,
-                mode: typeof body.mode === "string" ? body.mode : undefined,
-                industry: typeof body.industry === "string" ? body.industry : "",
-                operations: Array.isArray(body.operations) ? body.operations : [],
-              });
-            } else if (body.kind === "workspaceSimulationIngest") {
-              out = api.workspaceSimulationIngestApi({
-                accountId: typeof body.accountId === "string" ? body.accountId : undefined,
-                mode: typeof body.mode === "string" ? body.mode : undefined,
-                industry: typeof body.industry === "string" ? body.industry : "",
-                files: Array.isArray(body.files) ? body.files : [],
-              });
-            } else if (body.kind === "workspaceGeneratorSnapshot") {
-              out = api.workspaceGeneratorSnapshotApi({
-                accountId: typeof body.accountId === "string" ? body.accountId : undefined,
-                mode: typeof body.mode === "string" ? body.mode : undefined,
-                industry: typeof body.industry === "string" ? body.industry : "",
-              });
-            } else if (body.kind === "createTrainerClient") {
-              out = api.createTrainerClientApi({
-                displayName: typeof body.displayName === "string" ? body.displayName : "",
-              });
-            } else if (body.kind === "listTrainerClients") {
-              out = api.listTrainerClientsApi();
-            } else if (body.kind === "getTrainerClient") {
-              out = api.getTrainerClientApi({
-                entityId: typeof body.entityId === "string" ? body.entityId : "",
-                clientId: typeof body.clientId === "string" ? body.clientId : "",
-              });
-            } else if (body.kind === "getActiveWorkflowTemplate") {
-              out = api.getActiveWorkflowTemplateApi();
-            } else if (body.kind === "listWorkflowCompositions") {
-              out = api.listWorkflowCompositionsApi();
-            } else if (body.kind === "recordReasoningOverrideFeedback") {
-              out = api.recordReasoningOverrideFeedbackApi(
-                body.payload != null && typeof body.payload === "object" && !Array.isArray(body.payload)
-                  ? body.payload
-                  : body,
-              );
-            } else if (body.kind === "taxDocumentComparison") {
-              out = await api.taxDocumentComparisonApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                domainMode: typeof body.domainMode === "string" ? body.domainMode : "tax",
-                paths: Array.isArray(body.paths) ? body.paths : [],
-                uploads: Array.isArray(body.uploads) ? body.uploads : [],
-                selectedFields: Array.isArray(body.selectedFields) ? body.selectedFields : undefined,
-                anomalyThresholdPct:
-                  typeof body.anomalyThresholdPct === "number" && Number.isFinite(body.anomalyThresholdPct)
-                    ? body.anomalyThresholdPct
-                    : undefined,
-              });
-            } else if (body.kind === "fitnessTimelineScan") {
-              out = api.fitnessTimelineScanApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-              });
-            } else if (body.kind === "contractorTimelineScan") {
-              out = api.contractorTimelineScanApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-              });
-            } else if (body.kind === "contractorCostTracking") {
-              out = await api.contractorCostTrackingApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                project: typeof body.project === "string" ? body.project : undefined,
-                initialCost: body.initialCost,
-                currentCost: body.currentCost,
-                receiptTotal: body.receiptTotal,
-                manualSpendSupplement: body.manualSpendSupplement,
-              });
-            } else if (body.kind === "receiptAdd") {
-              out = await api.receiptAddApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                vendor: typeof body.vendor === "string" ? body.vendor : "",
-                amount: typeof body.amount === "number" ? body.amount : body.amount,
-                date: typeof body.date === "string" ? body.date : undefined,
-                note: typeof body.note === "string" ? body.note : undefined,
-                imageBase64: typeof body.imageBase64 === "string" ? body.imageBase64 : "",
-                filename: typeof body.filename === "string" ? body.filename : "",
-                tags:
-                  body.tags != null && typeof body.tags === "object" && !Array.isArray(body.tags) ? body.tags : undefined,
-              });
-            } else if (body.kind === "receiptList") {
-              out = api.receiptListApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                tags:
-                  body.tags != null && typeof body.tags === "object" && !Array.isArray(body.tags) ? body.tags : undefined,
-              });
-            } else if (body.kind === "contractorReceiptAdd") {
-              out = await api.contractorReceiptAddApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                project: typeof body.project === "string" ? body.project : "",
-                room: typeof body.room === "string" ? body.room : undefined,
-                vendor: typeof body.vendor === "string" ? body.vendor : "",
-                amount: typeof body.amount === "number" ? body.amount : body.amount,
-                date: typeof body.date === "string" ? body.date : undefined,
-                note: typeof body.note === "string" ? body.note : undefined,
-                imageBase64: typeof body.imageBase64 === "string" ? body.imageBase64 : "",
-                filename: typeof body.filename === "string" ? body.filename : "",
-              });
-            } else if (body.kind === "contractorReceiptList") {
-              out = api.contractorReceiptListApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                project: typeof body.project === "string" ? body.project : undefined,
-              });
-            } else if (body.kind === "contractorProjectSave") {
-              out = api.saveProjectApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                name: typeof body.name === "string" ? body.name : "",
-                slug: typeof body.slug === "string" ? body.slug : undefined,
-                budget: body.budget,
-                assignees: Array.isArray(body.assignees) ? body.assignees : undefined,
-                sections: Array.isArray(body.sections) ? body.sections : undefined,
-              });
-            } else if (body.kind === "contractorProjectLoad") {
-              out = api.loadProjectApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                slug: typeof body.slug === "string" ? body.slug : "",
-              });
-            } else if (body.kind === "contractorProjectList") {
-              out = api.listProjectsApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-              });
-            } else if (body.kind === "contractorProjectExportReport") {
-              out = await api.exportProjectReportApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                project: typeof body.project === "string" ? body.project : "",
-                ...(body.budgetContext != null && typeof body.budgetContext === "object" && !Array.isArray(body.budgetContext)
-                  ? { budgetContext: body.budgetContext }
-                  : {}),
-                ...(body.initialBudget != null ? { initialBudget: body.initialBudget } : {}),
-                ...(body.manualSpendSupplement != null ? { manualSpendSupplement: body.manualSpendSupplement } : {}),
-              });
-            } else if (body.kind === "contractorProjectExportPdf") {
-              out = await api.exportProjectPdfApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                project: typeof body.project === "string" ? body.project : "",
-                ...(body.budgetContext != null && typeof body.budgetContext === "object" && !Array.isArray(body.budgetContext)
-                  ? { budgetContext: body.budgetContext }
-                  : {}),
-                ...(body.initialBudget != null ? { initialBudget: body.initialBudget } : {}),
-                ...(body.manualSpendSupplement != null ? { manualSpendSupplement: body.manualSpendSupplement } : {}),
-              });
-            } else if (body.kind === "contractorGenerateShareLink") {
-              out = await api.generateShareLinkApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                project: typeof body.project === "string" ? body.project : "",
-                ...(body.budgetContext != null && typeof body.budgetContext === "object" && !Array.isArray(body.budgetContext)
-                  ? { budgetContext: body.budgetContext }
-                  : {}),
-                ...(body.initialBudget != null ? { initialBudget: body.initialBudget } : {}),
-                ...(body.manualSpendSupplement != null ? { manualSpendSupplement: body.manualSpendSupplement } : {}),
-              });
-            } else if (body.kind === "receiptExtract") {
-              out = await api.receiptExtractApi({
-                imageBase64: typeof body.imageBase64 === "string" ? body.imageBase64 : "",
-              });
-            } else if (body.kind === "fitnessImageComparison") {
-              out = await api.fitnessImageComparisonApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                domainMode: typeof body.domainMode === "string" ? body.domainMode : "fitness",
-                pathA: typeof body.pathA === "string" ? body.pathA : "",
-                pathB: typeof body.pathB === "string" ? body.pathB : "",
-                stageA: typeof body.stageA === "string" ? body.stageA : "",
-                stageB: typeof body.stageB === "string" ? body.stageB : "",
-                mode: typeof body.mode === "string" ? body.mode : undefined,
-                orderedStages: Array.isArray(body.orderedStages) ? body.orderedStages : undefined,
-                pathsByStage:
-                  body.pathsByStage != null && typeof body.pathsByStage === "object" && !Array.isArray(body.pathsByStage)
-                    ? body.pathsByStage
-                    : undefined,
-                imagePairs: Array.isArray(body.imagePairs) ? body.imagePairs : undefined,
-              });
-            } else if (body.kind === "fitnessImageRead") {
-              out = api.fitnessImageReadApi({
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                path: typeof body.path === "string" ? body.path : "",
-              });
-            } else if (body.kind === "attachPipelineCapabilities") {
-              out = await api.attachPipelineCapabilitiesApi({
-                rows: Array.isArray(body.rows) ? body.rows : [],
-                cwd: typeof body.cwd === "string" ? body.cwd : undefined,
-                domainMode: typeof body.domainMode === "string" ? body.domainMode : undefined,
-                planMode: body.planMode === "planned" ? "planned" : "single",
-              });
-            } else if (body.kind === "recordCapabilityOverride") {
-              out = api.recordCapabilityOverrideApi(
-                body.payload != null && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : body,
-              );
-            } else if (body.kind === "getAppliedCapabilityRecords") {
-              out = await api.getAppliedCapabilityRecordsApi();
-            } else if (body.kind === "saveAppliedCapabilityRecord") {
-              out = await api.saveAppliedCapabilityRecordApi(
-                body.payload != null && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : body,
-              );
-            } else if (body.kind === "previewCapabilityRow") {
-              const p = body.payload != null && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : body;
-              out = await api.previewCapabilityRowApi({
-                row: p.row,
-                rowIndex: typeof p.rowIndex === "number" ? p.rowIndex : 0,
-                allRows: Array.isArray(p.allRows) ? p.allRows : [],
-                cwd: typeof p.cwd === "string" ? p.cwd : undefined,
-                inputOverrides:
-                  p.inputOverrides != null && typeof p.inputOverrides === "object" && !Array.isArray(p.inputOverrides)
-                    ? p.inputOverrides
-                    : {},
-              });
-            } else {
-              res.statusCode = 400;
-              res.setHeader("Content-Type", "application/json");
-              res.end(JSON.stringify({ error: "unknown kind" }));
-              return;
-            }
-            res.setHeader("Content-Type", "application/json");
-            res.end(JSON.stringify(out));
-          } catch (e) {
-            res.statusCode = 500;
-            res.setHeader("Content-Type", "application/json");
-            res.end(
-              JSON.stringify({
-                error: e instanceof Error ? e.message : String(e),
-              }),
-            );
-          }
-        });
       },
     },
   ],

@@ -20,6 +20,7 @@ import {
   getUserControlState,
 } from "../interfaces/api.js";
 import BrandMark from "./components/BrandMark.jsx";
+import InstallPrompt from "./components/InstallPrompt.jsx";
 import SimulationPanel from "./components/SimulationPanel.jsx";
 import ThemeToggle from "./components/ThemeToggle.jsx";
 import WorkflowStatus from "./components/WorkflowStatus.jsx";
@@ -45,6 +46,8 @@ import CapabilityScreen from "./screens/CapabilityScreen.jsx";
 import TunnelScreen from "./screens/TunnelScreen.jsx";
 import StructureSetupScreen from "./screens/StructureSetupScreen.jsx";
 import WelcomeScreen from "./screens/WelcomeScreen.jsx";
+import CatalogBuilderScreen from "./screens/CatalogBuilderScreen.jsx";
+import PhotoSorterScreen from "./screens/PhotoSorterScreen.jsx";
 import WorkflowHubScreen from "./screens/WorkflowHubScreen.jsx";
 import ModuleHealthPanel from "./components/ModuleHealthPanel.jsx";
 import WorkflowScreen from "./screens/WorkflowScreen.jsx";
@@ -53,10 +56,12 @@ import FitnessTrackingPanel from "./components/FitnessTrackingPanel.jsx";
 import ContractorTrackingPanel from "./components/ContractorTrackingPanel.jsx";
 import ContractorReportShareView from "./components/ContractorReportShareView.jsx";
 import { IndustryProvider, useIndustry } from "./IndustryContext.jsx";
-import { VoiceOnboardingProvider, useVoiceOnboarding } from "./voice/VoiceOnboardingContext.jsx";
+import { VoiceOnboardingProvider, VoiceOnboardingRouteSync } from "./voice/VoiceOnboardingContext.jsx";
+import { useVoiceOnboarding } from "./voice/useVoiceOnboarding.js";
 import OnboardingVoiceSync from "./voice/OnboardingVoiceSync.jsx";
-import { VoiceGuidanceTools } from "./voice/VoiceGuidanceTools.jsx";
-import { deriveOnboardingVoiceStep, deriveVoiceReplayStep } from "./voice/deriveOnboardingVoiceStep.js";
+import { GuidedVoiceControls } from "./voice/GuidedVoiceControls.jsx";
+import { speakVoiceKey } from "./voice/speakVoiceKey.js";
+import { deriveOnboardingVoiceStep } from "./voice/deriveOnboardingVoiceStep.js";
 import {
   attachSessionBypassUiMetadata,
   isBypassReviewPipelineRow,
@@ -285,10 +290,12 @@ function App() {
   );
 
   const [screen, setScreen] = useState(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run" | "module_health"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run" | "module_health" | "catalog_builder" | "photo_sorter"} */ (
       "entrance"
     ),
   );
+  /** Pre-loaded catalog result passed from Photo Sorter → Catalog Builder. Cleared on back. */
+  const [catalogInitialResult, setCatalogInitialResult] = useState(/** @type {Record<string,any>|null} */ (null));
   const [workflowComposition, setWorkflowComposition] = useState(/** @type {Record<string, unknown> | null} */ (null));
   const [progressFocusCategory, setProgressFocusCategory] = useState(/** @type {string} */ (""));
   const [intakePayload, setIntakePayload] = useState(/** @type {null | Record<string, unknown>} */ (null));
@@ -566,6 +573,12 @@ function App() {
       case "module_health":
         setScreen("entrance");
         break;
+      case "catalog_builder":
+        setScreen("entrance");
+        break;
+      case "photo_sorter":
+        setScreen("entrance");
+        break;
       case "workflow_hub":
         setScreen("entrance");
         break;
@@ -589,6 +602,7 @@ function App() {
   ]);
 
   const startOver = useCallback(() => {
+    speakVoiceKey("warning_start_over");
     if (!window.confirm(START_OVER_CONFIRM)) return;
     cancelAllSpeech();
     clearAllOnboardingLocalStorage();
@@ -638,30 +652,16 @@ function App() {
     [industryGateDone, preAppPhase, screen],
   );
 
-  const voiceReplayStep = useMemo(
-    () =>
-      deriveVoiceReplayStep({
-        industryGateDone,
-        preAppPhase,
-        screen,
-      }),
-    [industryGateDone, preAppPhase, screen],
-  );
-
   /**
    * @param {import("react").ReactNode} el
    * @param {{ voiceSyncKey?: string }} [opts]
    */
   const shell = (el, opts = {}) => {
-    const { voiceSyncKey = "app", suppressAutoSpeakForSteps } = opts;
+    const { voiceSyncKey = "app" } = opts;
     return (
       <OnboardingNavProvider value={onboardingNavValue}>
-        <OnboardingVoiceSync
-          key={voiceSyncKey}
-          voiceSyncKey={voiceSyncKey}
-          step={onboardingVoiceStep}
-          suppressAutoSpeakForSteps={suppressAutoSpeakForSteps}
-        />
+        <VoiceOnboardingRouteSync step={onboardingVoiceStep} />
+        <OnboardingVoiceSync key={voiceSyncKey} />
         {el}
       </OnboardingNavProvider>
     );
@@ -678,7 +678,31 @@ function App() {
           setPreAppPhase("packEntry");
         }}
       />,
-      { voiceSyncKey: `welcome-${industryHomeKey}`, suppressAutoSpeakForSteps: [0] },
+      { voiceSyncKey: `welcome-${industryHomeKey}` },
+    );
+  }
+
+  if (screen === "catalog_builder") {
+    return (
+      <CatalogBuilderScreen
+        initialResult={catalogInitialResult}
+        onBack={() => {
+          setCatalogInitialResult(null); // clear so a fresh entry next time shows the upload form
+          setScreen(catalogInitialResult ? "photo_sorter" : "entrance");
+        }}
+      />
+    );
+  }
+
+  if (screen === "photo_sorter") {
+    return (
+      <PhotoSorterScreen
+        onBack={() => setScreen("entrance")}
+        onOpenCatalog={(data) => {
+          setCatalogInitialResult(data);
+          setScreen("catalog_builder");
+        }}
+      />
     );
   }
 
@@ -691,6 +715,20 @@ function App() {
           setIndustryGateComplete(true);
           setIndustryGateDone(true);
         }}
+        tools={[
+          {
+            icon: "🗂",
+            title: "Build Product Catalog",
+            description: "Turn images into structured, store-ready product data",
+            onClick: () => setScreen("catalog_builder"),
+          },
+          {
+            icon: "📷",
+            title: "Photo Sorter",
+            description: "Find your best photos instantly",
+            onClick: () => setScreen("photo_sorter"),
+          },
+        ]}
       />,
       { voiceSyncKey: `pack-${industryHomeKey}` },
     );
@@ -714,7 +752,7 @@ function App() {
           </div>
           <div className="app-workflow-top-bar-tools">
             <ThemeToggle />
-            {industryGateDone && appMode === "runtime" ? <VoiceGuidanceTools step={voiceReplayStep} /> : null}
+            {industryGateDone && appMode === "runtime" ? <GuidedVoiceControls /> : null}
             <button
               type="button"
               className="btn btn-ghost app-onboarding-start-over"
@@ -1273,5 +1311,16 @@ createRoot(root).render(
         </VoiceOnboardingProvider>
       </IndustryProvider>
     </UiThemeProvider>
+    <InstallPrompt />
   </AppErrorBoundary>,
 );
+
+// Register service worker for PWA installability.
+// Only runs in production-like environments (sw.js is not processed by Vite HMR).
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // SW registration failure is non-fatal — app continues to work normally.
+    });
+  });
+}

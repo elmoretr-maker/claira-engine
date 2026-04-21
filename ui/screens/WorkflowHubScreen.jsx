@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { listWorkflowCompositions } from "../../interfaces/api.js";
 import { formatModuleListForHub } from "../workflow/workflowLabelHelpers.js";
 import { useIndustry } from "../IndustryContext.jsx";
+import { InlineVoiceButton } from "../voice/InlineVoiceButton.jsx";
 
 /**
  * @param {{
@@ -64,10 +65,13 @@ export default function WorkflowHubScreen({ onBack, onOpenComposition, onOpenMod
           </button>
         ) : null}
       </div>
-      <p style={{ fontSize: "0.9rem", color: "var(--text-muted, #6b7280)", marginBottom: "1rem" }}>
-        Choose a workflow to open. Your industry pack updates when you pick one from a different pack so
-        processing stays in sync.
-      </p>
+      <div style={{ position: "relative", paddingTop: "1.75rem" }}>
+        <InlineVoiceButton voiceKey="workflow_hub_intro" />
+        <p style={{ fontSize: "0.9rem", color: "var(--text-muted, #6b7280)", marginBottom: "1rem" }}>
+          Choose a workflow to open. Your industry pack updates when you pick one from a different pack so
+          processing stays in sync.
+        </p>
+      </div>
       {import.meta.env.DEV ? (
         <p style={{ fontSize: "0.7rem", color: "var(--text-muted, #6b7280)", marginBottom: "0.75rem" }}>
           Dev: active pack <code>{activePackSlug || "—"}</code>

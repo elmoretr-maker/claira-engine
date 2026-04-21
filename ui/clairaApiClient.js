@@ -1,6 +1,23 @@
 /**
- * Browser client — same exports as interfaces/api.js, routed through Vite dev middleware.
+ * Browser API client — same exports as interfaces/api.js, routed through the Express server.
+ *
+ * All calls use POST /__claira/run, which is handled by the Express server in all
+ * environments (dev and production). In dev, Vite proxies this path to Express.
+ *
+ * Request shape: { kind: string, ...operation-specific fields }
+ * Optional context fields (accountId, environment, metadata) are accepted by the
+ * server and passed through without enforcement — reserved for future auth use.
  */
+
+/**
+ * Returns true when `text` looks like an HTML document — used to avoid surfacing
+ * raw Express/Vite error pages in the UI as error messages.
+ * @param {string} text
+ */
+function looksLikeHtml(text) {
+  const t = text.trimStart();
+  return t.startsWith("<!DOCTYPE") || t.startsWith("<html") || t.startsWith("<HTML");
+}
 
 async function post(body) {
   const r = await fetch("/__claira/run", {
@@ -9,14 +26,24 @@ async function post(body) {
     body: JSON.stringify(body),
   });
   const text = await r.text();
+
+  // When the response is HTML (e.g. Express "Cannot POST" page, Vite 404, or proxy error
+  // page), never surface raw markup as the error message — give a clean diagnostic instead.
+  if (looksLikeHtml(text)) {
+    throw new Error(
+      `API server unavailable (HTTP ${r.status}). ` +
+        "Make sure the server is running: npm run start:server",
+    );
+  }
+
   let data;
   try {
     data = JSON.parse(text);
   } catch {
-    if (!r.ok) throw new Error(text || `HTTP ${r.status}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status} — unexpected response from server`);
     throw new Error("Invalid JSON from server");
   }
-  if (!r.ok) throw new Error(typeof data?.error === "string" ? data.error : text || `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(typeof data?.error === "string" ? data.error : `HTTP ${r.status}`);
   return data;
 }
 
@@ -520,7 +547,7 @@ export async function runTaxDocumentComparison(payload = {}) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* use Vite run */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "taxDocumentComparison", ...bodyObj });
 }
@@ -549,7 +576,7 @@ export async function runFitnessTimelineScan(payload = {}) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "fitnessTimelineScan", ...body });
 }
@@ -578,7 +605,7 @@ export async function runContractorTimelineScan(payload = {}) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "contractorTimelineScan", ...body });
 }
@@ -626,7 +653,7 @@ export async function runContractorCostTracking(payload = {}) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "contractorCostTracking", ...bodyObj });
 }
@@ -679,7 +706,7 @@ export async function runReceiptAdd(payload) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "receiptAdd", ...bodyObj });
 }
@@ -720,7 +747,7 @@ export async function runReceiptList(payload = {}) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "receiptList", ...bodyObj });
 }
@@ -760,7 +787,7 @@ export async function runSaveProject(payload) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "contractorProjectSave", ...bodyObj });
 }
@@ -789,7 +816,7 @@ export async function runLoadProject(payload) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "contractorProjectLoad", ...bodyObj });
 }
@@ -817,7 +844,7 @@ export async function runListSavedProjects(payload = {}) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "contractorProjectList", ...bodyObj });
 }
@@ -855,7 +882,7 @@ export async function runExportProjectReport(payload) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "contractorProjectExportReport", ...bodyObj });
 }
@@ -881,7 +908,7 @@ export async function runExportProjectPdf(payload) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "contractorProjectExportPdf", ...bodyObj });
 }
@@ -907,7 +934,7 @@ export async function runGenerateShareLink(payload) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "contractorGenerateShareLink", ...bodyObj });
 }
@@ -936,7 +963,7 @@ export async function runReceiptExtract(payload) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "receiptExtract", ...bodyObj });
 }
@@ -1019,7 +1046,7 @@ export async function runFitnessImageComparison(payload = {}) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "fitnessImageComparison", ...bodyObj });
 }
@@ -1049,7 +1076,7 @@ export async function runFitnessImageRead(payload = {}) {
     }
     if (data != null && typeof data === "object") return /** @type {Record<string, unknown>} */ (data);
   } catch {
-    /* Vite */
+    /* fallback to /__claira/run */
   }
   return post({ kind: "fitnessImageRead", ...bodyObj });
 }

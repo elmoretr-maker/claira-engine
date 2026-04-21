@@ -1,14 +1,12 @@
 import { SYSTEM_MODE } from "../../core/systemMode.js";
 import ThemeToggle from "../components/ThemeToggle.jsx";
-import { VoiceGuidanceTools } from "../voice/VoiceGuidanceTools.jsx";
+import { GuidedVoiceControls } from "../voice/GuidedVoiceControls.jsx";
 import "./GuidedStepChrome.css";
 
 /**
  * Entry screen only: theme + voice tools, no onboarding step count or nav.
- *
- * @param {{ replayScript: string }} props
  */
-export default function PackEntryTopBar({ replayScript }) {
+export default function PackEntryTopBar() {
   const modeLabel = SYSTEM_MODE === "simulation" ? "Practice" : "Live";
 
   return (
@@ -19,7 +17,7 @@ export default function PackEntryTopBar({ replayScript }) {
         </div>
         <div className="guided-step-bar-right">
           <ThemeToggle className="guided-theme-toggle" />
-          <VoiceGuidanceTools replayScript={replayScript} />
+          <GuidedVoiceControls />
         </div>
       </div>
     </div>

@@ -17,6 +17,11 @@
   font-size: 1.35rem;
 }
 
+.structure-setup-desc-wrap {
+  position: relative;
+  padding-top: 1.75rem;
+}
+
 .structure-setup-desc {
   margin: 0 0 0.75rem;
   color: #a8b0bf;

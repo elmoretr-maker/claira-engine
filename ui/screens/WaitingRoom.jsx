@@ -2,6 +2,7 @@ import "./WaitingRoom.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
 import "../voice/ClairaVoiceChrome.css";
+import { speakVoiceKey } from "../voice/speakVoiceKey.js";
 import { getRiskInsights, getUserControlState, setUserControlRule } from "../clairaApiClient.js";
 import { isBypassReviewPipelineRow, isConfirmPipelineRow } from "../pipelineRowUtils.js";
 
@@ -503,6 +504,7 @@ export default function WaitingRoom({
                           type="button"
                           className="btn btn-secondary"
                           onClick={() => {
+                            speakVoiceKey("warning_delete_rule");
                             void (async () => {
                               await setUserControlRule({
                                 predicted_label: pred,

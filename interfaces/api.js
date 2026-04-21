@@ -28,6 +28,11 @@ import { loadIndustryPack as applyIndustryPack } from "../packs/loadIndustryPack
 import { InvalidPackError } from "../workflow/packs/validatePackTriad.js";
 import { getPackRegistryEntry } from "../workflow/packs/packRegistry.js";
 import { listIndustryPacks } from "../packs/listIndustryPacks.js";
+import {
+  buildProductCatalog,
+  enrichCatalogWithClipResults,
+  writeProductCatalogFiles,
+} from "./productCatalog.js";
 import { checkInternetConnection } from "../packs/industryAutogen/internetCheck.js";
 import { autoImproveIndustryPack } from "../packs/industryAutogen/autoImproveIndustryPack.js";
 import { buildIndustryReport } from "../packs/industryAutogen/coverageEvaluator.js";
@@ -2276,4 +2281,66 @@ export async function previewCapabilityRowApi(payload = {}) {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// ---------------------------------------------------------------------------
+// buildProductCatalogApi
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert raw product images into a structured, platform-ready catalog.
+ *
+ * Accepts any combination of:
+ *   images      — string[]  — image URLs or local file paths
+ *   productData — unknown   — structured product object(s) (Wix / generic shape)
+ *   folderPath  — string    — local directory to scan for images
+ *   platform    — string    — optional formatter: "wix" | "shopify"
+ *   recursive   — boolean   — scan folderPath subdirectories (default false)
+ *
+ * Uses heuristic filename-pattern grouping only; no external AI calls at runtime.
+ * CLIP analysis runs separately via runProductImagePipeline.
+ *
+ * @param {{
+ *   images?:      string[],
+ *   productData?: unknown,
+ *   folderPath?:  string | null,
+ *   platform?:    "wix" | "shopify" | string | null,
+ *   recursive?:   boolean,
+ * }} params
+ */
+export async function buildProductCatalogApi(params = {}) {
+  return buildProductCatalog({
+    images:      Array.isArray(params.images) ? params.images : [],
+    productData: params.productData ?? null,
+    folderPath:  typeof params.folderPath === "string" ? params.folderPath : null,
+    platform:    typeof params.platform === "string" ? params.platform : null,
+    recursive:   params.recursive === true,
+  });
+}
+
+/**
+ * Enrich a product catalog with CLIP classification results.
+ *
+ * The `clipResults` argument must be the return value of `runProductImagePipeline`
+ * — CLIP is NOT re-executed.  Products are matched by `id`.
+ *
+ * @param {Parameters<typeof enrichCatalogWithClipResults>[0]} catalog
+ * @param {Parameters<typeof enrichCatalogWithClipResults>[1]} clipResults
+ */
+export function enrichCatalogWithClipResultsApi(catalog, clipResults) {
+  return enrichCatalogWithClipResults(catalog, clipResults ?? []);
+}
+
+/**
+ * Write a structured product catalog to disk.
+ *
+ * Creates one sub-directory per product under `outputPath` (defaults to
+ * `<cwd>/output/products`).  URL images are downloaded; local paths are
+ * copied.  Existing files are never overwritten.
+ *
+ * @param {Parameters<typeof writeProductCatalogFiles>[0]} catalog
+ * @param {string | null} [outputPath]
+ */
+export async function writeProductCatalogFilesApi(catalog, outputPath) {
+  return writeProductCatalogFiles(catalog, outputPath ?? null);
 }

@@ -8,6 +8,7 @@ import {
   setOversightLevel,
   setStructureSetupComplete,
 } from "../userPrefs.js";
+import { InlineVoiceButton } from "../voice/InlineVoiceButton.jsx";
 import "./StructureSetupScreen.css";
 
 /**
@@ -56,10 +57,13 @@ export default function StructureSetupScreen({ onContinue }) {
       <div className="structure-setup-card card">
         <header className="structure-setup-header">
           <h1>How are your items structured?</h1>
-          <p className="structure-setup-desc">
-            This is only to set expectations in the UI—it doesn&apos;t change how the engine runs. Answer in whatever way
-            feels closest; you can always adjust later.
-          </p>
+          <div className="structure-setup-desc-wrap">
+            <InlineVoiceButton voiceKey="structure_setup_intro" />
+            <p className="structure-setup-desc">
+              This is only to set expectations in the UI—it doesn’t change how the engine runs. Answer in whatever way
+              feels closest; you can always adjust later.
+            </p>
+          </div>
         </header>
 
         <section className="structure-q" aria-labelledby="q-sizes">

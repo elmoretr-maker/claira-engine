@@ -1,7 +1,7 @@
 import { SYSTEM_MODE } from "../../core/systemMode.js";
 import ThemeToggle from "../components/ThemeToggle.jsx";
-import { useVoiceOnboarding } from "../voice/VoiceOnboardingContext.jsx";
-import { VoiceGuidanceTools } from "../voice/VoiceGuidanceTools.jsx";
+import { GuidedVoiceControls } from "../voice/GuidedVoiceControls.jsx";
+import { useVoiceOnboarding } from "../voice/useVoiceOnboarding.js";
 import { useOnboardingNav } from "./OnboardingNavContext.jsx";
 import { getGuidedTaskProgress } from "./onboardingFlowMeta.js";
 import "./GuidedStepChrome.css";
@@ -20,9 +20,11 @@ import "./GuidedStepChrome.css";
  *   showHome?: boolean,
  *   onHome?: () => void,
  *   voiceReplayStep?: number | null,
+ *   hideVoiceControls?: boolean,
  *   children?: import("react").ReactNode,
  * }} props
- * If `voiceReplayStep` is a number, “Hear it again” uses that voice line index instead of `step`.
+ * `voiceReplayStep` kept for call-site clarity.
+ * `hideVoiceControls` — pass true on Welcome to suppress top-bar voice buttons (Play lives inline next to heading).
  */
 export default function GuidedStepChrome({
   step,
@@ -36,7 +38,8 @@ export default function GuidedStepChrome({
   hidePhaseLabel = false,
   showHome = false,
   onHome,
-  voiceReplayStep = null,
+  voiceReplayStep: _voiceReplayStep = null,
+  hideVoiceControls = false,
   children,
 }) {
   const modeLabel = SYSTEM_MODE === "simulation" ? "Practice" : "Live";
@@ -113,7 +116,7 @@ export default function GuidedStepChrome({
               Start over
             </button>
           ) : null}
-          <VoiceGuidanceTools step={typeof voiceReplayStep === "number" ? voiceReplayStep : step} />
+          {hideVoiceControls ? null : <GuidedVoiceControls />}
         </div>
       </div>
       {children}

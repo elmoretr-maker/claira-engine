@@ -15,6 +15,7 @@ import {
 import ProcessIntel from "../components/ProcessIntel.jsx";
 import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
 import { setStructureSetupComplete } from "../userPrefs.js";
+import { InlineVoiceButton } from "../voice/InlineVoiceButton.jsx";
 import "../voice/ClairaVoiceChrome.css";
 import "./CapabilityScreen.css";
 
@@ -236,10 +237,13 @@ export default function CapabilityScreen({ packProcesses = {}, onContinue, onBac
         <div className="claira-screen-heading-row">
           <div>
             <h1>What would you like me to focus on?</h1>
-            <p className="capability-screen-desc">
-              I’ve grouped what your pack can handle—tick the areas you want me to help with. Open a group anytime to see
-              the exact categories I’ll watch.
-            </p>
+            <div className="capability-screen-desc-wrap">
+              <InlineVoiceButton voiceKey="capability_intro" />
+              <p className="capability-screen-desc">
+                I've grouped what your pack can handle—tick the areas you want me to help with. Open a group anytime to see
+                the exact categories I'll watch.
+              </p>
+            </div>
           </div>
         </div>
       </header>

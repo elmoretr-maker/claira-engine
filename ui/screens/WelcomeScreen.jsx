@@ -1,18 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import BrandMark from "../components/BrandMark.jsx";
 import ClairaClaritySignature from "../components/ClairaClaritySignature.jsx";
-import {
-  pauseClairaSpeechPlayback,
-  primeClairaVoicePlayback,
-  resumeClairaSpeechPlayback,
-} from "../voice/clairaSpeech.js";
-import { getVoiceScriptForStep } from "../voice/clairaVoiceSteps.js";
-import { useVoiceOnboarding } from "../voice/VoiceOnboardingContext.jsx";
+import { primeClairaVoicePlayback, speakClaira } from "../voice/clairaSpeech.js";
+import { getHtmlVoiceAudio } from "../voice/localVoicePlayback.js";
+import { useVoiceOnboarding } from "../voice/useVoiceOnboarding.js";
 import GuidedStepChrome from "../onboarding/GuidedStepChrome.jsx";
 import { ONBOARDING_STEP } from "../onboarding/onboardingFlowMeta.js";
 import "./WelcomeScreen.css";
-
-const WELCOME_VOICE_STEP = 0;
 
 /**
  * @param {{ onStart: () => void }} props
@@ -21,9 +15,10 @@ export default function WelcomeScreen({ onStart }) {
   const videoRef = useRef(/** @type {HTMLVideoElement | null} */ (null));
   const [videoFailed, setVideoFailed] = useState(false);
   const [staticVideoOnly, setStaticVideoOnly] = useState(false);
+  /** true when video is NOT playing — used for the unified Play/Pause toggle */
   const [mediaPaused, setMediaPaused] = useState(true);
 
-  const { speakOnboardingLine, cancelAllSpeech, voiceEnabled, setVoiceEnabled } = useVoiceOnboarding();
+  const { currentVoiceScript, pauseVoicePlayback } = useVoiceOnboarding();
 
   const isStatic = videoFailed || staticVideoOnly;
 
@@ -48,73 +43,34 @@ export default function WelcomeScreen({ onStart }) {
     };
   }, [isStatic, videoFailed]);
 
-  const welcomeScript = getVoiceScriptForStep(WELCOME_VOICE_STEP) ?? "";
-
-  const speakWelcomeLine = useCallback(() => {
-    const t = String(welcomeScript).trim();
-    if (!t || !voiceEnabled) return;
-    speakOnboardingLine(t, { interrupt: true });
-  }, [speakOnboardingLine, voiceEnabled, welcomeScript]);
-
-  const isVideoAtStart = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return true;
-    return v.ended || v.currentTime < 0.05;
-  }, []);
-
+  /**
+   * Play: resume audio if it's paused mid-clip, or start the welcome script fresh.
+   * Resume calls `htmlAudio.play()` directly — volume is already correct on the element
+   * (0 when muted, normal otherwise), so this works regardless of mute state.
+   */
   const handlePlay = useCallback(async () => {
     await primeClairaVoicePlayback();
-    if (isStatic) {
-      speakWelcomeLine();
-      return;
+    const html = getHtmlVoiceAudio();
+    if (html && html.paused && !html.ended) {
+      void html.play().catch(() => {});
+    } else if (!html || html.ended) {
+      const t = String(currentVoiceScript ?? "").trim();
+      if (t) void speakClaira(t, { interrupt: true });
     }
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused && isVideoAtStart()) {
-      speakWelcomeLine();
-    } else if (v.paused && voiceEnabled) {
-      resumeClairaSpeechPlayback();
+    if (!isStatic && videoRef.current && videoRef.current.paused) {
+      void videoRef.current.play().catch(() => {});
     }
-    try {
-      await v.play();
-    } catch {
-      /* ignore */
-    }
-  }, [isStatic, isVideoAtStart, speakWelcomeLine, voiceEnabled]);
+  }, [isStatic, currentVoiceScript]);
 
+  /**
+   * Pause: stops BOTH video and audio element.
+   * `pauseVoicePlayback` calls `pauseVoiceAudio()` in the controller which pauses `htmlAudio`.
+   * Because Bug 1 is fixed, `htmlAudio` correctly points to the current audio after a Replay.
+   */
   const handlePause = useCallback(() => {
-    if (isStatic) return;
-    videoRef.current?.pause();
-    pauseClairaSpeechPlayback();
-  }, [isStatic]);
-
-  const handleReplay = useCallback(async () => {
-    await primeClairaVoicePlayback();
-    if (isStatic) {
-      speakWelcomeLine();
-      return;
-    }
-    const v = videoRef.current;
-    if (!v) return;
-    v.pause();
-    v.currentTime = 0;
-    speakWelcomeLine();
-    try {
-      await v.play();
-    } catch {
-      /* ignore */
-    }
-  }, [isStatic, speakWelcomeLine]);
-
-  const handleNarrationToggle = useCallback(() => {
-    if (voiceEnabled) {
-      cancelAllSpeech();
-      setVoiceEnabled(false);
-    } else {
-      void primeClairaVoicePlayback();
-      setVoiceEnabled(true);
-    }
-  }, [voiceEnabled, cancelAllSpeech, setVoiceEnabled]);
+    pauseVoicePlayback();
+    if (!isStatic) videoRef.current?.pause();
+  }, [isStatic, pauseVoicePlayback]);
 
   const handleVideoEnded = useCallback(() => {
     videoRef.current?.pause();
@@ -131,19 +87,30 @@ export default function WelcomeScreen({ onStart }) {
     <main className="welcome-screen">
       <ClairaClaritySignature className="claira-clarity-signature--corner-bottom" />
       <div className="welcome-screen-inner">
+        {/* Top bar: no voice controls — Play is next to the Welcome heading below */}
         <GuidedStepChrome
           step={ONBOARDING_STEP.welcome}
-          voiceReplayStep={WELCOME_VOICE_STEP}
           phaseLabel="Welcome"
           hideBack
           hideHome
           hideStartOver
           hideStepProgress
           hidePhaseLabel
+          hideVoiceControls
         />
         <div className="welcome-card card">
           <BrandMark size="lg" className="welcome-brand-mark" />
-          <h1 className="welcome-page-title">Welcome</h1>
+          <div className="welcome-heading-row">
+            <h1 className="welcome-page-title">Welcome</h1>
+            <button
+              type="button"
+              className="btn btn-primary welcome-play-btn"
+              onClick={mediaPaused ? () => void handlePlay() : handlePause}
+              title={mediaPaused ? "Play video and voice" : "Pause"}
+            >
+              {mediaPaused ? "▶ Play" : "⏸ Pause"}
+            </button>
+          </div>
           <div className="welcome-card__video-shell">
             {isStatic ? (
               <img
@@ -166,35 +133,7 @@ export default function WelcomeScreen({ onStart }) {
                 <source src="/assets/Claira_video_silent.mp4" type="video/mp4" />
               </video>
             )}
-            <div className="welcome-card__video-controls" role="group" aria-label="Welcome video">
-              <button
-                type="button"
-                className="btn btn-secondary welcome-card__ctrl"
-                disabled={!isStatic && !mediaPaused}
-                onClick={() => void handlePlay()}
-              >
-                Play
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary welcome-card__ctrl"
-                disabled={isStatic || mediaPaused}
-                onClick={handlePause}
-              >
-                Pause
-              </button>
-              <button type="button" className="btn btn-secondary welcome-card__ctrl" onClick={() => void handleReplay()}>
-                Replay
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary welcome-card__ctrl"
-                onClick={handleNarrationToggle}
-                aria-pressed={!voiceEnabled}
-              >
-                {voiceEnabled ? "Silence" : "Voice"}
-              </button>
-            </div>
+            {/* No controls inside the video box — all controls are in the top bar */}
           </div>
           <p className="welcome-card__video-hint">Watch how Claira works</p>
           <p className="welcome-kicker">Claira</p>

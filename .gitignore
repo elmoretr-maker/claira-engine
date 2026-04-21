@@ -58,3 +58,10 @@ Assets/
 
 .DS_Store
 Thumbs.db
+
+# Pre-generated voice lines (manifest stays tracked; run npm run generate:voice-assets)
+ui/public/assets/audio/voice/*.mp3
+
+# Integration job store (runtime data — restored on restart, never commit)
+server/jobsStore.json
+server/jobsStore.tmp.json

@@ -9,6 +9,11 @@
   font-size: 1.35rem;
 }
 
+.capability-screen-desc-wrap {
+  position: relative;
+  padding-top: 1.75rem;
+}
+
 .capability-screen-desc {
   margin: 0 0 1rem;
   color: #a0a8b8;
