@@ -12,7 +12,14 @@ Claira is built on a single principle:
 Multiple inputs  →  One engine  →  Multiple outcomes
 ```
 
-UI tools and external integrations both route through the same execution pipeline. Capabilities define what the system can do. Workflows let users refine, act, and repeat.
+UI tools and external integrations both route through the same execution pipeline. The system is organized around four building blocks:
+
+| Block | Role |
+|---|---|
+| **Capabilities** | What the system can do (`analyzePhotos`, `buildProductCatalog`, …) |
+| **Modules** | Reusable actions users can combine (`analyze → filter → export`) |
+| **Categories** | Pre-configured, industry-specific workflows |
+| **Workflows** | User-defined sequences of modules and actions |
 
 ---
 
@@ -29,6 +36,8 @@ Analyze and rank a set of images automatically.
 - Real-time client-side filtering — no extra server calls
 - Summary report: quality tiers, tag distribution, average score
 
+---
+
 ### 📦 Build Product Catalog
 
 Turn a folder of images into structured, store-ready product data.
@@ -39,6 +48,40 @@ Turn a folder of images into structured, store-ready product data.
 - Organized file output: `/products/product-name/main.jpg`, `alt-1.jpg`, …
 - Works with local file paths and remote URLs
 - Platform-ready formatting (Wix, Shopify)
+
+---
+
+### 🧩 Category Presets (Industry Workflows)
+
+Pre-configured workflows for specific industries. Each category maps directly to a set of capabilities and provides a guided user experience.
+
+| Category | Capabilities used |
+|---|---|
+| Ecommerce | Product catalog generation, image grouping, metadata |
+| Photography | Photo analysis, quality scoring, selection |
+| Content creation | Media organization, tagging, file output |
+
+Categories are configurations, not hard-coded flows — they are powered by the same underlying modules as everything else.
+
+---
+
+### 🛠 Build Your Own Category
+
+Users can create custom categories by selecting and ordering modules.
+
+**Available modules** (examples):
+
+- Analyze images
+- Filter by tags
+- Group assets
+- Generate metadata
+- Organize files
+
+Users define the order, and Claira assembles the pipeline. This makes the system a flexible composition platform rather than a fixed set of tools.
+
+Planned: a visual drag-and-drop category builder.
+
+---
 
 ### 🔁 Workflow System
 
@@ -71,25 +114,31 @@ No business logic lives in adapters. Everything executes inside the engine.
 ### Layers
 
 ```
-┌─────────────────────────────────────┐
-│            Adapters                 │
-│  UI screens · Wix webhook · REST    │
-│  (transform input → forward to      │
-│   engine, nothing else)             │
-├─────────────────────────────────────┤
-│         Capability Registry         │
-│  server/capabilities.js             │
-│  Maps events → handlers             │
-├─────────────────────────────────────┤
-│              Engine                 │
-│  CLAIRA_RUN_HANDLERS                │
-│  Central dispatch, no duplication   │
-├─────────────────────────────────────┤
-│            Pipelines                │
-│  productCatalog · photoAnalyzer     │
-│  CLIP image analysis · file I/O     │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│                Adapters                  │
+│  UI screens · Wix webhook · REST API     │
+│  Transform input → forward to engine     │
+│  (no business logic here)                │
+├──────────────────────────────────────────┤
+│           Capability Registry            │
+│  server/capabilities.js                  │
+│  Maps events → handlers                  │
+├──────────────────────────────────────────┤
+│               Modules                    │
+│  Reusable actions shared across          │
+│  categories and custom workflows         │
+├──────────────────────────────────────────┤
+│               Engine                     │
+│  CLAIRA_RUN_HANDLERS                     │
+│  Central dispatch — no duplication       │
+├──────────────────────────────────────────┤
+│             Pipelines                    │
+│  productCatalog · photoAnalyzer          │
+│  CLIP image analysis · file I/O          │
+└──────────────────────────────────────────┘
 ```
+
+**Key rule:** No business logic exists in adapters. All processing happens inside the engine.
 
 ---
 
@@ -103,6 +152,21 @@ Upload images → Analyze → Filter (+sharp −blurry) → Select best photos
 **Product Creation**
 ```
 Images → Build Product Catalog → Structured products + organized folders
+```
+
+**Category-Based Workflow**
+```
+User selects "Photography" category
+  → system runs photo analysis + filtering tools
+  → presents ranked results for selection
+```
+
+**Custom Workflow**
+```
+User builds their own category:
+  select modules (analyze → filter → export)
+  → define order
+  → run custom pipeline
 ```
 
 **Combined Workflow**
@@ -129,7 +193,7 @@ Any workflow can be copied as versioned JSON:
 }
 ```
 
-Presets can be replayed, shared, and — in future versions — imported back in to restore a full workflow state.
+Presets can be replayed, shared, and — in future versions — imported back to restore a full workflow state.
 
 ---
 
@@ -154,7 +218,7 @@ claira-engine/
 ├── ui/
 │   ├── main.jsx                # App entry, screen routing
 │   ├── clairaApiClient.js      # Browser-side fetch wrapper for /__claira/run
-│   ├── components/             # Shared UI components (IndustrySelector, etc.)
+│   ├── components/             # Shared UI components
 │   ├── screens/
 │   │   ├── PhotoSorterScreen.jsx
 │   │   └── CatalogBuilderScreen.jsx
@@ -234,9 +298,11 @@ npm run generate:voice-assets
 
 - **One engine, many entry points** — UI and integrations are adapters only
 - **No duplicated logic** — every capability lives in exactly one place
-- **Human-in-the-loop AI** — users can review and edit before finalizing
-- **Client-side interactivity** — filtering, sorting, editing never require a round-trip
-- **Workflow-first** — features are connectable steps, not isolated tools
+- **Modular by default** — modules power both categories and custom workflows
+- **Human-in-the-loop AI** — users review and edit before finalizing
+- **Client-side interactivity** — filtering, sorting, and editing never require a round-trip
+- **Workflow-first** — features are composable steps, not isolated tools
+- **Extensible by users** — custom categories, custom pipelines
 
 ---
 
@@ -244,6 +310,7 @@ npm run generate:voice-assets
 
 - [ ] Preset import (restore a saved workflow from JSON)
 - [ ] Persistent presets (localStorage / cloud sync)
+- [ ] Visual category builder (drag-and-drop modules)
 - [ ] Duplicate image detection
 - [ ] Face quality detection (eyes open, expression)
 - [ ] Export integrations (Shopify write-back, Wix catalog push)
@@ -257,4 +324,4 @@ Add your license here.
 
 ---
 
-*Claira is not a collection of tools. It is a system that allows users to analyze, refine, act, and repeat — powered by a unified AI engine.*
+*Claira is not a collection of tools. It is a system that allows users to analyze, customize, compose workflows, act on results, and repeat — all powered by a unified AI engine with modular capabilities.*
