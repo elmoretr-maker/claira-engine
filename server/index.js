@@ -11,6 +11,7 @@ import { getClairaTtsRuntimeSummary, initClairaTtsService, synthesizeClairaSpeec
 import { loadRootEnv } from "./loadRootEnv.mjs";
 import { resetTunnelStagingTree } from "../interfaces/tunnelStaging.js";
 import { initRunClaira, runClaira } from "./runClaira.js";
+import { computeStateDelta as computeStateDeltaHandler } from "./handlers/computeStateDelta.js";
 loadRootEnv();
 
 /** Absolute path to the repository root (one level above server/). */
@@ -1336,6 +1337,21 @@ const CLAIRA_RUN_HANDLERS = {
     api.getTrackingProgressApi({
       entityId: typeof body.entityId === "string" ? body.entityId : "",
     }),
+
+  // ── computeStateDelta ────────────────────────────────────────────────────────
+  /**
+   * Compute per-entity numerical state deltas from snapshot history and event logs.
+   *
+   * This is the first processing engine capability in the module workflow system
+   * (plan.md §15, module: state_delta_computer). Pure function — no API calls,
+   * no store writes. Implementation lives in server/handlers/computeStateDelta.js
+   * for isolated testability.
+   *
+   * Input:  { snapshots[], deliveryEvents?, saleEvents? }
+   * Output: { deltas: [{ entityId, startValue, endValue, netDelta, deliveryTotal, salesTotal }] }
+   */
+  computeStateDelta: (body) => computeStateDeltaHandler(body),
+
   workspaceScan: (body, api) =>
     api.workspaceScanApi({
       accountId: typeof body.accountId === "string" ? body.accountId : undefined,
