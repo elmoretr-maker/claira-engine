@@ -876,3 +876,89 @@ Both follow `assertEngineContract`. No special execution path is required.
 - **Not implemented.** Design documented in `plan.md §21`.
 - Must remain **separate from the execution system** — comparison is a post-run operation.
 - Will be implemented as a new module layer after the UI foundation (Phase 9) is complete.
+
+---
+
+## Architecture Validation Guarantees
+
+The current system (`v0.4-step-architecture` + module definition phase) has been validated against core architectural principles.
+
+The following guarantees are enforced as of this milestone.
+
+---
+
+### 1. No Architectural Drift
+
+No changes were made to:
+
+- `workflow/execution/workflowRunner.js` (workflow execution)
+- `workflow/execution/moduleOrchestrator.js` (module orchestration)
+- `workflow/pipeline/runtimeArtifactStore.js` (artifact store)
+
+All new definitions — Section 15 modules and the Claira Insights architectural spec — are **additive only**. They layer on top of existing systems without modifying, wrapping, or overriding any existing behavior.
+
+---
+
+### 2. No Logic Inside Modules
+
+All modules defined in the Section 15 workflow (Shoe Store) are **orchestration-only**:
+
+- `buildPayload()` shapes data from consumed artifacts into an engine payload — no computation
+- `normalizeToArtifacts()` maps engine output to artifact records — no transformation logic
+- No scoring, ranking, trend analysis, classification, or recommendation logic exists in any module definition
+- All logic is explicitly delegated to `engineKinds` via `runClaira(kind, payload, context)`
+
+---
+
+### 3. Strict Separation of Concerns
+
+The system maintains three distinct behavioral layers:
+
+**Execution layer** (`moduleOrchestrator`, `workflowRunner`):
+- Modules consume only the most recent artifact of each required kind (`.at(-1)` rule)
+- Deterministic, unambiguous, no user prompt required during execution
+
+**Storage layer** (`runtimeArtifactStore`):
+- All artifact versions are preserved — none are discarded
+- Earlier versions remain available for comparison systems
+- `readArtifactsByType()` returns versions in write order (oldest first, most recent last)
+
+**Insights layer** (Claira Insights — defined, not implemented):
+- Consumes multiple artifacts across steps for comparison
+- Operates as a post-run system — does **not** affect execution or storage behavior
+
+These three layers share no execution path and cannot interfere with each other.
+
+---
+
+### 4. No Premature Implementation
+
+- No pipelines or handlers were written for new `engineKinds`
+- All new capabilities are defined in module contracts and marked `❌ missing` explicitly
+- The engine-first build rule is preserved: engine kinds must exist in `CLAIRA_RUN_HANDLERS` before corresponding modules can execute
+- Module definitions document the required input/output schema as a contract for future engine implementors
+
+New `engineKinds` defined but not yet built:
+
+| Kind | Required by |
+|------|-------------|
+| `computeStateDelta` | `state_delta_computer` |
+| `interpretTrends` | `trend_interpreter` |
+| `analyzePerformanceTrends` | `ranking_engine` |
+| `classifyPerformance` | `performance_classifier` *(module pending)* |
+| `evaluateThresholds` | `threshold_evaluator` *(module pending)* |
+| `generateRecommendations` | `recommendation_generator` |
+
+---
+
+### 5. Compatibility With Existing System
+
+- All 8 Section 15 modules pass `assertEngineContract` — **26/26 assertions, 0 failures**
+- No existing modules, execution paths, or handler registrations were modified
+- All `consumes` entries use registered `ARTIFACT_KINDS` values only
+- All `produces` entries use `{ kind, mode }` objects with valid registered values
+- No special execution path introduced — all modules route through the standard `executeModuleStep` → `runClaira` path
+
+---
+
+This guarantees that the system remains **stable, extensible, and production-safe** at this milestone.
