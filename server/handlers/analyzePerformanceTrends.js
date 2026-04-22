@@ -23,6 +23,7 @@
  *   6. score = the extracted metric value (raw, not normalized).
  *   7. label = entityId (no external label source at this layer).
  *   8. direction = forwarded unchanged from trend row for downstream recommendation use.
+ *   9. label resolved from entityLabelMap if provided; falls back to entityId.
  *
  * Input shape:
  *   {
@@ -34,14 +35,15 @@
  *       netDelta:    number,
  *       salesTotal:  number,
  *     }>,
- *     rankBy?: "velocity" | "netDelta" | "salesTotal"   // default: "velocity"
+ *     rankBy?:         "velocity" | "netDelta" | "salesTotal",   // default: "velocity"
+ *     entityLabelMap?: Record<string, string>,                    // optional human-readable labels
  *   }
  *
  * Output shape:
  *   {
  *     entities: Array<{
  *       entityId:  string,
- *       label:     string,    // same as entityId — no label source at this layer
+ *       label:     string,    // entityLabelMap[entityId] ?? entityId
  *       rank:      number,    // integer >= 1
  *       score:     number,
  *       direction: string,    // forwarded from trend for generateRecommendations
@@ -73,8 +75,9 @@ const VALID_RANK_BY = /** @type {const} */ (["velocity", "netDelta", "salesTotal
 /**
  * Rank entities by a selected performance metric.
  * Forwards direction for downstream recommendation generation.
+ * Resolves human-readable labels from optional entityLabelMap.
  *
- * @param {{ trends: TrendRow[], rankBy?: string }} body
+ * @param {{ trends: TrendRow[], rankBy?: string, entityLabelMap?: Record<string, string> }} body
  * @returns {{ entities: RankedEntity[] }}
  */
 export function analyzePerformanceTrends(body) {
@@ -82,7 +85,12 @@ export function analyzePerformanceTrends(body) {
     throw new Error("analyzePerformanceTrends: body must be an object");
   }
 
-  const { trends, rankBy: rawRankBy } = body;
+  const { trends, rankBy: rawRankBy, entityLabelMap } = body;
+
+  // Validate entityLabelMap when provided — must be a plain object (not required).
+  const labelMap = entityLabelMap != null && typeof entityLabelMap === "object" && !Array.isArray(entityLabelMap)
+    ? /** @type {Record<string, string>} */ (entityLabelMap)
+    : null;
 
   if (!Array.isArray(trends)) {
     throw new Error("analyzePerformanceTrends: trends must be an array");
@@ -145,9 +153,14 @@ export function analyzePerformanceTrends(body) {
       currentRank = i + 1;
     }
 
+    // Resolve label: prefer entityLabelMap entry, fall back to entityId.
+    const label = (labelMap && typeof labelMap[entityId] === "string" && labelMap[entityId].length > 0)
+      ? labelMap[entityId]
+      : entityId;
+
     entities.push({
       entityId,
-      label: entityId,
+      label,
       rank: currentRank,   // always integer >= 1
       score,
       direction,

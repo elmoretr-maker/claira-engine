@@ -13,47 +13,93 @@
  *
  * Decision logic (rule-based):
  *   For each ranked entity:
- *   1. Check for a matching alert (by entityId).
+ *   1. Collect ALL alerts for the entity (multi-alert support).
+ *      - severity = highest severity across all alerts
+ *      - alertCount = number of matching alerts
  *   2. Derive action:
  *      - Alert present AND direction "down"/"flat" → "reorder" (if in actionTypes)
  *                                                  → "investigate" (fallback)
  *      - Alert present AND direction "up"          → "investigate"
  *      - No alert, rank = 1, direction "up"        → "promote"
- *      - No alert, rank > bottom third, direction "down" or "flat" → "investigate"
+ *      - No alert, bottom performer (percentile >= 0.8), direction "down"/"flat" → "investigate"
  *      - Otherwise                                 → "monitor"
- *   3. Urgency:
- *      - "critical" — alert.severity === "critical" OR (direction "down" AND rank is last)
- *      - "high"     — alert present (non-critical) OR rank in bottom half AND direction "down"
- *      - "medium"   — rank in bottom half OR direction "flat"
+ *   3. Urgency (percentile-based — stable across dataset size):
+ *      - "critical" — alert.severity === "critical" OR (direction "down" AND percentile >= 0.8)
+ *      - "high"     — alert present (non-critical) OR (percentile > 0.5 AND direction "down")
+ *      - "medium"   — percentile > 0.5 OR direction "flat"
  *      - "low"      — otherwise
  *   4. Reason: human-readable explanation of the decision.
  *
  * Input shape:
  *   {
  *     alerts:         Array<{ entityId, severity?, message? }>,
- *     rankedEntities: Array<{ entityId, label, rank, score }>,
+ *     rankedEntities: Array<{ entityId, label, rank, score, direction? }>,
  *     actionTypes?:   Array<"reorder" | "promote" | "retire" | "investigate" | "monitor">
  *   }
  *
  * Output shape:
  *   {
  *     recommendations: Array<{
- *       entityId: string,
- *       label:    string,
- *       action:   string,
- *       urgency:  "critical" | "high" | "medium" | "low",
- *       reason:   string,
+ *       entityId:   string,
+ *       label:      string,
+ *       action:     string,
+ *       urgency:    "critical" | "high" | "medium" | "low",
+ *       reason:     string,
+ *       alertCount: number,   // number of alerts matching this entity (0 if none)
+ *       percentile: number,   // rank / totalEntities (0–1, stable across dataset sizes)
  *     }>
  *   }
  */
 
 const DEFAULT_ACTION_TYPES = /** @type {const} */ (["reorder", "promote", "retire", "investigate", "monitor"]);
 
+/** Numeric rank for severity comparison — higher = more severe. */
+const SEVERITY_RANK = Object.freeze({ critical: 4, high: 3, medium: 2, low: 1 });
+
 /**
  * @typedef {{ entityId: string, severity?: string, message?: string }} AlertRow
- * @typedef {{ entityId: string, label: string, rank: number, score: number }} RankedEntity
- * @typedef {{ entityId: string, label: string, action: string, urgency: "critical" | "high" | "medium" | "low", reason: string }} Recommendation
+ * @typedef {{ entityId: string, label: string, rank: number, score: number, direction?: string }} RankedEntity
+ * @typedef {{
+ *   entityId:   string,
+ *   label:      string,
+ *   action:     string,
+ *   urgency:    "critical" | "high" | "medium" | "low",
+ *   reason:     string,
+ *   alertCount: number,
+ *   percentile: number,
+ * }} Recommendation
  */
+
+/**
+ * Return the highest severity string across all alerts for an entity.
+ * Returns undefined if alerts list is empty.
+ *
+ * @param {AlertRow[]} alerts
+ * @returns {string | undefined}
+ */
+function highestSeverity(alerts) {
+  let best = /** @type {string | undefined} */ (undefined);
+  let bestRank = -1;
+  for (const a of alerts) {
+    const sev  = typeof a.severity === "string" ? a.severity.toLowerCase() : "";
+    const rank = SEVERITY_RANK[/** @type {keyof typeof SEVERITY_RANK} */ (sev)] ?? 0;
+    if (rank > bestRank) { bestRank = rank; best = sev || undefined; }
+  }
+  return best;
+}
+
+/**
+ * Return the first non-empty message from an array of alerts.
+ *
+ * @param {AlertRow[]} alerts
+ * @returns {string | undefined}
+ */
+function firstMessage(alerts) {
+  for (const a of alerts) {
+    if (typeof a.message === "string" && a.message.trim()) return a.message.trim();
+  }
+  return undefined;
+}
 
 /**
  * Check if an action is permitted given the resolved actionTypes list.
@@ -67,12 +113,12 @@ function actionAllowed(action, actionTypes) {
 }
 
 /**
- * Resolve which action to take based on alert, direction, and rank.
+ * Resolve which action to take.
  *
- * @param {{ hasAlert: boolean, alertSeverity: string | undefined, direction: string | undefined, rank: number, worstRank: number, actionTypes: string[] }} params
+ * @param {{ hasAlert: boolean, direction: string | undefined, rank: number, percentile: number, worstRank: number, actionTypes: string[] }} params
  * @returns {string}
  */
-function resolveAction({ hasAlert, direction, rank, worstRank, actionTypes }) {
+function resolveAction({ hasAlert, direction, rank, percentile, worstRank, actionTypes }) {
   if (hasAlert) {
     if (direction === "down" || direction === "flat") {
       if (actionAllowed("reorder", actionTypes)) return "reorder";
@@ -86,7 +132,9 @@ function resolveAction({ hasAlert, direction, rank, worstRank, actionTypes }) {
     if (actionAllowed("promote", actionTypes)) return "promote";
   }
 
-  if (rank === worstRank && (direction === "down" || direction === "flat")) {
+  // Bottom performer: use percentile for stability; fall back to last-rank comparison.
+  const isBottomPerformer = percentile >= 0.8 || rank === worstRank;
+  if (isBottomPerformer && (direction === "down" || direction === "flat")) {
     if (actionAllowed("investigate", actionTypes)) return "investigate";
   }
 
@@ -95,21 +143,22 @@ function resolveAction({ hasAlert, direction, rank, worstRank, actionTypes }) {
 }
 
 /**
- * Derive urgency level from alert severity, direction, rank, and total entity count.
+ * Derive urgency — percentile-based for dataset-size stability.
  *
- * @param {{ hasAlert: boolean, alertSeverity: string | undefined, direction: string | undefined, rank: number, totalEntities: number }} params
+ * @param {{ hasAlert: boolean, alertSeverity: string | undefined, direction: string | undefined, percentile: number }} params
  * @returns {"critical" | "high" | "medium" | "low"}
  */
-function resolveUrgency({ hasAlert, alertSeverity, direction, rank, totalEntities }) {
-  const bottomHalfThreshold = totalEntities > 1 ? Math.ceil(totalEntities / 2) : 1;
-
-  if (alertSeverity === "critical" || (direction === "down" && rank === totalEntities)) {
+function resolveUrgency({ hasAlert, alertSeverity, direction, percentile }) {
+  // Critical: explicit severity OR trending down in bottom 20% of performers.
+  if (alertSeverity === "critical" || (direction === "down" && percentile >= 0.8)) {
     return "critical";
   }
-  if (hasAlert || (rank > bottomHalfThreshold && direction === "down")) {
+  // High: any active alert OR bottom half trending down.
+  if (hasAlert || (percentile > 0.5 && direction === "down")) {
     return "high";
   }
-  if (rank > bottomHalfThreshold || direction === "flat") {
+  // Medium: bottom half OR stable/flat.
+  if (percentile > 0.5 || direction === "flat") {
     return "medium";
   }
   return "low";
@@ -118,16 +167,21 @@ function resolveUrgency({ hasAlert, alertSeverity, direction, rank, totalEntitie
 /**
  * Build a human-readable reason string.
  *
- * @param {{ entityId: string, hasAlert: boolean, alertMessage: string | undefined, action: string, direction: string | undefined, rank: number }} params
+ * @param {{ entityId: string, hasAlert: boolean, alertMessage: string | undefined, alertCount: number, action: string, direction: string | undefined, rank: number, percentile: number }} params
  * @returns {string}
  */
-function buildReason({ entityId, hasAlert, alertMessage, action, direction, rank }) {
+function buildReason({ entityId, hasAlert, alertMessage, alertCount, action, direction, rank, percentile }) {
   const parts = [];
 
-  if (hasAlert && alertMessage) {
-    parts.push(`Alert: ${alertMessage}.`);
-  } else if (hasAlert) {
-    parts.push(`Alert triggered for ${entityId}.`);
+  if (hasAlert) {
+    if (alertMessage) {
+      parts.push(`Alert: ${alertMessage}.`);
+    } else {
+      parts.push(`Alert triggered for ${entityId}.`);
+    }
+    if (alertCount > 1) {
+      parts.push(`(${alertCount} alerts total.)`);
+    }
   }
 
   if (direction) {
@@ -135,7 +189,7 @@ function buildReason({ entityId, hasAlert, alertMessage, action, direction, rank
     parts.push(`Entity is ${dirLabel}.`);
   }
 
-  parts.push(`Ranked #${rank}.`);
+  parts.push(`Ranked #${rank} (${Math.round(percentile * 100)}th percentile).`);
   parts.push(`Action: ${action}.`);
 
   return parts.join(" ");
@@ -143,6 +197,7 @@ function buildReason({ entityId, hasAlert, alertMessage, action, direction, rank
 
 /**
  * Generate actionable recommendations from ranked entities and alerts.
+ * Supports multiple alerts per entity; urgency is percentile-based.
  *
  * @param {{
  *   alerts:          AlertRow[],
@@ -170,14 +225,15 @@ export function generateRecommendations(body) {
       ? rawActionTypes.map(String)
       : [...DEFAULT_ACTION_TYPES];
 
-  // ── Index alerts by entityId for O(1) lookup ─────────────────────────────
-  /** @type {Map<string, AlertRow>} */
-  const alertIndex = new Map();
+  // ── Index ALL alerts by entityId (multi-alert: one entity may have many) ──
+  /** @type {Map<string, AlertRow[]>} */
+  const alertsByEntity = new Map();
   for (const alert of alerts) {
     if (alert == null || typeof alert !== "object") continue;
     const id = String(alert.entityId ?? "").trim();
     if (!id) continue;
-    alertIndex.set(id, alert);
+    if (!alertsByEntity.has(id)) alertsByEntity.set(id, []);
+    alertsByEntity.get(id)?.push(alert);
   }
 
   // ── Filter valid ranked entities ──────────────────────────────────────────
@@ -197,23 +253,26 @@ export function generateRecommendations(body) {
     const label    = String(entity.label ?? entityId);
     const rank     = Number(entity.rank ?? 1);
 
-    const alert    = alertIndex.get(entityId);
-    const hasAlert = alert != null;
-    const alertSeverity = alert?.severity != null ? String(alert.severity) : undefined;
-    const alertMessage  = alert?.message  != null ? String(alert.message)  : undefined;
+    // percentile: 0–1 scale, stable regardless of totalEntities changes.
+    const percentile = totalEntities > 0 ? rank / totalEntities : 1;
 
-    // Direction is not in the ranked entity — it was in the trend layer.
-    // Accept it as an optional pass-through on the entity object.
+    const entityAlerts   = alertsByEntity.get(entityId) ?? [];
+    const hasAlert       = entityAlerts.length > 0;
+    const alertCount     = entityAlerts.length;
+    const alertSeverity  = highestSeverity(entityAlerts);
+    const alertMessage   = firstMessage(entityAlerts);
+
+    // Direction flows natively from analyzePerformanceTrends output.
     const direction =
       typeof /** @type {Record<string, unknown>} */ (entity).direction === "string"
         ? /** @type {string} */ (/** @type {Record<string, unknown>} */ (entity).direction)
         : undefined;
 
-    const action = resolveAction({ hasAlert, alertSeverity, direction, rank, worstRank, actionTypes });
-    const urgency = resolveUrgency({ hasAlert, alertSeverity, direction, rank, totalEntities });
-    const reason = buildReason({ entityId, hasAlert, alertMessage, action, direction, rank });
+    const action  = resolveAction({ hasAlert, direction, rank, percentile, worstRank, actionTypes });
+    const urgency = resolveUrgency({ hasAlert, alertSeverity, direction, percentile });
+    const reason  = buildReason({ entityId, hasAlert, alertMessage, alertCount, action, direction, rank, percentile });
 
-    recommendations.push({ entityId, label, action, urgency, reason });
+    recommendations.push({ entityId, label, action, urgency, reason, alertCount, percentile });
   }
 
   return { recommendations };

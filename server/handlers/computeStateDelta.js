@@ -34,6 +34,7 @@
  *       deliveryTotal:  number,
  *       salesTotal:     number,
  *       snapshotCount:  number,   // count of valid sorted snapshots used (always >= 2)
+ *       timeRange:      { startTimestamp: string, endTimestamp: string, durationMs: number },
  *     }>
  *   }
  */
@@ -53,6 +54,12 @@
  * }} EventRow
  *
  * @typedef {{
+ *   startTimestamp: string,
+ *   endTimestamp:   string,
+ *   durationMs:     number,
+ * }} TimeRange
+ *
+ * @typedef {{
  *   entityId:      string,
  *   startValue:    number,
  *   endValue:      number,
@@ -60,6 +67,7 @@
  *   deliveryTotal: number,
  *   salesTotal:    number,
  *   snapshotCount: number,
+ *   timeRange:     TimeRange,
  * }} EntityDelta
  */
 
@@ -133,7 +141,19 @@ export function computeStateDelta(body) {
     const deliveryTotal = deliveryTotals.get(entityId) ?? 0;
     const salesTotal    = saleTotals.get(entityId) ?? 0;
 
-    deltas.push({ entityId, startValue, endValue, netDelta, deliveryTotal, salesTotal, snapshotCount: sorted.length });
+    // ── Time range from the sorted snapshot boundary ─────────────────────────
+    const startTimestamp = String(sorted[0].timestamp);
+    const endTimestamp   = String(sorted[sorted.length - 1].timestamp);
+    const startMs        = new Date(startTimestamp).getTime();
+    const endMs          = new Date(endTimestamp).getTime();
+    const durationMs     = Number.isFinite(startMs) && Number.isFinite(endMs)
+      ? Math.max(0, endMs - startMs)
+      : 0;
+
+    /** @type {import('./computeStateDelta.js').TimeRange} */
+    const timeRange = { startTimestamp, endTimestamp, durationMs };
+
+    deltas.push({ entityId, startValue, endValue, netDelta, deliveryTotal, salesTotal, snapshotCount: sorted.length, timeRange });
   }
 
   return { deltas };
