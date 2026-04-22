@@ -10,7 +10,7 @@ build/
 coverage/
 .cache/
 
-output/
+/output/
 temp/
 _clip_test.png
 dev/_clip_smoke.png
