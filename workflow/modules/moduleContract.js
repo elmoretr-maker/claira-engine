@@ -3,9 +3,26 @@
  *
  * Optional: execute(context) — workflow orchestration; state is read-only on context;
  * writes only via context.dispatch(moduleId, reducerKey, payload).
- * expectedContextVersion must equal the engine’s context.version or execute is skipped with an error.
+ * expectedContextVersion must equal the engine's context.version or execute is skipped with an error.
  *
  * All modules must follow moduleContract. State logic must remain isolated per module.
+ *
+ * ── Engine-aware modules (plan.md §16) ──────────────────────────────────────
+ * Modules that participate in the module orchestration system (Phase 4+) must
+ * additionally declare:
+ *
+ *   engineKinds  string[]   The runClaira kind(s) this module calls. Must be a
+ *                           non-empty array of non-empty strings. Individual kind
+ *                           values are not validated against CLAIRA_RUN_HANDLERS
+ *                           here — that is a runtime concern. This validates
+ *                           structure only.
+ *
+ * Legacy modules (entity_tracking, event_log, asset_registry, etc.) that use
+ * the execute(context) pattern are exempt from engineKinds. They continue to
+ * pass assertModuleFollowsContract unchanged.
+ *
+ * New modules must pass assertEngineContract (a strict superset of this
+ * contract) before being registered with the module orchestrator.
  */
 
 import { isRegisteredArtifactKind } from "../pipeline/artifactKindRegistry.js";
@@ -23,7 +40,43 @@ import { isProduceMode } from "../pipeline/produceMode.js";
  * }} ModuleHealthReport
  */
 
+// =============================================================================
+// Private helpers
+// =============================================================================
+
 /**
+ * Validate the shape of an engineKinds value.
+ *
+ * engineKinds must be a non-empty array of non-empty trimmed strings.
+ * Kind string values are NOT checked against CLAIRA_RUN_HANDLERS here —
+ * that validation happens at runtime when runClaira dispatches the call.
+ *
+ * @param {unknown} engineKinds
+ * @param {string} label
+ * @throws {Error}
+ */
+function assertValidEngineKinds(engineKinds, label) {
+  if (!Array.isArray(engineKinds) || engineKinds.length === 0) {
+    throw new Error(`${label}: engineKinds must be a non-empty array of strings`);
+  }
+  for (let i = 0; i < engineKinds.length; i++) {
+    if (typeof engineKinds[i] !== "string" || !engineKinds[i].trim()) {
+      throw new Error(`${label}: engineKinds[${i}] must be a non-empty string`);
+    }
+  }
+}
+
+// =============================================================================
+// Base contract — all modules (legacy + new)
+// =============================================================================
+
+/**
+ * Assert that a module object satisfies the base workflow module contract.
+ *
+ * This function is backward-compatible: legacy modules that do not declare
+ * engineKinds pass without error. If engineKinds IS present, its shape is
+ * validated (soft check).
+ *
  * @param {unknown} mod
  * @param {string} [label]
  * @throws {Error}
@@ -130,4 +183,105 @@ export function assertModuleFollowsContract(mod, label = "module") {
   if ("execute" in m && m.execute != null && typeof m.execute !== "function") {
     throw new Error(`${label}: execute must be a function when present`);
   }
+
+  // ── Soft check: engineKinds (present → valid shape; absent → legacy ok) ──
+  if ("engineKinds" in m) {
+    assertValidEngineKinds(m.engineKinds, label);
+  }
+}
+
+// =============================================================================
+// Engine contract — new-architecture modules only (Phase 4+)
+// =============================================================================
+
+/**
+ * Assert that a module satisfies the strict engine-aware contract required by
+ * the module orchestrator.
+ *
+ * This is a superset of assertModuleFollowsContract. All base checks run first,
+ * then the engine-specific requirements are enforced.
+ *
+ * Additional requirements beyond the base contract:
+ *
+ *   engineKinds  string[]  (REQUIRED) The runClaira kind(s) this module calls.
+ *                          Must be a non-empty array of non-empty strings.
+ *                          Each string must match a key in CLAIRA_RUN_HANDLERS,
+ *                          but that match is validated at runtime — not here.
+ *
+ * Do NOT call this on legacy modules. They will fail because they have no
+ * engineKinds. Use assertModuleFollowsContract for legacy validation.
+ *
+ * @param {unknown} mod
+ * @param {string} [label]
+ * @throws {Error}
+ */
+export function assertEngineContract(mod, label = "module") {
+  // Run all base checks first.
+  assertModuleFollowsContract(mod, label);
+
+  const m = /** @type {Record<string, unknown>} */ (mod);
+
+  // engineKinds — required for engine-aware modules.
+  if (!("engineKinds" in m)) {
+    throw new Error(
+      `${label}: engineKinds is required for engine-aware modules — ` +
+      `declare which runClaira kind(s) this module calls`,
+    );
+  }
+  // Shape is already validated by the soft check in assertModuleFollowsContract,
+  // but call again here to keep this function self-contained and testable in isolation.
+  assertValidEngineKinds(m.engineKinds, label);
+}
+
+// =============================================================================
+// Non-throwing inspector — health checks and dev tooling
+// =============================================================================
+
+/**
+ * Return a list of engine-contract issues for a module without throwing.
+ *
+ * Runs assertEngineContract and catches all errors. Returns an empty array if
+ * the module is fully compliant, or a list of issue strings otherwise.
+ *
+ * Intended for:
+ *   - module health panels
+ *   - dev-time registry audits
+ *   - CI validation scripts
+ *
+ * @param {unknown} mod
+ * @param {string} [label]
+ * @returns {string[]} List of issue messages; empty means fully compliant.
+ */
+export function getEngineContractIssues(mod, label = "module") {
+  /** @type {string[]} */
+  const issues = [];
+
+  // Run base contract first, collect each failure separately.
+  try {
+    assertModuleFollowsContract(mod, label);
+  } catch (e) {
+    issues.push(e instanceof Error ? e.message : String(e));
+  }
+
+  if (issues.length > 0) {
+    // If the base contract already failed, skip engine-specific checks —
+    // the module needs base fixes first.
+    return issues;
+  }
+
+  // Check engineKinds separately so the message is clear.
+  const m = /** @type {Record<string, unknown>} */ (mod);
+  if (!("engineKinds" in m)) {
+    issues.push(
+      `${label}: engineKinds is missing — required for engine-aware modules`,
+    );
+  } else {
+    try {
+      assertValidEngineKinds(m.engineKinds, label);
+    } catch (e) {
+      issues.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return issues;
 }

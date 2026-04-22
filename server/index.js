@@ -10,6 +10,7 @@ import { getCapabilityForEvent, describeCapability } from "./capabilities.js";
 import { getClairaTtsRuntimeSummary, initClairaTtsService, synthesizeClairaSpeech } from "../lib/clairaTts.mjs";
 import { loadRootEnv } from "./loadRootEnv.mjs";
 import { resetTunnelStagingTree } from "../interfaces/tunnelStaging.js";
+import { initRunClaira, runClaira } from "./runClaira.js";
 loadRootEnv();
 
 /** Absolute path to the repository root (one level above server/). */
@@ -1544,6 +1545,11 @@ const CLAIRA_RUN_HANDLERS = {
   },
 };
 
+// Bind the shared engine function to the handler map.
+// Both /__claira/run and /api/claira/run — and the future module orchestrator —
+// dispatch through runClaira(). Never call CLAIRA_RUN_HANDLERS directly from routes.
+initRunClaira(CLAIRA_RUN_HANDLERS);
+
 /**
  * POST /__claira/run — Core execution interface for the Claira engine.
  *
@@ -1577,7 +1583,6 @@ const CLAIRA_RUN_HANDLERS = {
  *                       for this request, making log correlation easy.
  */
 app.post("/__claira/run", async (req, res) => {
-  const started = Date.now();
   const body = req.body ?? {};
 
   // ── Request ID — short random token for log correlation across entries. ──
@@ -1604,24 +1609,14 @@ app.post("/__claira/run", async (req, res) => {
   const { kind } = body;
 
   try {
-    const api = await import("../interfaces/api.js");
-    const handler = CLAIRA_RUN_HANDLERS[kind];
-
-    if (!handler) {
-      console.warn(`${tag} 400 unknown-kind="${kind}"`);
-      return res.status(400).json({ error: `Unknown kind: "${kind}"` });
-    }
-
-    const out = await handler(body, api);
-
-    console.log(`${tag} kind=${kind} status=ok ms=${Date.now() - started}`);
-
+    const out = await runClaira(kind, body, { accountId, rid: reqId, source: "ui" });
     return res.json(out);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-
-    console.error(`${tag} kind=${kind} status=error ms=${Date.now() - started} — ${message}`);
-
+    if (message.startsWith('Unknown kind:')) {
+      console.warn(`${tag} 400 unknown-kind="${kind}"`);
+      return res.status(400).json({ error: message });
+    }
     // Return a safe error — no stack traces exposed to callers.
     return res.status(500).json({ error: message });
   }
@@ -1656,7 +1651,6 @@ app.get("/api/claira/health", (_req, res) => {
  * Headers:  x-claira-key, x-claira-request-id  (same as /__claira/run)
  */
 app.post("/api/claira/run", async (req, res) => {
-  const started = Date.now();
   const body = req.body ?? {};
 
   const reqId =
@@ -1674,21 +1668,15 @@ app.post("/api/claira/run", async (req, res) => {
   const { kind } = body;
 
   try {
-    const api = await import("../interfaces/api.js");
-    const handler = CLAIRA_RUN_HANDLERS[kind];
-
-    if (!handler) {
-      console.warn(`${tag} 400 unknown-kind="${kind}"`);
-      return res.status(400).json({ success: false, error: `Unknown kind: "${kind}"` });
-    }
-
-    const data = await handler(body, api);
-
-    console.log(`${tag} kind=${kind} status=ok ms=${Date.now() - started}`);
+    const data = await runClaira(kind, body, { accountId, rid: reqId, source: "integration" });
     return res.json({ success: true, data });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error(`${tag} kind=${kind} status=error ms=${Date.now() - started} — ${message}`);
+    if (message.startsWith('Unknown kind:')) {
+      console.warn(`${tag} 400 unknown-kind="${kind}"`);
+      return res.status(400).json({ success: false, error: message });
+    }
+    console.error(`${tag} kind=${kind} status=error — ${message}`);
     return res.status(500).json({ success: false, error: message });
   }
 });
