@@ -104,9 +104,13 @@ await test('rankBy "salesTotal" — orders by salesTotal descending', async () =
   assertEqual(result.entities[2].entityId, "shoe-B", "rank 3 = shoe-B (salesTotal 5)");
 });
 
-// ── Test 5: Ties — standard competition ranking (1, 1, 3) ───────────────────
+// ── Test 5: Equal primary score — tie broken by direction, then entityId ─────
+// Old behavior: competition ranking (1, 1, 3).
+// New behavior: deterministic tie-breaking — strictly sequential ranks (1, 2, 3).
 
-await test("ties — standard competition ranking applied (1, 1, 3)", async () => {
+await test("equal score + same direction — tie broken by entityId (alphabetical)", async () => {
+  // alpha and beta: same velocity (20), same direction ("up"), no salesTotal.
+  // Tie-breaker falls to entityId: "alpha" < "beta" → alpha rank 1, beta rank 2.
   const result = analyzePerformanceTrends({
     trends: [
       { entityId: "alpha", velocity: 20, direction: "up",   periodCount: 2 },
@@ -120,14 +124,23 @@ await test("ties — standard competition ranking applied (1, 1, 3)", async () =
   const beta  = result.entities.find((e) => e.entityId === "beta");
   const gamma = result.entities.find((e) => e.entityId === "gamma");
 
-  assertEqual(alpha?.rank, 1, "alpha rank = 1 (tied)");
-  assertEqual(beta?.rank,  1, "beta rank = 1 (tied)");
-  assertEqual(gamma?.rank, 3, "gamma rank = 3 (not 2 — standard competition ranking)");
+  // Sequential ranks — no duplicates
+  assertEqual(alpha?.rank, 1, "alpha rank = 1 (entityId 'alpha' < 'beta')");
+  assertEqual(beta?.rank,  2, "beta rank = 2 (entityId 'beta' > 'alpha')");
+  assertEqual(gamma?.rank, 3, "gamma rank = 3");
+
+  // Verify no duplicate ranks in the full result
+  const ranks = result.entities.map((e) => e.rank);
+  const unique = new Set(ranks);
+  assertEqual(unique.size, ranks.length, "no duplicate ranks");
 });
 
-// ── Test 6: All tied — all rank 1 ───────────────────────────────────────────
+// ── Test 6: All criteria tied — fully resolved by direction then entityId ────
 
-await test("all entities tied — all receive rank 1", async () => {
+await test("score tied — direction breaks tie first, then entityId", async () => {
+  // X(up), Y(flat), Z(up): score tied.
+  // Level 2 (direction): up(2) > flat(1) → X and Z ranked before Y.
+  // Between X and Z: same direction, so Level 5 (entityId): "X" < "Z" → X rank 1, Z rank 2.
   const result = analyzePerformanceTrends({
     trends: [
       { entityId: "X", velocity: 5, direction: "up",   periodCount: 2 },
@@ -137,7 +150,18 @@ await test("all entities tied — all receive rank 1", async () => {
     rankBy: "velocity",
   });
 
-  assert(result.entities.every((e) => e.rank === 1), "all tied at rank 1");
+  const x = result.entities.find((e) => e.entityId === "X");
+  const y = result.entities.find((e) => e.entityId === "Y");
+  const z = result.entities.find((e) => e.entityId === "Z");
+
+  assertEqual(x?.rank, 1, "X rank = 1 (up direction, entityId 'X' < 'Z')");
+  assertEqual(z?.rank, 2, "Z rank = 2 (up direction, entityId 'Z' > 'X')");
+  assertEqual(y?.rank, 3, "Y rank = 3 (flat direction, lower priority than up)");
+
+  // Strictly sequential — no shared ranks
+  assert([x?.rank, z?.rank, y?.rank].every((r) => r != null), "all ranks assigned");
+  const allRanks = [x?.rank, z?.rank, y?.rank];
+  assertEqual(new Set(allRanks).size, 3, "all three ranks are unique");
 });
 
 // ── Test 7: Empty input → empty entities ─────────────────────────────────────
@@ -151,7 +175,7 @@ await test("empty trends → returns empty entities", async () => {
 
 // ── Test 8: Single entity ────────────────────────────────────────────────────
 
-await test("single entity — receives rank 1", async () => {
+await test("single entity — receives rank 1 with empty tieBreakReason", async () => {
   const result = analyzePerformanceTrends({
     trends: [{ entityId: "solo", velocity: 7, direction: "up", periodCount: 2 }],
     rankBy: "velocity",
@@ -161,6 +185,8 @@ await test("single entity — receives rank 1", async () => {
   assertEqual(result.entities[0].rank,  1,    "rank = 1");
   assertEqual(result.entities[0].score, 7,    "score = 7");
   assertEqual(result.entities[0].label, "solo", "label = entityId");
+  assert(Array.isArray(result.entities[0].tieBreakReason), "tieBreakReason is array");
+  assertEqual(result.entities[0].tieBreakReason.length, 0, "tieBreakReason empty for rank-1 entity");
 });
 
 // ── Test 9: Invalid rankBy — throws clearly ──────────────────────────────────
