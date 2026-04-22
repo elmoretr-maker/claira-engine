@@ -5,16 +5,16 @@
 import { mkdirSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 import {
-  getContextRoot,
-  ensureContextDirs,
-  sanitizeSegment,
   deriveWorkspaceScope,
-} from "../workspace/workspacePaths.js";
-import { scanProductFiles } from "../workspace/productScan.js";
-import { loadStore, normRel } from "../workspace/metadataStore.js";
-import { runSync, WorkspaceSyncError } from "../workspace/syncEngine.js";
-import { loadGeneratorReadModel } from "../workspace/generatorConsumption.js";
-import { isPathInsideContext } from "../workspace/workspacePaths.js";
+  ensureContextDirs,
+  getContextRoot,
+  isPathInsideContext,
+  sanitizeSegment,
+} from "../engineWorkspace/workspacePaths.js";
+import { scanProductFiles } from "../engineWorkspace/productScan.js";
+import { loadStore, normRel } from "../engineWorkspace/metadataStore.js";
+import { runSync, WorkspaceSyncError } from "../engineWorkspace/syncEngine.js";
+import { loadGeneratorReadModel } from "../engineWorkspace/generatorConsumption.js";
 
 /**
  * @param {{ accountId?: string, mode?: string, industry?: string }} input
@@ -88,7 +88,7 @@ export function workspaceSyncApi(input = {}) {
   if (!ctx.ok) return ctx;
   const operations = Array.isArray(input.operations) ? input.operations : [];
   try {
-    const out = runSync(ctx.contextRoot, ctx.clairaDir, /** @type {import("../workspace/syncEngine.js").SyncOperation[]} */ (operations));
+    const out = runSync(ctx.contextRoot, ctx.clairaDir, /** @type {import("../engineWorkspace/syncEngine.js").SyncOperation[]} */ (operations));
     const storeAfter = loadStore(ctx.clairaDir);
     return {
       ok: true,

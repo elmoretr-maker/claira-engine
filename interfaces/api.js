@@ -101,6 +101,10 @@ import {
   setUserControlRule,
 } from "../policies/userControl.js";
 import { recordCapabilityOverrideFeedback, recordFeedbackEntry } from "../workflow/feedback/feedbackStore.js";
+
+/** Re-export for UI entry points that import `listIndustryPacks` from this barrel. */
+export { listIndustryPacks };
+
 export {
   addTrackingSnapshotApi,
   categorySupportsProgressTracking,
@@ -119,7 +123,7 @@ export {
   workspaceSimulationIngestApi,
   workspaceSyncApi,
 } from "./workspaceApi.js";
-export { assertFreshGeneratorReadModel, loadGeneratorReadModel } from "../workspace/generatorConsumption.js";
+export { assertFreshGeneratorReadModel, loadGeneratorReadModel } from "../engineWorkspace/generatorConsumption.js";
 
 /**
  * @param {unknown} raw

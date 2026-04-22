@@ -23,7 +23,8 @@ config/active_pack.json
 config/pack_reference.json
 packs/industryAutogen/cache/
 
-# Isolated workspace (simulation/live per account × industry)
+# Runtime workspace DATA only (per-account folders under repo root).
+# Application source for workspace logic lives in engineWorkspace/ (tracked).
 workspace/
 
 # Staged tax PDF comparison uploads (ephemeral; ignore if cleanup fails)
