@@ -595,9 +595,22 @@
 .ep-detail__kv-val--up   { color: #4ade80; }
 .ep-detail__kv-val--down { color: #f87171; }
 
-/* ── Recommendation section ───────────────────────── */
+/* ── FIX 4: Recommendation hierarchy ─────────────── */
 
-.ep-detail__rec-row {
+/* Primary: Action (bold, prominent) */
+.ep-detail__rec-action {
+  margin-bottom: 9px;
+}
+/* Make ActionPill larger inside the detail panel */
+.ep-detail__rec-action .ep-action-pill {
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  letter-spacing: 0.01em;
+}
+
+/* Secondary: Urgency + alerts */
+.ep-detail__rec-meta {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -605,46 +618,111 @@
   flex-wrap: wrap;
 }
 
+/* Supporting: Reason text */
 .ep-detail__reason {
   font-size: 0.8rem;
   color: var(--text-secondary);
   line-height: 1.55;
   margin: 0;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255,255,255,0.05);
 }
 .ep-detail__reason--empty {
   font-style: italic;
-  opacity: 0.65;
+  opacity: 0.6;
+  border-top: none;
 }
 
-/* ── Rank Context section ─────────────────────────── */
+/* ── FIX 2: Data completeness indicator ──────────── */
+
+.ep-detail__completeness {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: default;
+  border: 1px solid transparent;
+}
+.ep-detail__completeness-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ep-detail__completeness-label { white-space: nowrap; }
+
+/* High completeness — green */
+.ep-detail__completeness--high {
+  background: rgba(74, 222, 128, 0.08);
+  border-color: rgba(74, 222, 128, 0.20);
+  color: #4ade80;
+}
+.ep-detail__completeness--high .ep-detail__completeness-dot {
+  background: #4ade80;
+}
+
+/* Medium completeness — yellow */
+.ep-detail__completeness--medium {
+  background: rgba(234, 179, 8, 0.08);
+  border-color: rgba(234, 179, 8, 0.22);
+  color: #ca8a04;
+}
+.ep-detail__completeness--medium .ep-detail__completeness-dot {
+  background: #eab308;
+}
+
+/* Low completeness — muted red */
+.ep-detail__completeness--low {
+  background: rgba(239, 68, 68, 0.07);
+  border-color: rgba(239, 68, 68, 0.20);
+  color: #ef4444;
+}
+.ep-detail__completeness--low .ep-detail__completeness-dot {
+  background: #ef4444;
+}
+
+/* ── FIX 5: Rank Context section ─────────────────── */
 
 .ep-detail__rank-badge {
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--text-primary);
   line-height: 1;
+  margin-bottom: 3px;
+  letter-spacing: -0.03em;
+}
+
+/* FIX 5: Relative context ("Top 25%", "Bottom 33%", "Mid range") */
+.ep-detail__rank-context {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(99, 102, 241, 0.9);
   margin-bottom: 4px;
-  letter-spacing: -0.02em;
 }
 
 .ep-detail__rank-tier {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 10px;
+  opacity: 0.8;
 }
 
 .ep-detail__tiebreak {
-  font-size: 0.75rem;
+  font-size: 0.73rem;
   color: var(--text-secondary);
   line-height: 1.5;
   margin: 0;
-  opacity: 0.75;
+  opacity: 0.7;
   border-left: 2px solid rgba(255,255,255,0.10);
   padding-left: 8px;
 }
 
-/* ── Insights placeholder ─────────────────────────── */
+/* ── FIX 6: Insights placeholder ─────────────────── */
 
 .ep-detail__insights-btn {
   display: inline-flex;

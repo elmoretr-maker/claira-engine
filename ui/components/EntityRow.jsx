@@ -142,7 +142,7 @@ export default function EntityRow({ entity, totalCount, isExpanded, onToggle, ro
       {isExpanded && (
         <tr className="ep-detail-row">
           <td colSpan={colSpan}>
-            <EntityDetailPanel entity={entity} />
+            <EntityDetailPanel entity={entity} totalCount={totalCount} />
           </td>
         </tr>
       )}
