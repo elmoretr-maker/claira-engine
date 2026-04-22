@@ -12,6 +12,9 @@ import { loadRootEnv } from "./loadRootEnv.mjs";
 import { resetTunnelStagingTree } from "../interfaces/tunnelStaging.js";
 import { initRunClaira, runClaira } from "./runClaira.js";
 import { computeStateDelta as computeStateDeltaHandler } from "./handlers/computeStateDelta.js";
+import { interpretTrends as interpretTrendsHandler } from "./handlers/interpretTrends.js";
+import { analyzePerformanceTrends as analyzePerformanceTrendsHandler } from "./handlers/analyzePerformanceTrends.js";
+import { generateRecommendations as generateRecommendationsHandler } from "./handlers/generateRecommendations.js";
 loadRootEnv();
 
 /** Absolute path to the repository root (one level above server/). */
@@ -1351,6 +1354,45 @@ const CLAIRA_RUN_HANDLERS = {
    * Output: { deltas: [{ entityId, startValue, endValue, netDelta, deliveryTotal, salesTotal }] }
    */
   computeStateDelta: (body) => computeStateDeltaHandler(body),
+
+  // ── interpretTrends ──────────────────────────────────────────────────────────
+  /**
+   * Convert raw per-entity numerical deltas into directional trend data.
+   *
+   * Second processing engine capability (plan.md §15, module: trend_interpreter).
+   * Pure function — no API calls, no store writes.
+   * Implementation lives in server/handlers/interpretTrends.js for isolated testability.
+   *
+   * Input:  { deltas: [{ entityId, netDelta, periodCount? }] }
+   * Output: { trends: [{ entityId, direction, velocity, periodCount }] }
+   */
+  interpretTrends: (body) => interpretTrendsHandler(body),
+
+  // ── analyzePerformanceTrends ─────────────────────────────────────────────────
+  /**
+   * Rank entities by a selected performance metric (velocity, netDelta, or salesTotal).
+   *
+   * Third processing engine capability (plan.md §15, module: ranking_engine).
+   * Pure function — no API calls, no store writes.
+   * Implementation lives in server/handlers/analyzePerformanceTrends.js.
+   *
+   * Input:  { trends: [...], rankBy: "velocity"|"netDelta"|"salesTotal" }
+   * Output: { entities: [{ entityId, label, rank, score }] }
+   */
+  analyzePerformanceTrends: (body) => analyzePerformanceTrendsHandler(body),
+
+  // ── generateRecommendations ──────────────────────────────────────────────────
+  /**
+   * Convert ranked entities and alert signals into actionable recommendations.
+   *
+   * Fourth and final processing engine capability (plan.md §15, module: recommendation_generator).
+   * Pure function — no API calls, no store writes.
+   * Implementation lives in server/handlers/generateRecommendations.js.
+   *
+   * Input:  { alerts[], rankedEntities[], actionTypes? }
+   * Output: { recommendations: [{ entityId, label, action, urgency, reason }] }
+   */
+  generateRecommendations: (body) => generateRecommendationsHandler(body),
 
   workspaceScan: (body, api) =>
     api.workspaceScanApi({
