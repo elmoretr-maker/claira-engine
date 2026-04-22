@@ -13,8 +13,10 @@ import "./IndustrySelector.css";
 
 /**
  * @param {{
- *   onLoaded: (industry: string) => void,
- *   variant?: "full" | "selectOnly",
+ *   onLoaded:      (industry: string) => void,
+ *   variant?:      "full" | "selectOnly",
+ *   sectionLabel?: string,
+ *   sectionIcon?:  string,
  *   tools?: Array<{
  *     title: string,
  *     description: string,
@@ -24,7 +26,7 @@ import "./IndustrySelector.css";
  *   }>,
  * }} props
  */
-export default function IndustrySelector({ onLoaded, variant = "full", tools }) {
+export default function IndustrySelector({ onLoaded, variant = "full", sectionLabel, sectionIcon, tools }) {
   const { loadIndustryPack } = useIndustry();
   const [packs, setPacks] = useState(
     /** @type {Array<{ slug: string, label: string, inputVerb?: string, valid?: boolean, status?: string, errors?: string[] }>} */ ([]),
@@ -283,9 +285,24 @@ export default function IndustrySelector({ onLoaded, variant = "full", tools }) 
 
             {Array.isArray(tools) && tools.length > 0 ? (
               <div className="catalog-entry-section">
-                <div className="catalog-entry-divider">
-                  <span>or use a standalone tool</span>
-                </div>
+                {sectionLabel ? (
+                  <div className="catalog-entry-section-header">
+                    {sectionIcon ? (
+                    <img
+                      src={sectionIcon}
+                      alt=""
+                      width={48}
+                      height={48}
+                      className="catalog-entry-section-header__icon"
+                    />
+                    ) : null}
+                    <span className="catalog-entry-section-header__label">{sectionLabel}</span>
+                  </div>
+                ) : (
+                  <div className="catalog-entry-divider">
+                    <span>or use a standalone tool</span>
+                  </div>
+                )}
                 <div className="catalog-entry-grid">
                   {tools.map(({ icon, imageSrc, title, description, onClick }) => (
                     <button key={title} type="button" className="catalog-entry-card" onClick={onClick}>

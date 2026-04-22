@@ -49,6 +49,7 @@ import WelcomeScreen from "./screens/WelcomeScreen.jsx";
 import CatalogBuilderScreen from "./screens/CatalogBuilderScreen.jsx";
 import PhotoSorterScreen from "./screens/PhotoSorterScreen.jsx";
 import EntityPerformanceScreen from "./screens/EntityPerformanceScreen.jsx";
+import BusinessAnalyzerHome    from "./screens/analyzer/BusinessAnalyzerHome.jsx";
 import { SAMPLE_ENTITIES } from "./utils/engineDisplayFormatters.js";
 import WorkflowHubScreen from "./screens/WorkflowHubScreen.jsx";
 import ModuleHealthPanel from "./components/ModuleHealthPanel.jsx";
@@ -292,7 +293,7 @@ function App() {
   );
 
   const [screen, setScreen] = useState(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run" | "module_health" | "catalog_builder" | "photo_sorter" | "entity_performance"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run" | "module_health" | "catalog_builder" | "photo_sorter" | "entity_performance" | "business_analyzer"} */ (
       "entrance"
     ),
   );
@@ -587,6 +588,9 @@ function App() {
       case "entity_performance":
         setScreen("entrance");
         break;
+      case "business_analyzer":
+        setScreen("entrance");
+        break;
       case "catalog_builder":
         setScreen("entrance");
         break;
@@ -705,6 +709,18 @@ function App() {
     );
   }
 
+  if (screen === "business_analyzer") {
+    return (
+      <BusinessAnalyzerHome
+        onBack={() => setScreen("entrance")}
+        onAnalysisReady={(merged) => {
+          setPerformanceEntities(merged);
+          setScreen("entity_performance");
+        }}
+      />
+    );
+  }
+
   if (screen === "catalog_builder") {
     return (
       <CatalogBuilderScreen
@@ -738,7 +754,15 @@ function App() {
           setIndustryGateComplete(true);
           setIndustryGateDone(true);
         }}
+        sectionLabel="Business Assets"
+        sectionIcon="/assets/tool-thumbnails/business-assets.png"
         tools={[
+          {
+            imageSrc: "/assets/tool-thumbnails/business-analyzer.png",
+            title: "Business Analyzer",
+            description: "Describe your business, input your data, and get actionable insights",
+            onClick: () => setScreen("business_analyzer"),
+          },
           {
             imageSrc: "/assets/tool-thumbnails/build-product-catalog.png",
             title: "Build Product Catalog",
