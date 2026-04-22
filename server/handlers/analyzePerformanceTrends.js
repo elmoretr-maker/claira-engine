@@ -2,7 +2,7 @@
  * analyzePerformanceTrends — pure engine handler function.
  *
  * Ranks entities by a selected performance metric, producing an ordered list
- * with explicit rank positions and scores. Input comes from interpretTrends.
+ * with explicit rank positions, scores, and forwarded direction for downstream use.
  *
  * Exported as a named function so it can be:
  *   1. Registered in CLAIRA_RUN_HANDLERS (server/index.js)
@@ -14,28 +14,37 @@
  *   1. Validate rankBy — must be "velocity" | "netDelta" | "salesTotal".
  *   2. Extract the metric value for each entity.
  *      - "velocity"   → trend.velocity
- *      - "netDelta"   → trend.netDelta  (pass-through from delta, if present)
- *      - "salesTotal" → trend.salesTotal (pass-through from delta, if present)
- *   3. Sort descending — highest metric value = rank 1.
- *   4. Assign rank by position (1-based). Ties receive equal rank; next non-tied
- *      entity gets the rank it would hold if ties hadn't existed (dense ranking
- *      is NOT used — standard competition ranking: 1,1,3 not 1,1,2).
- *   5. score = the extracted metric value (raw, not normalized).
- *   6. label = entity id (no external label source available at this layer).
+ *      - "netDelta"   → trend.netDelta  (forwarded from interpretTrends)
+ *      - "salesTotal" → trend.salesTotal (forwarded from interpretTrends)
+ *   3. Guard: non-finite scores default to 0 (safe, not skipped — entity must appear in output).
+ *   4. Sort descending — highest metric value = rank 1.
+ *      Sort is stable (insertion-order preserved for equal scores) in Node.js >= 11.
+ *   5. Assign standard competition ranks (1, 1, 3 for ties — not dense 1, 1, 2).
+ *   6. score = the extracted metric value (raw, not normalized).
+ *   7. label = entityId (no external label source at this layer).
+ *   8. direction = forwarded unchanged from trend row for downstream recommendation use.
  *
  * Input shape:
  *   {
- *     trends:  Array<{ entityId, direction, velocity, periodCount, netDelta?, salesTotal? }>,
+ *     trends:  Array<{
+ *       entityId:    string,
+ *       direction?:  string,
+ *       velocity:    number,
+ *       periodCount: number,
+ *       netDelta:    number,
+ *       salesTotal:  number,
+ *     }>,
  *     rankBy?: "velocity" | "netDelta" | "salesTotal"   // default: "velocity"
  *   }
  *
  * Output shape:
  *   {
  *     entities: Array<{
- *       entityId: string,
- *       label:    string,   // same as entityId — no label source at this layer
- *       rank:     number,
- *       score:    number,
+ *       entityId:  string,
+ *       label:     string,    // same as entityId — no label source at this layer
+ *       rank:      number,    // integer >= 1
+ *       score:     number,
+ *       direction: string,    // forwarded from trend for generateRecommendations
  *     }>
  *   }
  */
@@ -43,13 +52,27 @@
 const VALID_RANK_BY = /** @type {const} */ (["velocity", "netDelta", "salesTotal"]);
 
 /**
- * @typedef {{ entityId: string, direction?: string, velocity: number, periodCount?: number, netDelta?: number, salesTotal?: number }} TrendRow
+ * @typedef {{
+ *   entityId:    string,
+ *   direction?:  string,
+ *   velocity:    number,
+ *   periodCount?: number,
+ *   netDelta?:   number,
+ *   salesTotal?: number,
+ * }} TrendRow
  *
- * @typedef {{ entityId: string, label: string, rank: number, score: number }} RankedEntity
+ * @typedef {{
+ *   entityId:  string,
+ *   label:     string,
+ *   rank:      number,
+ *   score:     number,
+ *   direction: string,
+ * }} RankedEntity
  */
 
 /**
  * Rank entities by a selected performance metric.
+ * Forwards direction for downstream recommendation generation.
  *
  * @param {{ trends: TrendRow[], rankBy?: string }} body
  * @returns {{ entities: RankedEntity[] }}
@@ -73,11 +96,12 @@ export function analyzePerformanceTrends(body) {
     );
   }
 
-  // ── Extract and score each entity ──────────────────────────────────────────
-  /** @type {Array<{ entityId: string, score: number }>} */
+  // ── Extract, score, and capture direction for each entity ─────────────────
+  /** @type {Array<{ entityId: string, score: number, direction: string }>} */
   const scored = [];
 
   for (const trend of trends) {
+    // Skip non-object entries silently.
     if (trend == null || typeof trend !== "object") continue;
 
     const entityId = String(trend.entityId ?? "").trim();
@@ -89,28 +113,34 @@ export function analyzePerformanceTrends(body) {
     } else if (rankBy === "netDelta") {
       score = Number(trend.netDelta ?? 0);
     } else {
-      // salesTotal
       score = Number(trend.salesTotal ?? 0);
     }
 
+    // Non-finite score defaults to 0 — entity must still appear in ranked output.
     if (!Number.isFinite(score)) score = 0;
 
-    scored.push({ entityId, score });
+    // Forward direction unchanged; default to "unknown" if not provided.
+    const direction = typeof trend.direction === "string" && trend.direction.length > 0
+      ? trend.direction
+      : "unknown";
+
+    scored.push({ entityId, score, direction });
   }
 
-  // ── Sort descending — highest score = rank 1 ─────────────────────────────
+  // ── Sort descending — highest score = rank 1.
+  // Array.prototype.sort is stable in Node.js >= 11 (V8 7.0+): equal scores
+  // preserve insertion order, making output deterministic for identical inputs.
   const sorted = [...scored].sort((a, b) => b.score - a.score);
 
-  // ── Assign standard competition ranks (1, 1, 3 for ties, not 1, 1, 2) ────
+  // ── Assign standard competition ranks (1, 1, 3 for ties, not 1, 1, 2) ─────
   /** @type {RankedEntity[]} */
   const entities = [];
   let currentRank = 1;
 
   for (let i = 0; i < sorted.length; i++) {
-    const { entityId, score } = sorted[i];
+    const { entityId, score, direction } = sorted[i];
 
-    // If this entity's score is lower than the previous, advance rank
-    // to account for the number of entities that outranked it.
+    // Advance rank to current position whenever score drops from the previous entry.
     if (i > 0 && sorted[i - 1].score !== score) {
       currentRank = i + 1;
     }
@@ -118,8 +148,9 @@ export function analyzePerformanceTrends(body) {
     entities.push({
       entityId,
       label: entityId,
-      rank: currentRank,
+      rank: currentRank,   // always integer >= 1
       score,
+      direction,
     });
   }
 

@@ -33,6 +33,7 @@
  *       netDelta:       number,
  *       deliveryTotal:  number,
  *       salesTotal:     number,
+ *       snapshotCount:  number,   // count of valid sorted snapshots used (always >= 2)
  *     }>
  *   }
  */
@@ -58,6 +59,7 @@
  *   netDelta:      number,
  *   deliveryTotal: number,
  *   salesTotal:    number,
+ *   snapshotCount: number,
  * }} EntityDelta
  */
 
@@ -131,7 +133,7 @@ export function computeStateDelta(body) {
     const deliveryTotal = deliveryTotals.get(entityId) ?? 0;
     const salesTotal    = saleTotals.get(entityId) ?? 0;
 
-    deltas.push({ entityId, startValue, endValue, netDelta, deliveryTotal, salesTotal });
+    deltas.push({ entityId, startValue, endValue, netDelta, deliveryTotal, salesTotal, snapshotCount: sorted.length });
   }
 
   return { deltas };
