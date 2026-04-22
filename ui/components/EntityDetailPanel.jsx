@@ -60,104 +60,380 @@ function toPerDay(vpt) {
   return Math.abs(vpt) * MS_PER_DAY;
 }
 
-// ── FIX 1 — Impact generator ─────────────────────────────────────────────────
+// ── Impact generator ─────────────────────────────────────────────────────────
+
+/**
+ * Language intensity map for magnitude tiers (FIX 6).
+ * Keeps wording proportional to the scale of change — avoids alarming language
+ * for small shifts and under-representing genuinely large changes.
+ *
+ * DO NOT use industry-specific words ("stockout", "inventory") here.
+ * All entries must remain domain-neutral (RULE 7).
+ */
+const MAGNITUDE_PHRASES = Object.freeze({
+  significant: { decline: "significant drop",  gain: "notable increase"  },
+  moderate:    { decline: "noticeable decline", gain: "meaningful gain"   },
+  small:       { decline: "slight decrease",    gain: "modest gain"       },
+});
+
+/**
+ * Map an absolute change to a magnitude tier using the current level as reference.
+ *
+ * Relative thresholds (when reference is valid and > 0):
+ *   >= 25% → "significant"
+ *   >= 10% → "moderate"
+ *   <  10% → "small"
+ *
+ * Absolute fallback (when reference is unavailable):
+ *   >= 100 → "significant", >= 20 → "moderate", else "small"
+ *
+ * @param {number} absChange  — Math.abs(netDelta)
+ * @param {number} reference  — current level (endValue), used as denominator
+ * @returns {"significant"|"moderate"|"small"|null}
+ */
+function magnitudeTier(absChange, reference) {
+  if (!Number.isFinite(absChange) || absChange === 0) return null;
+  if (Number.isFinite(reference) && reference > 0) {
+    const ratio = absChange / reference;
+    if (ratio >= 0.25) return "significant";
+    if (ratio >= 0.10) return "moderate";
+    return "small";
+  }
+  if (absChange >= 100) return "significant";
+  if (absChange >= 20)  return "moderate";
+  return "small";
+}
+
+/**
+ * Append a parenthetical relative-percentage annotation when the reference
+ * level is reliable (FIX 3). Returns "" (no annotation) in edge cases to
+ * prevent misleading percentages (e.g. reference = 0, or pct > 500%).
+ *
+ * Only include percentage if denominator is reliable and non-zero (RULE from spec).
+ *
+ * @param {number} change     — delta (sign ignored internally)
+ * @param {number} reference  — current level (endValue)
+ * @returns {string}  e.g. " (~18% of current level)" or ""
+ */
+function pctOf(change, reference) {
+  if (!Number.isFinite(change) || !Number.isFinite(reference) || reference <= 0) return "";
+  const pct = Math.round(Math.abs(change) / reference * 100);
+  if (pct < 1 || pct > 500) return ""; // omit unreliable extremes
+  return ` (~${pct}% of current level)`;
+}
+
+/**
+ * Classify the activity pattern AND trend stability of an entity.
+ *
+ * ─── FEEDBACK PRECEDENCE MODEL (FIX 5) ─────────────────────────────────────
+ * Priority order when integrating future user feedback:
+ *   1. userFeedback overrides  (highest — explicit user context overrides data)
+ *   2. guardrails              (structural data conditions, rule-based)
+ *   3. computed classification (lowest — deterministically inferred from data)
+ *
+ * The optional `feedbackOverrides` parameter is the intended seam for Priority 1.
+ * It accepts the same flag names returned by this function. Currently unused —
+ * all values are computed deterministically. No persistence or state is added.
+ *
+ * [FEEDBACK_HOOK] Future (Priority 1):
+ *   - feedbackOverrides.hasSustainedTrend = false → if user marks 'seasonal spike'
+ *   - feedbackOverrides.isVolatile = true          → if user marks 'erratic supply'
+ *   - feedbackOverrides.isRecentSpike = true        → if user marks 'one-off event'
+ *
+ * @param {object} entity
+ * @param {object} [feedbackOverrides]  — future hook; ignored today
+ * @returns {{
+ *   hasSales: boolean, hasDeliveries: boolean,
+ *   outpacing: boolean, surplus: boolean, onlyDeliveries: boolean,
+ *   onlySales: boolean, noActivity: boolean,
+ *   lossAmt: number|null, gainAmt: number|null, activityGap: number|null,
+ *   magnitude: "significant"|"moderate"|"small"|null,
+ *   hasSustainedTrend: boolean, isRecentSpike: boolean, isVolatile: boolean,
+ * }}
+ */
+function classifyActivity(entity, feedbackOverrides = {}) {
+  const { salesTotal, deliveryTotal, netDelta, periodCount, endValue } = entity;
+
+  // ── Activity booleans ─────────────────────────────────────────────────────
+  const hasSales       = Number.isFinite(salesTotal)    && salesTotal    > 0;
+  const hasDeliveries  = Number.isFinite(deliveryTotal) && deliveryTotal > 0;
+  const outpacing      = hasSales && hasDeliveries && salesTotal > deliveryTotal;
+  const surplus        = hasSales && hasDeliveries && deliveryTotal > salesTotal;
+  const onlyDeliveries = hasDeliveries && !hasSales;
+  const onlySales      = hasSales && !hasDeliveries;
+  const noActivity     = !hasSales && !hasDeliveries;
+  const lossAmt        = Number.isFinite(netDelta) && netDelta < 0 ? Math.abs(netDelta) : null;
+  const gainAmt        = Number.isFinite(netDelta) && netDelta > 0 ? netDelta : null;
+  const activityGap    = outpacing ? salesTotal - deliveryTotal : null;
+
+  // ── Magnitude ─────────────────────────────────────────────────────────────
+  const changeAmt = lossAmt ?? gainAmt ?? 0;
+  const ref       = Number.isFinite(endValue) && endValue > 0 ? endValue : 0;
+  const magnitude = magnitudeTier(changeAmt, ref);
+
+  // ── Stability signals (FIX 1) ─────────────────────────────────────────────
+  //
+  // hasSustainedTrend: 3+ snapshots = at least 2 intervals, so direction is
+  //   observable across time rather than a single start-to-end comparison.
+  //   Strong recommendations are ONLY allowed when this is true (FIX 4).
+  const hasSustainedTrend =
+    feedbackOverrides.hasSustainedTrend ??
+    (Number.isFinite(periodCount) && periodCount >= 3);
+
+  // isRecentSpike: only 2 data points AND the change is "significant" — could
+  //   be a single large event rather than a repeating trend. Soften language.
+  const isRecentSpike =
+    feedbackOverrides.isRecentSpike ??
+    (!hasSustainedTrend && magnitude === "significant");
+
+  // isVolatile: total gross activity is >5× the absolute net change — lots of
+  //   units flowing in and out but a small net result, indicating churn or
+  //   unstable supply/demand balance. Reduces confidence in directional claims.
+  const totalActivity = (hasSales ? salesTotal : 0) + (hasDeliveries ? deliveryTotal : 0);
+  const isVolatile =
+    feedbackOverrides.isVolatile ??
+    (totalActivity > 0 && changeAmt > 0 && totalActivity / changeAmt > 5);
+
+  return {
+    hasSales, hasDeliveries,
+    outpacing, surplus, onlyDeliveries, onlySales, noActivity,
+    lossAmt, gainAmt, activityGap,
+    magnitude, hasSustainedTrend, isRecentSpike, isVolatile,
+  };
+}
+
+/**
+ * Compute combined confidence from data completeness AND trend stability (FIX 2).
+ *
+ * Replaces the single-source `confidencePrefix` from the previous pass.
+ * Now accounts for whether the trend signal itself is reliable, not just
+ * whether the data volume is sufficient.
+ *
+ * Combined model:
+ *   high completeness + stable trend   → HIGH  ("Based on consistent activity...")
+ *   high completeness + volatile       → MEDIUM ("Based on available data...")
+ *   medium completeness + stable       → MEDIUM
+ *   medium completeness + volatile     → LOW   (short-circuit to limited-data notice)
+ *   low completeness (any stability)   → LOW   (always overrides)
+ *
+ * [FEEDBACK_HOOK] Future (Priority 1): if entity.userFeedback === 'data_confirmed',
+ * allow upgrading LOW → MEDIUM when user explicitly verifies data accuracy.
+ * [FEEDBACK_HOOK] Future (Priority 1): if entity.repeatedPattern === true,
+ * prefix with "Consistent with previous periods, " at HIGH level.
+ *
+ * @param {{ level: "high"|"medium"|"low" }} completeness
+ * @param {ReturnType<classifyActivity>} flags
+ * @returns {{ level: "high"|"medium"|"low", prefix: string }}
+ */
+function computeConfidence(completeness, flags) {
+  if (completeness.level === "low") {
+    return { level: "low", prefix: "" };
+  }
+  const isStable = flags.hasSustainedTrend && !flags.isVolatile && !flags.isRecentSpike;
+  if (completeness.level === "high" && isStable) {
+    return { level: "high", prefix: "Based on consistent activity over this period, " };
+  }
+  if (completeness.level === "medium" && !isStable) {
+    return { level: "low", prefix: "" };
+  }
+  return { level: "medium", prefix: "Based on available data and recent trends, " };
+}
+
+/**
+ * Determine whether a "reorder / replenishment" action is supported by data.
+ *
+ * RULE 2 guardrail (Priority 2 in feedback model).
+ * All five conditions must be true simultaneously:
+ *   - netDelta < 0              (levels are actively declining)
+ *   - hasSales > 0              (decline is demand-driven, not unexplained)
+ *   - confidence !== "low"      (data is reliable enough to act on)
+ *   - action !== "monitor"      (engine assessment must not contradict — RULE 6)
+ *   - hasSustainedTrend         (FIX 4 — not a one-off event; trend is repeating)
+ *
+ * [FEEDBACK_HOOK] Future (Priority 1):
+ *   entity.userFeedback === 'supply_unavailable' → return false regardless of data
+ *   entity.userFeedback === 'reorder_confirmed'  → relax hasSustainedTrend requirement
+ *
+ * @param {object} entity
+ * @param {{ level: string }} confidence
+ * @param {ReturnType<classifyActivity>} flags
+ * @returns {boolean}
+ */
+function reorderGuardrailMet(entity, confidence, flags) {
+  const { netDelta, action } = entity;
+  return (
+    Number.isFinite(netDelta) && netDelta < 0 &&
+    flags.hasSales &&
+    confidence.level !== "low" &&
+    action !== "monitor" &&
+    flags.hasSustainedTrend // FIX 4 — unstable trend = no strong reorder signal
+  );
+}
+
+/**
+ * Determine whether a "promote" action is supported by data.
+ *
+ * RULE 2 guardrail (Priority 2):
+ *   - direction is "up"
+ *   - salesTotal > 0  (growth has a demand component, not only deliveries)
+ *   - hasSustainedTrend (FIX 4 — spike-only growth should not trigger promotion)
+ *
+ * [FEEDBACK_HOOK] Future (Priority 1):
+ *   entity.userFeedback === 'capacity_constrained' → return false
+ *
+ * @param {object} entity
+ * @param {ReturnType<classifyActivity>} flags
+ * @returns {boolean}
+ */
+function promoteGuardrailMet(entity, flags) {
+  const { direction } = entity;
+  return direction === "up" && flags.hasSales && flags.hasSustainedTrend;
+}
 
 /**
  * Generate a 1–2 sentence plain-language explanation grounded in actual data.
- * Answers "what is happening and what should I do about it?"
  *
- * Rules:
- *   - References real numbers from the dataset (salesTotal, deliveryTotal, netDelta)
- *   - Ends with an implied action — never leaves the user without next-step guidance
- *   - Uses neutral language that works for inventory, workforce, or custom intents
- *   - Maximum 2 sentences; no technical field names or jargon
+ * All 8 rules enforced; all 7 fixes from this pass applied.
+ * Signature is unchanged from the previous pass — only internal logic updated.
+ *
+ * [FEEDBACK_HOOK] Future (Priority 1): pass entity.userFeedback into
+ * classifyActivity(entity, parsedFeedbackOverrides) before calling this function.
  *
  * @param {object} entity
+ * @param {{ level: "high"|"medium"|"low" }} completeness  — from computeCompleteness()
  * @returns {string}
  */
-function rewriteImpact(entity) {
-  const { direction, urgency, salesTotal, deliveryTotal, netDelta, reason } = entity;
+function rewriteImpact(entity, completeness) {
+  const { direction, urgency, salesTotal, deliveryTotal, endValue, reason } = entity;
+  const f          = classifyActivity(entity);
+  const confidence = computeConfidence(completeness, f);
 
-  const hasSales       = Number.isFinite(salesTotal)    && salesTotal    > 0;
-  const hasDeliveries  = Number.isFinite(deliveryTotal) && deliveryTotal > 0;
-  const hasActivity    = hasSales || hasDeliveries;
-  const outpacing      = hasSales && hasDeliveries && salesTotal > deliveryTotal;
-  const noReplenishment= hasSales && !hasDeliveries;
-  const surplus        = hasDeliveries && hasSales && deliveryTotal > salesTotal;
-  const noActivity     = !hasSales && !hasDeliveries;
-  const loss           = Number.isFinite(netDelta) && netDelta < 0 ? Math.abs(netDelta) : null;
-  const gain           = Number.isFinite(netDelta) && netDelta > 0 ? netDelta : null;
-  const gap            = outpacing ? salesTotal - deliveryTotal : null;
+  // ── Low confidence: short-circuit before any analysis language (RULE 3) ──
+  if (confidence.level === "low") {
+    // [FEEDBACK_HOOK] Future: skip if entity.userFeedback === 'data_confirmed'
+    return "Limited data is available — results may not fully reflect performance. Consider adding more measurements or activity records to improve reliability.";
+  }
 
-  // ── Critical decline ───────────────────────────────────────────────────────
+  const { prefix } = confidence;
+  const canOrder   = reorderGuardrailMet(entity, confidence, f);
+  const canPromote = promoteGuardrailMet(entity, f);
+
+  // FIX 4 — Spike/instability dampener.
+  // When the trend is not yet sustained, suppress specific action language and
+  // append a monitoring note instead of implying a decision.
+  const isDampened = f.isRecentSpike || !f.hasSustainedTrend;
+  const spikeNote  = " This change appears to be based on a limited number of observations — monitoring the trend before taking action may be advisable.";
+
+  // FIX 3 — Relative magnitude annotations (omitted when reference is unreliable)
+  const pctLoss = f.lossAmt !== null ? pctOf(f.lossAmt, endValue) : "";
+  const pctGain = f.gainAmt !== null ? pctOf(f.gainAmt, endValue) : "";
+
+  // FIX 6 — Magnitude-aligned word selection
+  const tier       = f.magnitude ?? "moderate";
+  const declineWord = MAGNITUDE_PHRASES[tier]?.decline ?? "decline";
+  const gainWord    = MAGNITUDE_PHRASES[tier]?.gain    ?? "gain";
+
+  // ── RULE 5: Explicit edge cases always resolved first ────────────────────
+
+  if (f.noActivity) {
+    if (direction === "down" && f.lossAmt !== null) {
+      return `${prefix}this item experienced a ${declineWord} of ${f.lossAmt.toLocaleString()}${pctLoss} without any recorded activity this period. This may indicate an unrecorded removal or a data gap — confirm accuracy before drawing conclusions.`;
+    }
+    return `${prefix}no outgoing or incoming activity was recorded this period. Confirm whether this is expected or whether data may be missing from your records.`;
+  }
+
+  if (f.onlyDeliveries) {
+    if (f.gainAmt !== null) {
+      return `${prefix}this item received ${deliveryTotal.toLocaleString()} units with no outgoing activity, resulting in a ${gainWord} of ${f.gainAmt.toLocaleString()}${pctGain} this period. Verify that demand exists before continuing at this replenishment rate.`;
+    }
+    return `${prefix}incoming activity was recorded without any outgoing activity this period. Verify that demand exists — holding stock without corresponding outgoing activity may indicate an imbalance.`;
+  }
+
+  if (f.onlySales) {
+    const actionClause = canOrder
+      ? "reviewing supply options or scheduling replenishment may be advisable"
+      : "reviewing current levels is recommended";
+    if (f.lossAmt !== null) {
+      return `${prefix}${salesTotal.toLocaleString()} units of outgoing activity caused a ${declineWord} of ${f.lossAmt.toLocaleString()}${pctLoss} with no recorded incoming replenishment. ${cap(actionClause)}.${isDampened ? spikeNote : ""}`;
+    }
+    return `${prefix}outgoing activity occurred with no incoming replenishment recorded this period. ${cap(actionClause)}.${isDampened ? spikeNote : ""}`;
+  }
+
+  // ── Critical decline ─────────────────────────────────────────────────────
   if (direction === "down" && urgency === "critical") {
-    if (noReplenishment && loss !== null) {
-      return `${salesTotal.toLocaleString()} units left inventory this period with no incoming replenishment recorded — stock is depleting with nothing to offset it. Placing a restock order immediately is strongly recommended to prevent a stockout.`;
+    if (f.outpacing && f.activityGap !== null && f.lossAmt !== null) {
+      const orderClause = isDampened
+        ? spikeNote
+        : canOrder
+          ? " Reviewing supply options promptly may help prevent a stockout."
+          : " Consider reviewing current levels and supply availability.";
+      return `${prefix}outgoing activity exceeded incoming replenishment by ${f.activityGap.toLocaleString()} units, resulting in a ${declineWord} of ${f.lossAmt.toLocaleString()}${pctLoss} this period.${orderClause}`;
     }
-    if (outpacing && gap !== null && loss !== null) {
-      return `Sales outpaced replenishment by ${gap.toLocaleString()} units this period, resulting in a net loss of ${loss.toLocaleString()}. At this rate, stock will be exhausted before the next expected delivery — restock immediately.`;
+    if (f.lossAmt !== null) {
+      const reviewClause = isDampened
+        ? spikeNote
+        : " An immediate review of supply options is strongly advised.";
+      return `${prefix}this item experienced a ${declineWord} of ${f.lossAmt.toLocaleString()}${pctLoss} this period — currently flagged as the highest priority concern.${reviewClause}`;
     }
-    if (loss !== null) {
-      return `Inventory fell by ${loss.toLocaleString()} this period with no clear recovery signal. This is a critical decline — take immediate corrective action to prevent stock failure.`;
-    }
-    return "This item is in critical decline. Immediate intervention is required to prevent inventory failure — investigate the cause and act now.";
+    return `${prefix}this item is at critical risk.${isDampened ? spikeNote : " An immediate review of supply, demand, and current levels is strongly advised."}`;
   }
 
-  // ── High urgency decline ───────────────────────────────────────────────────
+  // ── High urgency decline ─────────────────────────────────────────────────
   if (direction === "down" && urgency === "high") {
-    if (noReplenishment) {
-      return `Outgoing activity is consuming stock with no replenishment recorded this period. If deliveries are not scheduled, running out is likely — consider placing an order soon.`;
+    if (f.outpacing && f.activityGap !== null && f.lossAmt !== null) {
+      const orderClause = isDampened
+        ? spikeNote
+        : canOrder
+          ? " Considering replenishment options before the next period may prevent a shortage."
+          : " Reviewing current levels and supply timing is recommended.";
+      return `${prefix}outgoing activity (${salesTotal.toLocaleString()}) outpaced incoming replenishment (${deliveryTotal.toLocaleString()}), with a ${declineWord} of ${f.lossAmt.toLocaleString()}${pctLoss} this period.${orderClause}`;
     }
-    if (outpacing && gap !== null && loss !== null) {
-      return `Inventory is decreasing faster than it is being replenished: ${salesTotal.toLocaleString()} units out, ${deliveryTotal.toLocaleString()} in, net −${loss.toLocaleString()}. Restocking is likely needed soon to maintain availability.`;
+    if (f.lossAmt !== null) {
+      return `${prefix}this item experienced a ${declineWord} of ${f.lossAmt.toLocaleString()}${pctLoss} this period. While not yet critical, the trend is worth addressing — reviewing the replenishment schedule may help.${isDampened ? spikeNote : ""}`;
     }
-    if (loss !== null) {
-      return `This item lost ${loss.toLocaleString()} units of value this period. The decline is significant — review your restock schedule before the situation becomes critical.`;
-    }
-    return "This item is declining at a concerning rate. Investigate the root cause and review your replenishment schedule before the situation worsens.";
+    return `${prefix}this item is declining at a concerning rate. Reviewing supply timing or demand trends may help prevent the situation from worsening.${isDampened ? spikeNote : ""}`;
   }
 
-  // ── Moderate or low decline ────────────────────────────────────────────────
+  // ── Moderate / low decline ───────────────────────────────────────────────
   if (direction === "down") {
-    if (noReplenishment && loss !== null) {
-      return `Activity is reducing stock (${loss.toLocaleString()} net loss) without recorded replenishment. The trend is gradual, but scheduling a delivery before it becomes urgent is advisable.`;
+    if (f.outpacing && f.lossAmt !== null) {
+      return `${prefix}outgoing activity is slightly ahead of incoming replenishment, resulting in a ${declineWord} of ${f.lossAmt.toLocaleString()}${pctLoss} this period. The situation is not urgent, but monitoring over the coming period is advisable.`;
     }
-    if (outpacing) {
-      return `Outgoing activity is slightly outpacing replenishment this period, causing a gradual decline. The situation is not urgent, but a restock before the trend accelerates would be prudent.`;
+    if (f.lossAmt !== null) {
+      return `${prefix}this item saw a ${declineWord} of ${f.lossAmt.toLocaleString()}${pctLoss} this period. No immediate action is required, but keeping an eye on the trend is recommended.${isDampened ? spikeNote : ""}`;
     }
-    if (noActivity && loss !== null) {
-      return `Stock dropped by ${loss.toLocaleString()} without any recorded activity this period. This may indicate an untracked removal — review your records to confirm accuracy before taking action.`;
-    }
-    return "This item is gradually declining. No immediate action is required, but monitor the trend closely and restock if the pattern continues into the next period.";
+    return `${prefix}this item is gradually declining. No immediate action is required, but monitoring the trend is advisable.`;
   }
 
-  // ── Growing ────────────────────────────────────────────────────────────────
+  // ── Growing ──────────────────────────────────────────────────────────────
   if (direction === "up") {
-    if (surplus && gain !== null) {
-      return `Replenishment (${deliveryTotal.toLocaleString()} in) is outpacing sales (${salesTotal.toLocaleString()} out), growing inventory by ${gain.toLocaleString()} this period. Confirm demand justifies this buffer — overstocking ties up capital unnecessarily.`;
+    if (f.surplus && f.gainAmt !== null) {
+      const promoteClause = canPromote
+        ? " Performance is positive — ensure replenishment stays aligned with actual demand."
+        : " Confirm that demand justifies the current incoming rate.";
+      return `${prefix}incoming activity (${deliveryTotal.toLocaleString()}) exceeded outgoing (${salesTotal.toLocaleString()}), with a ${gainWord} of ${f.gainAmt.toLocaleString()}${pctGain} this period.${isDampened ? spikeNote : promoteClause}`;
     }
-    if (hasDeliveries && !hasSales && gain !== null) {
-      return `Inventory grew by ${gain.toLocaleString()} from incoming deliveries with no sales activity recorded this period. Verify that demand exists — sitting on unsold stock is a cost to manage.`;
+    if (f.gainAmt !== null && canPromote) {
+      return `${prefix}this item is growing — ${salesTotal.toLocaleString()} units of outgoing activity with a ${gainWord} of ${f.gainAmt.toLocaleString()}${pctGain} recorded. Performance is trending positively.`;
     }
-    if (hasSales && hasSales && gain !== null) {
-      return `Despite active sales (${salesTotal.toLocaleString()} out), net inventory grew by ${gain.toLocaleString()} — replenishment is keeping ahead of demand. Performance is healthy; ensure the supply cadence can be maintained.`;
-    }
-    return "This item is growing steadily. Performance is positive and trending in the right direction — no immediate action is required. Ensure supply can keep pace if growth accelerates.";
+    return `${prefix}this item is trending upward. Performance appears positive — no immediate action is required.${isDampened ? spikeNote : ""}`;
   }
 
-  // ── Stable ─────────────────────────────────────────────────────────────────
+  // ── Stable ───────────────────────────────────────────────────────────────
   if (direction === "flat") {
-    if (hasSales && hasDeliveries) {
-      return `Sales (${salesTotal.toLocaleString()}) and replenishment (${deliveryTotal.toLocaleString()}) are closely balanced this period, keeping levels stable. The current approach is working well — no changes are needed at this time.`;
+    if (f.hasSales && f.hasDeliveries) {
+      return `${prefix}outgoing activity (${salesTotal.toLocaleString()}) and incoming replenishment (${deliveryTotal.toLocaleString()}) are closely balanced, keeping levels stable. The current approach appears to be working.`;
     }
-    if (noActivity) {
-      return "No sales or delivery activity was recorded for this period. Confirm whether this is expected or whether data may be missing — inactive items may still incur holding costs.";
-    }
-    return "Activity is stable with minimal net change. No immediate action is required — check whether the current steady state aligns with your targets for this item.";
+    return `${prefix}this item is stable with minimal net change. No immediate action is required — confirm whether the current level aligns with your targets.`;
   }
 
-  // Fallback to raw engine reason (or generic message)
-  return reason?.trim() || "Not enough data to generate a meaningful explanation for this item.";
+  // ── Fallback ─────────────────────────────────────────────────────────────
+  return reason?.trim() || "Not enough data to generate a reliable explanation for this item.";
+}
+
+/** Capitalise first letter of a sentence. */
+function cap(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 // ── FIX 2 — Data completeness ─────────────────────────────────────────────────
@@ -299,13 +575,24 @@ export default function EntityDetailPanel({ entity, totalCount }) {
     ? Math.round(timeRange.durationMs / MS_PER_DAY)
     : null;
 
-  const impactText  = rewriteImpact(entity);
-  const completeness = computeCompleteness(entity);
-  const rankInfo    = relativeRank(rank, percentile, totalCount);
-  const tieBreakText = formatTieBreak(tieBreakReason);
-  const tier        = tierLabel(percentile);
+  const completeness  = computeCompleteness(entity);
+  const impactText    = rewriteImpact(entity, completeness);
+  const rankInfo      = relativeRank(rank, percentile, totalCount);
+  const tieBreakText  = formatTieBreak(tieBreakReason);
+  const tier          = tierLabel(percentile);
 
-  // FIX 3 — Time context string
+  // Stability flags — computed for tooltip enrichment only, not for statements
+  const stabilityFlags = classifyActivity(entity);
+  const stabilityNote  =
+    stabilityFlags.isVolatile        ? "High activity throughput relative to net change (volatile)"
+    : stabilityFlags.isRecentSpike   ? "Change observed over a short window — trend not yet sustained"
+    : stabilityFlags.hasSustainedTrend ? "Consistent direction observed across multiple measurements"
+    : "Trend based on limited measurements";
+
+  // Combined tooltip for the data completeness indicator
+  const completenessTooltip = `${completeness.description} · ${stabilityNote}`;
+
+  // Time context string
   const timeContext = durationDays != null && durationDays > 0
     ? `Over the last ${durationDays} day${durationDays === 1 ? "" : "s"}`
     : null;
@@ -414,7 +701,7 @@ export default function EntityDetailPanel({ entity, totalCount }) {
 
         {/* FIX 2 — Data completeness indicator */}
         <div className={`ep-detail__completeness ep-detail__completeness--${completeness.level}`}
-             title={completeness.description}>
+             title={completenessTooltip}>
           <span className="ep-detail__completeness-dot" aria-hidden="true" />
           <span className="ep-detail__completeness-label">
             {completeness.label} data
@@ -423,7 +710,7 @@ export default function EntityDetailPanel({ entity, totalCount }) {
       </div>
 
       {/* ── Section 4: Recommendation ───────────────────────────────── */}
-      {/* FIX 4 — Hierarchy: Action (primary) → Urgency → Reason */}
+      {/* Hierarchy: Action (primary) → Urgency → Reason → Data caveat */}
       <div className="ep-detail__section">
         <h4 className="ep-detail__section-title">Recommended action</h4>
 
@@ -444,6 +731,18 @@ export default function EntityDetailPanel({ entity, totalCount }) {
         ) : (
           <p className="ep-detail__reason ep-detail__reason--empty">
             No specific recommendation available.
+          </p>
+        )}
+
+        {/*
+          Data caveat — shown when completeness is low.
+          RULE 3: Confidence language must be reflected at every decision-making surface.
+          RULE 4: Never present a strong action label without qualifying limited data.
+          [FEEDBACK_HOOK] Future: suppress caveat if entity.userFeedback === 'data_confirmed'.
+        */}
+        {completeness.level === "low" && (
+          <p className="ep-detail__rec-caveat">
+            This recommendation is based on limited data — treat it as a starting point for investigation rather than a definitive action.
           </p>
         )}
       </div>

@@ -633,6 +633,18 @@
   border-top: none;
 }
 
+/* Data caveat — shown when completeness is low */
+.ep-detail__rec-caveat {
+  margin: 0.5rem 0 0;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #94a3b8);
+  background: rgba(148, 163, 184, 0.08);
+  border-left: 2px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0 4px 4px 0;
+  line-height: 1.45;
+}
+
 /* ── FIX 2: Data completeness indicator ──────────── */
 
 .ep-detail__completeness {

@@ -291,8 +291,8 @@ export default function IndustrySelector({ onLoaded, variant = "full", sectionLa
                     <img
                       src={sectionIcon}
                       alt=""
-                      width={48}
-                      height={48}
+                      width={64}
+                      height={64}
                       className="catalog-entry-section-header__icon"
                     />
                     ) : null}
@@ -314,8 +314,8 @@ export default function IndustrySelector({ onLoaded, variant = "full", sectionLa
                             src={imageSrc}
                             alt=""
                             className="catalog-entry-card__thumb"
-                            width={52}
-                            height={52}
+                            width={72}
+                            height={72}
                             decoding="async"
                           />
                         ) : (
