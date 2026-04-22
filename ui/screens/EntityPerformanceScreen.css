@@ -1,0 +1,144 @@
+/* ============================================================
+   EntityPerformanceScreen.css
+   Layout for the Entity Performance dashboard screen.
+   ============================================================ */
+
+.ep-screen {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-md);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ── Screen header ──────────────────────────────────────── */
+
+.ep-screen__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.ep-screen__title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ep-screen__title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.ep-screen__subtitle {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.ep-screen__header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Summary row: ActionQueue + PrioritySummary ─────────── */
+
+.ep-screen__top-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .ep-screen__top-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ep-screen__summary-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.ep-screen__summary-aside-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* ── Table section ──────────────────────────────────────── */
+
+.ep-screen__table-section {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.ep-screen__table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ep-screen__table-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.ep-screen__table-count {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* ── Empty / no-data state ──────────────────────────────── */
+
+.ep-screen__no-data {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: 4rem 2rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.ep-screen__no-data-icon {
+  font-size: 2.5rem;
+  opacity: 0.5;
+}
+
+.ep-screen__no-data-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.ep-screen__no-data-body {
+  font-size: 0.85rem;
+  max-width: 340px;
+  line-height: 1.55;
+  margin: 0;
+}

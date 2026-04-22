@@ -48,6 +48,8 @@ import StructureSetupScreen from "./screens/StructureSetupScreen.jsx";
 import WelcomeScreen from "./screens/WelcomeScreen.jsx";
 import CatalogBuilderScreen from "./screens/CatalogBuilderScreen.jsx";
 import PhotoSorterScreen from "./screens/PhotoSorterScreen.jsx";
+import EntityPerformanceScreen from "./screens/EntityPerformanceScreen.jsx";
+import { SAMPLE_ENTITIES } from "./utils/engineDisplayFormatters.js";
 import WorkflowHubScreen from "./screens/WorkflowHubScreen.jsx";
 import ModuleHealthPanel from "./components/ModuleHealthPanel.jsx";
 import WorkflowScreen from "./screens/WorkflowScreen.jsx";
@@ -290,9 +292,18 @@ function App() {
   );
 
   const [screen, setScreen] = useState(
-    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run" | "module_health" | "catalog_builder" | "photo_sorter"} */ (
+    /** @type {"entrance" | "processing" | "report" | "rooms" | "waiting" | "logs" | "capabilities" | "tunnel" | "structure" | "progress" | "workspace" | "workflow_hub" | "workflow_run" | "module_health" | "catalog_builder" | "photo_sorter" | "entity_performance"} */ (
       "entrance"
     ),
+  );
+
+  /**
+   * Merged entity performance data from the pipeline.
+   * Populated by the workflow runner once execution is complete.
+   * SAMPLE_ENTITIES used when no real data is available (dev/preview mode).
+   */
+  const [performanceEntities, setPerformanceEntities] = useState(
+    /** @type {object[]} */ (SAMPLE_ENTITIES),
   );
   /** Pre-loaded catalog result passed from Photo Sorter → Catalog Builder. Cleared on back. */
   const [catalogInitialResult, setCatalogInitialResult] = useState(/** @type {Record<string,any>|null} */ (null));
@@ -573,6 +584,9 @@ function App() {
       case "module_health":
         setScreen("entrance");
         break;
+      case "entity_performance":
+        setScreen("entrance");
+        break;
       case "catalog_builder":
         setScreen("entrance");
         break;
@@ -679,6 +693,15 @@ function App() {
         }}
       />,
       { voiceSyncKey: `welcome-${industryHomeKey}` },
+    );
+  }
+
+  if (screen === "entity_performance") {
+    return (
+      <EntityPerformanceScreen
+        entities={performanceEntities}
+        onBack={() => setScreen("entrance")}
+      />
     );
   }
 
@@ -803,6 +826,9 @@ function App() {
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={() => setScreen("module_health")}>
                   Module health
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setScreen("entity_performance")}>
+                  Performance
                 </button>
               </>
             ) : null}
