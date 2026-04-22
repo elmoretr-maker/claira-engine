@@ -15,7 +15,13 @@ import "./IndustrySelector.css";
  * @param {{
  *   onLoaded: (industry: string) => void,
  *   variant?: "full" | "selectOnly",
- *   tools?: Array<{ icon: string, title: string, description: string, onClick: () => void }>,
+ *   tools?: Array<{
+ *     title: string,
+ *     description: string,
+ *     onClick: () => void,
+ *     icon?: string,
+ *     imageSrc?: string,
+ *   }>,
  * }} props
  */
 export default function IndustrySelector({ onLoaded, variant = "full", tools }) {
@@ -281,9 +287,24 @@ export default function IndustrySelector({ onLoaded, variant = "full", tools }) 
                   <span>or use a standalone tool</span>
                 </div>
                 <div className="catalog-entry-grid">
-                  {tools.map(({ icon, title, description, onClick }) => (
+                  {tools.map(({ icon, imageSrc, title, description, onClick }) => (
                     <button key={title} type="button" className="catalog-entry-card" onClick={onClick}>
-                      <span className="catalog-entry-card__icon">{icon}</span>
+                      <span
+                        className={`catalog-entry-card__icon${imageSrc ? " catalog-entry-card__icon--image" : ""}`}
+                      >
+                        {imageSrc ? (
+                          <img
+                            src={imageSrc}
+                            alt=""
+                            className="catalog-entry-card__thumb"
+                            width={52}
+                            height={52}
+                            decoding="async"
+                          />
+                        ) : (
+                          icon ?? "•"
+                        )}
+                      </span>
                       <span className="catalog-entry-card__body">
                         <span className="catalog-entry-card__title">{title}</span>
                         <span className="catalog-entry-card__desc">{description}</span>

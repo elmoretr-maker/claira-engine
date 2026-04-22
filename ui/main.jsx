@@ -717,13 +717,13 @@ function App() {
         }}
         tools={[
           {
-            icon: "🗂",
+            imageSrc: "/assets/tool-thumbnails/build-product-catalog.png",
             title: "Build Product Catalog",
             description: "Turn images into structured, store-ready product data",
             onClick: () => setScreen("catalog_builder"),
           },
           {
-            icon: "📷",
+            imageSrc: "/assets/tool-thumbnails/photo-sorter.png",
             title: "Photo Sorter",
             description: "Find your best photos instantly",
             onClick: () => setScreen("photo_sorter"),

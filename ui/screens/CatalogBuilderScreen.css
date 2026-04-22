@@ -803,6 +803,24 @@
   flex-shrink: 0;
 }
 
+.catalog-entry-card__icon--image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: inherit;
+}
+
+.catalog-entry-card__thumb {
+  display: block;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-elevated, #151922) 88%, transparent);
+  border: 1px solid #2d3340;
+  box-sizing: border-box;
+}
+
 .catalog-entry-card__body {
   flex: 1;
   min-width: 0;
