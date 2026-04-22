@@ -187,6 +187,13 @@
   margin-bottom: 20px;
 }
 
+.ba-home__empty-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* ── Dataset list ────────────────────────────────────────────────────────── */
 
 .ba-dataset-list {
