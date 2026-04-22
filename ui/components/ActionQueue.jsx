@@ -15,7 +15,7 @@
 
 import "./EntityPerformance.css";
 import { groupByActionTier } from "../utils/engineDisplayFormatters.js";
-import { UrgencyChip, ActionPill, DirectionIndicator } from "./EntityPerformanceAtoms.jsx";
+import { ActionPill, DirectionIndicator } from "./EntityPerformanceAtoms.jsx";
 
 // ── Tier strip ─────────────────────────────────────────────────────────────────
 

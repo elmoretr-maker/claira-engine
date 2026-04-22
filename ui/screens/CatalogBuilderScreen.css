@@ -806,8 +806,8 @@
 .catalog-entry-card {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  padding: 1rem 1.35rem;
+  gap: 0.9rem;
+  padding: 0.8rem 1.1rem;
   background: var(--bg-card);
   border: 1px solid #2d3340;
   border-radius: var(--radius-lg);
@@ -837,9 +837,9 @@
   align-items: center;
   justify-content: center;
   font-size: inherit;
-  width: 84px;
-  height: 84px;
-  border-radius: 14px;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -848,31 +848,36 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-elevated, #151922) 88%, transparent);
-  border: 1px solid #2d3340;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
   box-sizing: border-box;
-  /* Push icon artwork larger inside the thumbnail frame. */
-  transform: scale(1.18);
+  /* Fill the icon viewport more aggressively to reduce empty padding in source assets. */
+  transform: scale(1.28);
   transform-origin: center;
 }
 
 .catalog-entry-card__body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.48rem;
 }
 
 .catalog-entry-card__title {
-  font-size: 1.15rem;
+  font-size: 1.07rem;
   font-weight: 700;
-  margin: 0 0 2px;
+  margin: 0;
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .catalog-entry-card__desc {
-  font-size: 0.98rem;
+  font-size: 0.93rem;
   color: var(--text-secondary);
   margin: 0;
+  line-height: 1.32;
 }
 
 .catalog-entry-card__arrow {

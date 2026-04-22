@@ -723,7 +723,6 @@ export default function PhotoSorterScreen({ onBack, onOpenCatalog }) {
   // Revoke object URLs on unmount
   useEffect(() => {
     return () => fileItems.forEach((fi) => URL.revokeObjectURL(fi.preview));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Derived tag data ───────────────────────────────────────────────────────

@@ -32,7 +32,6 @@ export default function EntitiesStep({ formData, onChange, labels }) {
         placeholder={labels.entitiesPlaceholder}
         value={raw}
         onChange={(e) => onChange({ entityNamesRaw: e.target.value })}
-        // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
         aria-label={`${labels.entityNounPlural} — one per line`}
       />

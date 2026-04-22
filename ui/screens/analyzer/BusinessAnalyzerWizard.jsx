@@ -102,7 +102,6 @@ export default function BusinessAnalyzerWizard({
       formData.entityNamesRaw
         ? parseEntityNames(formData.entityNamesRaw)
         : (init.entities ?? []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [formData.entityNamesRaw],
   );
 

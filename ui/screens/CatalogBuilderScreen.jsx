@@ -300,7 +300,6 @@ export default function CatalogBuilderScreen({ onBack, initialResult }) {
   // Revoke object URLs on unmount
   useEffect(() => {
     return () => fileItems.forEach((fi) => URL.revokeObjectURL(fi.preview));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // If launched from Photo Sorter with a pre-built catalog result, bypass the
@@ -312,7 +311,6 @@ export default function CatalogBuilderScreen({ onBack, initialResult }) {
       ? initialResult.products.map(normaliseProduct)
       : [];
     setEditedProducts(products);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addFiles = useCallback((fileList) => {

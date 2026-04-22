@@ -21,7 +21,6 @@
  */
 
 import { executeWorkflow } from "../workflow/execution/workflowRunner.js";
-import { createRuntimeArtifactStore } from "../workflow/pipeline/runtimeArtifactStore.js";
 import { initRunClaira, _resetRunClairaForTesting } from "../server/runClaira.js";
 
 // =============================================================================
@@ -224,7 +223,7 @@ initRunClaira(MOCK_HANDLER_MAP);
 
 console.log("Group 1: two-step chain (entity.register → snapshot.create)");
 
-const twoStepRun = await test("returns status ok for two successful modules", async () => {
+await test("returns status ok for two successful modules", async () => {
   const result = await executeWorkflow([mockEntityModule, mockSnapshotModule], BASE_CTX);
   assert(result.status === "ok", `expected status=ok, got ${result.status}`);
   return result;
