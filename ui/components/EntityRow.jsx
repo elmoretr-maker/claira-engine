@@ -4,25 +4,32 @@
  * A single collapsed entity row in the EntityTable.
  *
  * Columns rendered (left → right):
- *   Rank  |  Label  |  Dir  |  Velocity/day  |  Score  |  Tier + #N of M  |  Action  |  Urgency  |  Alerts
+ *   Rank (#N / of M)  |  Name  |  Trend  |  Movement  |  Tier  |  Action + Reason  |  Urgency  |  Alerts
+ *
+ * Changes from Phase 1:
+ *   FIX 1 — RankBadge shows "#N" with "of M" sub-label; TierLabel shows tier only.
+ *   FIX 2 — Velocity displayed as "↑ Gaining 0.83/day", "↓ Losing 1.65/day", "→ Stable".
+ *   FIX 3 — Score column removed (available in Phase 2 detail panel).
+ *   FIX 4 — Action cell shows ActionPill + 1-line reason below it.
+ *   FIX 6 — DirectionIndicator receives urgency for intensified coloring.
  *
  * Row accent behavior:
- *   - critical urgency   → red left border
- *   - high urgency       → orange left border
- *   - top performer      → green left border (percentile ≤ 0.2, direction "up")
+ *   - critical urgency → red left border
+ *   - high urgency     → orange left border
+ *   - top performer    → green left border (percentile ≤ 0.2, direction "up")
  *
  * Phase 2 will add expand/collapse toggle (EntityDetailPanel).
  *
  * Props:
  *   entity      — MergedEntity (fully merged pipeline record)
- *   totalCount  — number of entities in dataset (for "#N of M" badge)
+ *   totalCount  — number of entities in dataset (for "of M" sub-label)
  *   rowRef      — (el) => void  forwarded ref for scroll-to
  */
 
 import "./EntityPerformance.css";
 import {
-  formatVelocityPerDay,
-  formatRankLabel,
+  formatDirectionalVelocity,
+  formatImpactSummary,
 } from "../utils/engineDisplayFormatters.js";
 import {
   UrgencyChip,
@@ -51,17 +58,19 @@ function resolveRowAccentClass(urgency, percentile, direction) {
 /**
  * @param {{
  *   entity: {
- *     entityId:       string,
- *     label:          string,
- *     rank:           number,
- *     score:          number,
- *     tieBreakReason: string[],
- *     direction:      string,
+ *     entityId:        string,
+ *     label:           string,
+ *     rank:            number,
+ *     score:           number,
+ *     tieBreakReason:  string[],
+ *     direction:       string,
+ *     velocity:        number,
  *     velocityPerTime: number,
- *     action:         string,
- *     urgency:        string,
- *     alertCount:     number,
- *     percentile:     number,
+ *     action:          string,
+ *     urgency:         string,
+ *     reason:          string,
+ *     alertCount:      number,
+ *     percentile:      number,
  *   },
  *   totalCount: number,
  *   rowRef?:    (el: HTMLTableRowElement | null) => void,
@@ -69,14 +78,14 @@ function resolveRowAccentClass(urgency, percentile, direction) {
  */
 export default function EntityRow({ entity, totalCount, rowRef }) {
   const {
-    entityId, label, rank, score, tieBreakReason,
-    direction, velocityPerTime,
-    action, urgency, alertCount, percentile,
+    entityId, label, rank, tieBreakReason,
+    direction, velocity, velocityPerTime,
+    action, urgency, reason, alertCount, percentile,
   } = entity;
 
-  const accentClass = resolveRowAccentClass(urgency, percentile, direction);
-  const velocityDisplay = formatVelocityPerDay(velocityPerTime);
-  const scoreDisplay = Number.isFinite(score) ? score.toFixed(1).replace(/\.0$/, "") : "—";
+  const accentClass     = resolveRowAccentClass(urgency, percentile, direction);
+  const velocityDisplay = formatDirectionalVelocity(velocityPerTime, direction);
+  const impactLine      = formatImpactSummary(reason ?? "");
 
   return (
     <tr
@@ -85,9 +94,9 @@ export default function EntityRow({ entity, totalCount, rowRef }) {
       className={`ep-row ${accentClass}`}
       aria-label={`${label}, rank ${rank}`}
     >
-      {/* Rank */}
-      <td style={{ width: 48, paddingLeft: 16 }}>
-        <RankBadge rank={rank} tieBreakReason={tieBreakReason} />
+      {/* Rank + position */}
+      <td style={{ width: 64, paddingLeft: 16 }}>
+        <RankBadge rank={rank} total={totalCount} tieBreakReason={tieBreakReason} />
       </td>
 
       {/* Label */}
@@ -95,31 +104,32 @@ export default function EntityRow({ entity, totalCount, rowRef }) {
         <span className="ep-row__label" title={label}>{label}</span>
       </td>
 
-      {/* Direction */}
-      <td style={{ width: 36, textAlign: "center" }}>
-        <DirectionIndicator direction={direction} />
+      {/* Direction — urgency-aware color (FIX 6) */}
+      <td style={{ width: 40, textAlign: "center" }}>
+        <DirectionIndicator direction={direction} urgency={urgency} />
       </td>
 
-      {/* Velocity / day */}
+      {/* Movement — directional velocity (FIX 2) */}
       <td>
-        <span className="ep-row__velocity">{velocityDisplay}</span>
+        <span
+          className={`ep-row__velocity ep-row__velocity--${direction ?? "flat"}`}
+          title={`Raw velocity: ${Number.isFinite(velocity) ? velocity : "—"}`}
+        >
+          {velocityDisplay}
+        </span>
       </td>
 
-      {/* Score */}
-      <td className="ep-col--score">
-        <span className="ep-row__score">{scoreDisplay}</span>
-      </td>
-
-      {/* Tier + position */}
+      {/* Tier — name only, no position (FIX 1) */}
       <td className="ep-col--tier">
-        <div className="ep-row__tier-group">
-          <TierLabel percentile={percentile} rank={rank} total={totalCount} />
-        </div>
+        <TierLabel percentile={percentile} />
       </td>
 
-      {/* Recommended action */}
-      <td>
+      {/* Action + reason (FIX 3 removes score; FIX 4 adds reason) */}
+      <td style={{ minWidth: 160 }}>
         <ActionPill action={action} />
+        {impactLine ? (
+          <div className="ep-row__reason" title={impactLine}>{impactLine}</div>
+        ) : null}
       </td>
 
       {/* Urgency */}

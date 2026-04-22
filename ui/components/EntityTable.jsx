@@ -23,16 +23,16 @@ import EntityRow from "./EntityRow.jsx";
 
 // ── Column definitions ─────────────────────────────────────────────────────────
 
+// FIX 3: Score removed from main table (available in Phase 2 detail panel).
 const COLUMNS = [
-  { key: "rank",      label: "Rank",       className: "",              style: { width: 48, paddingLeft: 16 } },
-  { key: "label",     label: "Name",       className: "",              style: {} },
-  { key: "direction", label: "Trend",      className: "",              style: { width: 56, textAlign: "center" } },
-  { key: "velocity",  label: "Rate / Day", className: "",              style: {} },
-  { key: "score",     label: "Score",      className: "ep-col--score", style: {} },
-  { key: "tier",      label: "Tier",       className: "ep-col--tier",  style: {} },
-  { key: "action",    label: "Action",     className: "",              style: {} },
-  { key: "urgency",   label: "Urgency",    className: "",              style: {} },
-  { key: "alerts",    label: "Alerts",     className: "",              style: {} },
+  { key: "rank",      label: "Rank",      className: "",             style: { width: 64, paddingLeft: 16 } },
+  { key: "label",     label: "Name",      className: "",             style: {} },
+  { key: "direction", label: "Trend",     className: "",             style: { width: 40, textAlign: "center" } },
+  { key: "velocity",  label: "Movement",  className: "",             style: {} },
+  { key: "tier",      label: "Tier",      className: "ep-col--tier", style: {} },
+  { key: "action",    label: "Action",    className: "",             style: { minWidth: 160 } },
+  { key: "urgency",   label: "Urgency",   className: "",             style: {} },
+  { key: "alerts",    label: "Alerts",    className: "",             style: {} },
 ];
 
 // ── EntityTable ────────────────────────────────────────────────────────────────

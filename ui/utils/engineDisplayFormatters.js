@@ -45,6 +45,34 @@ export function formatVelocityPerDay(velocityPerTime) {
 }
 
 /**
+ * Format velocity with directional context: "↑ Gaining 0.83/day", "↓ Losing 1.65/day", "→ Stable".
+ *
+ * FIX 2: replaces bare "1.65 / day" with action-oriented phrasing.
+ *
+ * @param {number} velocityPerTime - raw engine output (units / ms)
+ * @param {string} direction       - "up" | "down" | "flat"
+ * @returns {string}
+ */
+export function formatDirectionalVelocity(velocityPerTime, direction) {
+  // Flat or zero → always "Stable" regardless of velocityPerTime sign
+  if (direction === "flat" || !Number.isFinite(velocityPerTime) || velocityPerTime === 0) {
+    return "→ Stable";
+  }
+
+  const perDay = Math.abs(velocityPerTime) * MS_PER_DAY;
+  let valueStr;
+  if (perDay >= 1000) valueStr = `${Math.round(perDay).toLocaleString()}/day`;
+  else if (perDay >= 100) valueStr = `${Math.round(perDay)}/day`;
+  else if (perDay >= 10)  valueStr = `${perDay.toFixed(1)}/day`;
+  else                    valueStr = `${perDay.toFixed(2)}/day`;
+
+  if (direction === "up")   return `↑ Gaining ${valueStr}`;
+  if (direction === "down") return `↓ Losing ${valueStr}`;
+  // Fallback: unknown direction but non-zero velocity
+  return valueStr;
+}
+
+/**
  * Convert velocityPerTime (units per ms) to a human-readable per-week string.
  * Useful as a secondary metric for slow-moving entities.
  *
@@ -214,20 +242,44 @@ export function sortByUrgencyThenRank(entities) {
 /**
  * Group entities into the three ActionQueue tiers.
  *
- * @template {{ urgency: string }} T
- * @param {T[]} entities - already sorted (sortByUrgencyThenRank)
+ * FIX 5: Within each tier, entities are sorted by:
+ *   1. urgency priority (critical before high inside "Act Now")
+ *   2. velocity descending  — faster-moving entities shown first
+ *   3. alertCount descending — more alerts = higher priority within same velocity
+ *
+ * @template {{ urgency: string, velocity?: number, alertCount?: number }} T
+ * @param {T[]} entities - already sorted by sortByUrgencyThenRank
  * @returns {{ actNow: T[], monitor: T[], performingWell: T[] }}
  */
 export function groupByActionTier(entities) {
-  /** @type {T[]} */ const actNow        = [];
-  /** @type {T[]} */ const monitor       = [];
+  /** @type {T[]} */ const actNow         = [];
+  /** @type {T[]} */ const monitor        = [];
   /** @type {T[]} */ const performingWell = [];
+
   for (const e of entities) {
     if (e.urgency === "critical" || e.urgency === "high") actNow.push(e);
     else if (e.urgency === "medium") monitor.push(e);
     else performingWell.push(e);
   }
-  return { actNow, monitor, performingWell };
+
+  /** @param {T[]} arr @returns {T[]} */
+  function sortTier(arr) {
+    return [...arr].sort((a, b) => {
+      const ua = URGENCY_ORDER[/** @type {keyof typeof URGENCY_ORDER} */ (a.urgency)] ?? 4;
+      const ub = URGENCY_ORDER[/** @type {keyof typeof URGENCY_ORDER} */ (b.urgency)] ?? 4;
+      if (ua !== ub) return ua - ub;
+      const va = Number(a.velocity ?? 0);
+      const vb = Number(b.velocity ?? 0);
+      if (vb !== va) return vb - va;
+      return Number(b.alertCount ?? 0) - Number(a.alertCount ?? 0);
+    });
+  }
+
+  return {
+    actNow:         sortTier(actNow),
+    monitor:        sortTier(monitor),
+    performingWell: sortTier(performingWell),
+  };
 }
 
 // ── Data merge helper ─────────────────────────────────────────────────────────
