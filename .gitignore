@@ -52,7 +52,7 @@ dev/test-assets/
 dev/fixtures/
 test_images/
 
-Assets/
+/Assets/
 *.tmp.png
 *.debug.png
 
