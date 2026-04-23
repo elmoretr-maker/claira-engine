@@ -865,6 +865,61 @@ function wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay) {
   return formatWellnessWeightRateDerivationLine(startWeight, endWeight, durationDays, lbsPerDay);
 }
 
+function wellnessGoalDataConfidence(durationDays, startLb, endLb) {
+  const parts = [];
+  if (durationDays > 0 && durationDays < 3) {
+    parts.push(`Based on a short ${durationDays}-day period, this estimate may vary more than usual.`);
+  }
+  if (Number.isFinite(startLb) && Number.isFinite(endLb) && Math.abs(endLb - startLb) < 2) {
+    parts.push("With limited activity data, projections may be less reliable.");
+  }
+  if (parts.length === 0) return "";
+  return " " + parts.join(" ");
+}
+
+function wellnessPaceRatioRealismAppend(currentLossPerDay, requiredLossPerDay) {
+  if (!Number.isFinite(currentLossPerDay) || !Number.isFinite(requiredLossPerDay) || currentLossPerDay <= 0 || requiredLossPerDay <= 0) {
+    return "";
+  }
+  const r = requiredLossPerDay / currentLossPerDay;
+  if (r > 5) return " At this level, the target is likely not realistic within the timeframe.";
+  if (r > 3) return " This would require a major increase from your current pace.";
+  return "";
+}
+
+const WELLNESS_GOAL_GAP_WHY =
+  " This gap is mainly driven by the difference between your current pace and the time remaining.";
+
+/**
+ * @param {"onTrackLoss" | "flat" | "behindLoss" | "maintain" | "noDeadline"} which
+ * @param {number} [reqLossPerDay]
+ * @param {number} [curLossPerDay]
+ */
+function wellnessMostPracticalOption(which, reqLossPerDay, curLossPerDay) {
+  if (which === "onTrackLoss") {
+    return "Most practical option: Keep the small habits that are working — consistency usually beats a bigger swing when you are already trending toward the goal.";
+  }
+  if (which === "flat") {
+    return "Most practical option: A modest timeline change, when it is realistic for you, is often the highest-leverage move when the trend has not yet turned toward the goal.";
+  }
+  if (which === "behindLoss") {
+    if (
+      Number.isFinite(reqLossPerDay) && Number.isFinite(curLossPerDay) &&
+      curLossPerDay > 0 && reqLossPerDay > 3 * curLossPerDay
+    ) {
+      return "Most practical option: Extending the timeline slightly, if you can, brings the required weekly change much closer to what you are doing today.";
+    }
+    return "Most practical option: Small, steady tweaks to food and movement are usually easier to sustain than a full reset all at once.";
+  }
+  if (which === "maintain") {
+    return "Most practical option: Keep logging and change one thing at a time so you can see what actually moves the trend.";
+  }
+  if (which === "noDeadline") {
+    return "Most practical option: Hold the habits behind the curve you see now, and revisit the goal once you have a longer stretch of consistent data.";
+  }
+  return "Most practical option: Pick the smallest sustainable change and keep it steady for a few weeks before stacking more.";
+}
+
 function generateGoalAnalysis(primaryRow, wellness, goal, durationDays) {
   // Resolve goal weight: prefer formData.goal.targetValue, fall back to wellness.goalWeightLb
   const goalFromStep     = goal?.targetValue ? Number(goal.targetValue) : null;
@@ -885,6 +940,9 @@ function generateGoalAnalysis(primaryRow, wellness, goal, durationDays) {
 
   const lbsPerWeek = lbsPerDay * 7;
   const isLossGoal = targetWeight < currentWeight;
+
+  const startW = Number(primaryRow?.startValue ?? 0);
+  const endW   = Number(primaryRow?.endValue   ?? 0);
 
   const targetDate     = String(goal?.targetDate ?? "").trim();
   const hasDeadline    = !!targetDate;
@@ -908,18 +966,21 @@ function generateGoalAnalysis(primaryRow, wellness, goal, durationDays) {
           : null;
         let summary = `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, your current trend is flat or moving in the other direction. To lose about ${formatWeightLbForDisplay(currentWeight - targetWeight)} lbs in time, you'd need to average about ${reqPerWeek} lbs of loss per week.`;
         if (feasibility) summary += ` ${feasibility}`;
+        summary += wellnessGoalDataConfidence(durationDays, startW, endW);
         return {
           summary,
           rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
-          strategies: WELLNESS_LOSS_STRATEGIES,
+          strategies: [...WELLNESS_LOSS_STRATEGIES, wellnessMostPracticalOption("flat")],
         };
       }
 
       if (projectedWeight <= targetWeight) {
+        let summary = `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, at your current rate of about ${curPerWeek} lbs per week, you're trending toward around ${formatWeightLbForDisplay(projectedWeight)} lbs — looking good, you're on track.`;
+        summary += wellnessGoalDataConfidence(durationDays, startW, endW);
         return {
-          summary: `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, at your current rate of about ${curPerWeek} lbs per week, you're trending toward around ${formatWeightLbForDisplay(projectedWeight)} lbs — looking good, you're on track.`,
+          summary,
           rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
-          strategies: WELLNESS_MAINTAIN_STRATEGIES,
+          strategies: [...WELLNESS_MAINTAIN_STRATEGIES, wellnessMostPracticalOption("onTrackLoss")],
         };
       }
 
@@ -931,19 +992,24 @@ function generateGoalAnalysis(primaryRow, wellness, goal, durationDays) {
       const note = reqLossPerDay > 0 ? feasibilityNote(curLossPerDay, reqLossPerDay) : null;
       let summary = `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, at your current rate of about ${curPerWeek} lbs per week, you're trending toward around ${formatWeightLbForDisplay(projectedWeight)} lbs — about ${gapLb} lbs above your target. To close that gap, you'd need to increase your rate of loss to about ${reqPerWeek} lbs per week.`;
       if (note) summary += ` ${note}`;
+      summary += wellnessPaceRatioRealismAppend(curLossPerDay, reqLossPerDay);
+      summary += WELLNESS_GOAL_GAP_WHY;
+      summary += wellnessGoalDataConfidence(durationDays, startW, endW);
       return {
         summary,
         rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
-        strategies: WELLNESS_LOSS_STRATEGIES,
+        strategies: [...WELLNESS_LOSS_STRATEGIES, wellnessMostPracticalOption("behindLoss", reqLossPerDay, curLossPerDay)],
       };
     }
 
     // Maintenance or gain goal
     const outcomeLabel = projectedWeight >= targetWeight ? "on target" : "slightly short of where you want to be";
+    let summary = `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, your current trend puts you at around ${formatWeightLbForDisplay(projectedWeight)} lbs by then — ${outcomeLabel}.`;
+    summary += wellnessGoalDataConfidence(durationDays, startW, endW);
     return {
-      summary: `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, your current trend puts you at around ${formatWeightLbForDisplay(projectedWeight)} lbs by then — ${outcomeLabel}.`,
+      summary,
       rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
-      strategies: WELLNESS_MAINTAIN_STRATEGIES,
+      strategies: [...WELLNESS_MAINTAIN_STRATEGIES, wellnessMostPracticalOption("maintain")],
     };
   }
 
@@ -951,10 +1017,12 @@ function generateGoalAnalysis(primaryRow, wellness, goal, durationDays) {
   if (isLossGoal && lbsPerDay < 0) {
     const daysToGoal  = Math.round((currentWeight - targetWeight) / Math.abs(lbsPerDay));
     const weeksToGoal = (daysToGoal / 7).toFixed(1);
+    let summary = `At your current rate of about ${formatLbsPerWeekNumberForDisplay(Math.abs(lbsPerWeek))} lbs per week, you're trending toward ${targetWeight} lbs in roughly ${weeksToGoal} week${weeksToGoal !== "1.0" ? "s" : ""}. This is a directional estimate — small shifts in habit or measurement timing can move the timeline.`;
+    summary += wellnessGoalDataConfidence(durationDays, startW, endW);
     return {
-      summary: `At your current rate of about ${formatLbsPerWeekNumberForDisplay(Math.abs(lbsPerWeek))} lbs per week, you're trending toward ${targetWeight} lbs in roughly ${weeksToGoal} week${weeksToGoal !== "1.0" ? "s" : ""}. This is a directional estimate — small shifts in habit or measurement timing can move the timeline.`,
+      summary,
       rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
-      strategies: WELLNESS_MAINTAIN_STRATEGIES,
+      strategies: [...WELLNESS_MAINTAIN_STRATEGIES, wellnessMostPracticalOption("noDeadline")],
     };
   }
 

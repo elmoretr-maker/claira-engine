@@ -71,6 +71,34 @@ export function requiredRate(target, current) {
   return (target - current) / current;
 }
 
+function salesGoalDataConfidence(salesTotal, deliveryTotal) {
+  const low = salesTotal < 4 || deliveryTotal < 4;
+  if (!low) return "";
+  return " With limited activity data, projections may be less reliable.";
+}
+
+/** Same ratio language as throughput goals; uses model’s positive growth rates only. */
+function salesPaceRatioRealismAppend(currentRate, neededRate) {
+  if (!Number.isFinite(currentRate) || !Number.isFinite(neededRate) || currentRate <= 0 || neededRate <= 0) return "";
+  const r = neededRate / currentRate;
+  if (r > 5) return " At this level, the target is likely not realistic within the timeframe.";
+  if (r > 3) return " This would require a major increase from your current pace.";
+  return "";
+}
+
+const SALES_GOAL_GAP_WHY =
+  " This gap is mainly driven by the difference between your current pace and the time remaining.";
+
+function salesMostPracticalOption(neededRate, currentRate) {
+  if (Number.isFinite(neededRate) && Number.isFinite(currentRate) && currentRate > 0 && neededRate > 3 * currentRate) {
+    return "Most practical option: Leaning on your best-performing products or channels can cover part of the gap with less net-new demand than a broad growth push.";
+  }
+  return "Most practical option: Tuning conversion and offers on what you already sell is often the highest return before you spend to reach new buyers.";
+}
+
+const SALES_ON_TRACK_BEST =
+  "Most practical option: Keep execution steady on the mix that is already working, then look for a single high-confidence improvement to repeat next period.";
+
 /**
  * Goal-based analysis: compares the user's target against the current growth rate
  * and determines if they are on track, plus what growth is required if not.
@@ -106,17 +134,24 @@ export function generateGoalAnalysis(primaryRow, allRows, goal) {
   // Single period only — no rate, give directional answer
   if (currentRate === null) {
     if (salesTotal >= targetValue) {
+      let summary = `Your goal is ${targetValue} sales next period. You recorded ${salesTotal} this period — you're already at or above your target.`;
+      summary += salesGoalDataConfidence(salesTotal, deliveryTotal);
       return {
-        summary: `Your goal is ${targetValue} sales next period. You recorded ${salesTotal} this period — you're already at or above your target.`,
+        summary,
         strategies: [
           "Protect what's working — avoid unnecessary changes to pricing or channels when momentum is good.",
           "Track the source — understanding which products or channels drove results makes them easier to repeat.",
+          "Most practical option: Keep following what already produced this result while you add another period to measure momentum.",
         ],
       };
     }
+    let summary = `Your goal is ${targetValue} sales next period. You recorded ${salesTotal} this period. Without a prior period to compare against, it's not yet possible to project a growth rate — adding a second period will unlock this.`;
+    summary += salesGoalDataConfidence(salesTotal, deliveryTotal);
     return {
-      summary: `Your goal is ${targetValue} sales next period. You recorded ${salesTotal} this period. Without a prior period to compare against, it's not yet possible to project a growth rate — adding a second period will unlock this.`,
-      strategies: [],
+      summary,
+      strategies: [
+        "Most practical option: Add one more complete period of sales first — the clearest next step is a comparison, not a bigger goal.",
+      ],
     };
   }
 
@@ -128,13 +163,16 @@ export function generateGoalAnalysis(primaryRow, allRows, goal) {
   const gap            = Math.round(targetValue - projectedValue);
 
   if (projectedValue >= targetValue) {
-    const rateDerivation = `Growth: (${salesTotal} − ${deliveryTotal}) ÷ ${deliveryTotal} ≈ ${currentPct}% ${trendWord} (period over period).`;
+    const rateDerivation = formatSalesGoalRateDerivation(salesTotal, deliveryTotal, currentPct, trendWord);
+    let summary = `Your goal is ${targetValue} sales next period. Based on your current momentum of about ${currentPct}% ${trendWord}, you're projected to reach ${projectedValue} — looking on track to exceed your target.`;
+    summary += salesGoalDataConfidence(salesTotal, deliveryTotal);
     return {
-      summary: `Your goal is ${targetValue} sales next period. Based on your current momentum of ${currentPct}% ${trendWord}, you're projected to reach ${projectedValue} — looking on track to exceed your target.`,
+      summary,
       rateDerivation,
       strategies: [
         "Protect what's working — avoid unnecessary changes to pricing or channels when momentum is good.",
         "Track the source — understanding which products or channels drove growth makes the result easier to repeat next period.",
+        SALES_ON_TRACK_BEST,
       ],
     };
   }
@@ -145,15 +183,28 @@ export function generateGoalAnalysis(primaryRow, allRows, goal) {
       ? feasibilityNote(currentRate, neededRate)
       : null;
     if (note) summary += ` ${note}`;
+    if (neededRate !== null && currentRate > 0) {
+      summary += salesPaceRatioRealismAppend(currentRate, neededRate);
+    }
+    summary += SALES_GOAL_GAP_WHY;
+    summary += salesGoalDataConfidence(salesTotal, deliveryTotal);
     const rateDerivation = formatSalesGoalRateDerivation(salesTotal, deliveryTotal, currentPct, trendWord);
+    const strategies     = [
+      "Improve conversion — small adjustments to pricing, offers, or the buying experience can lift results without needing more traffic.",
+      "Increase exposure — growing reach through marketing or new channels creates more opportunities to sell.",
+      "Focus on top performers — concentrating effort on your strongest items often delivers faster gains than spreading attention across everything.",
+    ];
+    if (neededRate !== null && currentRate > 0) {
+      strategies.push(salesMostPracticalOption(neededRate, currentRate));
+    } else {
+      strategies.push(
+        "Most practical option: Stabilize the trend you have, then test one focused lift to conversion or reach before widening the plan.",
+      );
+    }
     return {
       summary,
       rateDerivation,
-      strategies: [
-        "Improve conversion — small adjustments to pricing, offers, or the buying experience can lift results without needing more traffic.",
-        "Increase exposure — growing reach through marketing or new channels creates more opportunities to sell.",
-        "Focus on top performers — concentrating effort on your strongest items often delivers faster gains than spreading attention across everything.",
-      ],
+      strategies,
     };
   }
 

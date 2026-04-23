@@ -222,6 +222,46 @@ export function requiredRate(target, current, days) {
   return (current - target) / days; // max allowable daily loss
 }
 
+/** Copy only — depletion “stress” = current outflow ÷ max allowable. */
+function depletionRatioRealismAppend(currentRate, maxAllowableRate) {
+  if (
+    !Number.isFinite(currentRate) || !Number.isFinite(maxAllowableRate) ||
+    maxAllowableRate <= 0
+  ) return "";
+  const r = currentRate / maxAllowableRate;
+  if (r > 5) return " At this level, the target is likely not realistic within the timeframe.";
+  if (r > 3) return " This would require a major increase from your current pace.";
+  return "";
+}
+
+function inventoryGoalDataConfidence(durationDays, soldInPeriod) {
+  const parts = [];
+  if (durationDays > 0 && durationDays < 3) {
+    parts.push(`Based on a short ${durationDays}-day period, this estimate may vary more than usual.`);
+  }
+  if (soldInPeriod > 0 && soldInPeriod < 4) {
+    parts.push("With limited activity data, projections may be less reliable.");
+  }
+  if (parts.length === 0) return "";
+  return " " + parts.join(" ");
+}
+
+const INVENTORY_GOAL_GAP_WHY =
+  " This gap is mainly driven by the difference between your current pace and the time remaining.";
+
+/**
+ * @param {number} ratioCurrentOverMax
+ */
+function inventoryMostPracticalOption(ratioCurrentOverMax) {
+  if (Number.isFinite(ratioCurrentOverMax) && ratioCurrentOverMax > 3) {
+    return "Most practical option: A planned restock that lands before the shortfall window is usually the most reliable lever when you are this far from the line.";
+  }
+  return "Most practical option: Pairing a modest restock with a small pull-back on outflow is often easier than betting everything on a single big move.";
+}
+
+const INVENTORY_ON_TRACK_BEST =
+  "Most practical option: Keep a simple watch on stock and lead times so you can react if demand steps up.";
+
 /**
  * Goal-based analysis: compares target stock level + deadline against the observed
  * depletion rate, then describes the projected outcome, required action, and feasibility.
@@ -260,19 +300,21 @@ export function generateGoalAnalysis(primaryRow, allRows, goal, durationDays) {
   if (currentRate === null) {
     if (currentUnits >= targetValue) {
       return {
-        summary: `${primaryRow.label} is at ${currentUnits} units — above your target of ${targetValue}. No outflow was recorded this period, so you look on track as long as demand stays low.`,
+        summary: `${primaryRow.label} is at ${currentUnits} units — above your target of ${targetValue}. No outflow was recorded this period, so you look on track as long as demand stays low. With limited activity data, projections may be less reliable.`,
         strategies: [
           "Keep monitoring — stock levels can shift quickly, so regular check-ins help you catch changes early.",
           "Have a restock plan ready — knowing your lead times means you can act quickly if demand picks up.",
+          "Most practical option: Keep a light monitoring cadence and keep a restock path ready the moment outflow returns.",
         ],
       };
     }
     const needed = Math.ceil(targetValue - currentUnits);
     return {
-      summary: `${primaryRow.label} is at ${currentUnits} units, which is below your target of ${targetValue}. No outflow was recorded this period — to reach the target, you'd need a restock of roughly ${needed} unit${needed !== 1 ? "s" : ""}.`,
+      summary: `${primaryRow.label} is at ${currentUnits} units, which is below your target of ${targetValue}. No outflow was recorded this period — to reach the target, you'd need a restock of roughly ${needed} unit${needed !== 1 ? "s" : ""}. With limited activity data, projections may be less reliable.${INVENTORY_GOAL_GAP_WHY}`,
       strategies: [
         "Restock — bringing inventory back above the target with a planned order is the most direct path.",
         "Assess demand first — if there's been little recent activity, it may be worth checking whether demand has changed before committing to a large order.",
+        "Most practical option: Sizing a restock to the gap you have now is usually clearer than waiting without sales signal.",
       ],
     };
   }
@@ -287,12 +329,15 @@ export function generateGoalAnalysis(primaryRow, allRows, goal, durationDays) {
 
   if (projectedValue >= targetValue) {
     const rateDerivation = `Depletion: ${soldInPeriod} units over ${durationLabel} — ${formatRateDerivationPaceAbout(currentRate, "units")}.`;
+    let summary = `Your goal is to keep at least ${targetValue} units in stock by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from your current stock of ${currentUnits} units, the current depletion rate is ${formatRateDerivationPaceAbout(currentRate, "units")} (${soldInPeriod} units sold across the ${durationLabel} period). At that rate, you're projected to have around ${projectedValue} units by the deadline — on track to stay above your minimum.`;
+    summary += inventoryGoalDataConfidence(durationDays, soldInPeriod);
     return {
-      summary: `Your goal is to keep at least ${targetValue} units in stock by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from your current stock of ${currentUnits} units, the current depletion rate is ${formatRateDerivationPaceAbout(currentRate, "units")} (${soldInPeriod} units sold across the ${durationLabel} period). At that rate, you're projected to have around ${projectedValue} units by the deadline — on track to stay above your minimum.`,
+      summary,
       rateDerivation,
       strategies: [
         "Keep monitoring — demand can shift, so regular stock checks help you stay ahead of any surprises.",
         "Have a restock plan ready — knowing your lead times means you can act quickly if outflow accelerates.",
+        INVENTORY_ON_TRACK_BEST,
       ],
     };
   }
@@ -313,15 +358,26 @@ export function generateGoalAnalysis(primaryRow, allRows, goal, durationDays) {
     : null;
   if (note) summary += ` ${note}`;
 
+  const ratioStress = maxAllowableRate !== null && maxAllowableRate > 0
+    ? currentRate / maxAllowableRate
+    : NaN;
+  if (maxAllowableRate !== null && maxAllowableRate > 0) {
+    summary += depletionRatioRealismAppend(currentRate, maxAllowableRate);
+  }
+  summary += INVENTORY_GOAL_GAP_WHY;
+  summary += inventoryGoalDataConfidence(durationDays, soldInPeriod);
+
   const rateDerivation = `Depletion: ${soldInPeriod} units over ${durationLabel} — ${formatRateDerivationPaceAbout(currentRate, "units")}.`;
+  const strats         = [
+    "Reduce outflow — consider slowing sales velocity through pricing adjustments or by pausing promotions on this item.",
+    "Restock — placing an order before the shortfall window closes gives you breathing room to stay above the minimum.",
+    "Do both — a modest restock combined with a small reduction in outflow can often be easier to achieve than relying on either approach alone.",
+  ];
+  strats.push(inventoryMostPracticalOption(ratioStress));
   return {
     summary,
     rateDerivation,
-    strategies: [
-      "Reduce outflow — consider slowing sales velocity through pricing adjustments or by pausing promotions on this item.",
-      "Restock — placing an order before the shortfall window closes gives you breathing room to stay above the minimum.",
-      "Do both — a modest restock combined with a small reduction in outflow can often be easier to achieve than relying on either approach alone.",
-    ],
+    strategies: strats,
   };
 }
 

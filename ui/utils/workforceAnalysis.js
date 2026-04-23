@@ -122,6 +122,49 @@ function orderWorkforceStrategiesForGap(currentRate, neededRate) {
   return [WORKFORCE_BEHIND_STRATEGY_CLEAR, WORKFORCE_BEHIND_STRATEGY_REDIST, WORKFORCE_BEHIND_STRATEGY_TIMELINE];
 }
 
+/** Copy only — not used in numeric model. */
+function workforceGoalDataConfidence(durationDays, totalCompleted) {
+  const parts = [];
+  if (durationDays > 0 && durationDays < 3) {
+    parts.push(`Based on a short ${durationDays}-day period, this estimate may vary more than usual.`);
+  }
+  if (totalCompleted > 0 && totalCompleted < 4) {
+    parts.push("With limited activity data, projections may be less reliable.");
+  }
+  if (parts.length === 0) return "";
+  return " " + parts.join(" ");
+}
+
+/** @param {number} currentPace  Required ÷ current ratio uses same units as the model. */
+function paceRatioRealismAppend(currentPace, requiredPace) {
+  if (!Number.isFinite(currentPace) || !Number.isFinite(requiredPace) || currentPace <= 0 || requiredPace <= 0) return "";
+  const r = requiredPace / currentPace;
+  if (r > 5) return " At this level, the target is likely not realistic within the timeframe.";
+  if (r > 3) return " This would require a major increase from your current pace.";
+  return "";
+}
+
+const GOAL_GAP_WHY =
+  " This gap is mainly driven by the difference between your current pace and the time remaining.";
+
+/**
+ * @param {"onTrack" | "behind"} kind
+ * @param {number} [neededRate]
+ * @param {number} [currentRate]
+ */
+function workforceMostPracticalOption(kind, neededRate, currentRate) {
+  if (kind === "onTrack") {
+    return "Most practical option: Keep the current rhythm and catch small delays before they add up to real slip.";
+  }
+  if (!Number.isFinite(neededRate) || !Number.isFinite(currentRate) || currentRate <= 0) {
+    return "Most practical option: Tackle blockers and workload balance first — they are often the fastest way to change throughput without adding people.";
+  }
+  if (neededRate > 3 * currentRate) {
+    return "Most practical option: Revisiting the timeline slightly, if you can, would bring the required pace much closer to what the team is already doing.";
+  }
+  return "Most practical option: Clearing blockers and evening out work is often the smallest change with the largest effect on output.";
+}
+
 /**
  * Goal-based analysis: projects whether the team will hit a completion target by
  * the deadline, using throughput-per-day as the single consistent rate model.
@@ -175,12 +218,15 @@ export function generateGoalAnalysis(primaryRow, allRows, goal, outputType, dura
 
     if (projectedValue >= targetValue) {
       const rateDerivation = `Pace: ${totalCompleted} ${unit} over ${durationLabel} — ${formatRateDerivationPaceAbout(currentRate, unit)}.`;
+      let summary = `Your goal is to complete ${targetValue} ${unit} by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Based on your recent period (${totalCompleted} ${unit} completed in ${durationLabel}), your team's current pace is ${formatRateDerivationPaceAbout(currentRate, unit)}. At that pace, the team is on track — projected to add around ${projectedValue} more ${unit} by the deadline.`;
+      summary += workforceGoalDataConfidence(durationDays, totalCompleted);
       return {
-        summary: `Your goal is to complete ${targetValue} ${unit} by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Based on your recent period (${totalCompleted} ${unit} completed in ${durationLabel}), your team's current pace is ${formatRateDerivationPaceAbout(currentRate, unit)}. At that pace, the team is on track — projected to add around ${projectedValue} more ${unit} by the deadline.`,
+        summary,
         rateDerivation,
         strategies: [
           "Maintain the current rhythm — avoid overloading team members to preserve the pace that's working.",
           "Watch for early blockers — throughput can drop quickly when unresolved issues are allowed to accumulate.",
+          workforceMostPracticalOption("onTrack"),
         ],
       };
     }
@@ -188,11 +234,16 @@ export function generateGoalAnalysis(primaryRow, allRows, goal, outputType, dura
     let summary = `Your goal is to complete ${targetValue} ${unit} by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Based on your recent period (${totalCompleted} ${unit} completed in ${durationLabel}), your team's current pace is ${formatRateDerivationPaceAbout(currentRate, unit)}. At that pace, the team will add approximately ${projectedValue} more ${unit} by the deadline — coming in about ${gap} ${unit} short of ${targetValue}. To close that gap, the team would need to average ${formatRateDerivationPaceAbout(neededRate, unit)}.`;
     const note = feasibilityNote(currentRate, neededRate);
     if (note) summary += ` ${note}`;
+    summary += paceRatioRealismAppend(currentRate, neededRate);
+    summary += GOAL_GAP_WHY;
+    summary += workforceGoalDataConfidence(durationDays, totalCompleted);
     const rateDerivation = `Pace: ${totalCompleted} ${unit} over ${durationLabel} — ${formatRateDerivationPaceAbout(currentRate, unit)}.`;
+    const strategies = orderWorkforceStrategiesForGap(currentRate, neededRate);
+    strategies.push(workforceMostPracticalOption("behind", neededRate, currentRate));
     return {
       summary,
       rateDerivation,
-      strategies: orderWorkforceStrategiesForGap(currentRate, neededRate),
+      strategies,
     };
   }
 
@@ -203,18 +254,26 @@ export function generateGoalAnalysis(primaryRow, allRows, goal, outputType, dura
       ? ` — ${daysToDeadline} day${daysToDeadline !== 1 ? "s" : ""} remaining`
       : "";
     if (totalCompleted >= totalAssigned) {
+      let summary = `Your team is completing ${ratePct}% of assigned ${doneLabel}${daysRemaining}. At this rate, you appear on track to reach ${targetValue} ${unit}${hasDeadline ? ` by ${formatDate(targetDate)}` : ""} — as long as assignment volumes stay consistent. Set a period start and end for a throughput-based projection.`;
+      summary += workforceGoalDataConfidence(durationDays, totalCompleted);
       return {
-        summary: `Your team is completing ${ratePct}% of assigned ${doneLabel}${daysRemaining}. At this rate, you appear on track to reach ${targetValue} ${unit}${hasDeadline ? ` by ${formatDate(targetDate)}` : ""} — as long as assignment volumes stay consistent. Set a period start and end for a throughput-based projection.`,
+        summary,
         strategies: [
           "Maintain the current rhythm — avoid overloading team members to preserve the pace that's working.",
           "Add a period start and end to unlock a throughput-based projection with more precision.",
+          workforceMostPracticalOption("onTrack"),
         ],
       };
     }
     const neededByRate = Math.ceil(targetValue / (totalCompleted / totalAssigned));
+    let summary = `Your team is completing ${ratePct}% of assigned ${doneLabel}${daysRemaining}. At this rate, you'd need around ${neededByRate} ${unit} assigned to reach ${targetValue}${hasDeadline ? ` by ${formatDate(targetDate)}` : ""}. Set a period start and end to unlock a throughput-based projection.`;
+    summary += workforceGoalDataConfidence(durationDays, totalCompleted);
+    summary += GOAL_GAP_WHY;
     return {
-      summary: `Your team is completing ${ratePct}% of assigned ${doneLabel}${daysRemaining}. At this rate, you'd need around ${neededByRate} ${unit} assigned to reach ${targetValue}${hasDeadline ? ` by ${formatDate(targetDate)}` : ""}. Set a period start and end to unlock a throughput-based projection.`,
-      strategies: [],
+      summary,
+      strategies: [
+        "Most practical option: Add a period with start and end dates first — without it, the clearest next step is to unlock throughput-based numbers before pushing harder on assignments.",
+      ],
     };
   }
 
