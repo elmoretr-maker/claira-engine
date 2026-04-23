@@ -150,14 +150,13 @@ export default function BusinessAnalyzerHome({ onBack, onAnalysisReady }) {
         <div className="ba-home__brand">
           <img
             src="/assets/tool-thumbnails/business-analyzer.png"
-            alt="Business Analyzer"
+            alt="Insight Engine"
             className="ba-home__icon"
           />
           <div>
-            <h1 className="ba-home__title">Business Analyzer</h1>
+            <h1 className="ba-home__title">Insight Engine</h1>
             <p className="ba-home__subtitle">
-              Describe your business and what you want help with.
-              We'll guide you to provide the right data, analyze it, and show you what actions to take.
+              See what will happen—and how to get where you want
             </p>
           </div>
         </div>

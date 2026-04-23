@@ -759,8 +759,8 @@ function App() {
         tools={[
           {
             imageSrc: "/assets/tool-thumbnails/business-analyzer.png",
-            title: "Business Analyzer",
-            description: "Describe your business, input your data, and get actionable insights",
+            title: "Insight Engine",
+            description: "See what will happen—and how to get where you want",
             onClick: () => setScreen("business_analyzer"),
           },
           {

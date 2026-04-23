@@ -320,7 +320,7 @@ export function generateActions(primaryRow, allRows) {
  * @param {Row[]}      allRows
  * @returns {string | null}
  */
-export function generateProjection(primaryRow, allRows) {
+export function generateProjection(primaryRow, _allRows) {
   if (!primaryRow) return null;
 
   const { label, salesTotal, deliveryTotal, direction } = primaryRow;

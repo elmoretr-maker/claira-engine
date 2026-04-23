@@ -796,13 +796,6 @@ export default function PhotoSorterScreen({ onBack, onOpenCatalog }) {
     setPendingReapply(true);
   }, []);
 
-  useEffect(() => {
-    if (!pendingReapply) return;
-    setPendingReapply(false);
-    const images = filteredResults.map((p) => p.image).filter(Boolean);
-    void handleBuildCatalog(images);
-  }, [pendingReapply, filteredResults, handleBuildCatalog]);
-
   // ── Build catalog from filtered photos ────────────────────────────────────
   //
   // Accepts an optional `imagesOverride` so callers that have already resolved
@@ -868,6 +861,15 @@ export default function PhotoSorterScreen({ onBack, onOpenCatalog }) {
       setCatalogLoading(false);
     }
   }, [filteredResults, tagState, filterMode]);
+
+  // Reapply: after tagState/filterMode update, run catalog build with fresh `filteredResults`
+  // (must appear *after* `handleBuildCatalog` is defined — not in the TDZ).
+  useEffect(() => {
+    if (!pendingReapply) return;
+    setPendingReapply(false);
+    const images = filteredResults.map((p) => p.image).filter(Boolean);
+    void handleBuildCatalog(images);
+  }, [pendingReapply, filteredResults, handleBuildCatalog]);
 
   // ── Upload helpers ────────────────────────────────────────────────────────
 

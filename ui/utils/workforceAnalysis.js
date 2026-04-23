@@ -393,7 +393,7 @@ export function generateActions(primaryRow, allRows, outputType) {
  * @param {string | null | undefined}  outputType
  * @returns {string | null}
  */
-export function generateProjection(primaryRow, allRows, outputType) {
+export function generateProjection(primaryRow, allRows, _outputType) {
   if (!primaryRow) return null;
 
   const { label, salesTotal, deliveryTotal } = primaryRow;

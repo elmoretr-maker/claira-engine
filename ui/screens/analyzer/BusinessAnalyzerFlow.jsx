@@ -193,7 +193,12 @@ export default function BusinessAnalyzerFlow({
           alt=""
           className="ba-flow__icon"
         />
-        <h2 className="ba-flow__title">Business Analyzer</h2>
+        <div className="ba-flow__brand-text">
+          <h2 className="ba-flow__title">Insight Engine</h2>
+          <p className="ba-flow__subtitle">
+            See what will happen—and how to get where you want
+          </p>
+        </div>
         <button
           type="button"
           className="ba-btn ba-btn--ghost ba-flow__close"

@@ -156,16 +156,30 @@ async function playStreamTtsUtterance(t, myGen) {
     return false;
   }
 
-  const res = await fetch("/__claira/tts", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ text: t }),
-  });
+  let res;
+  try {
+    res = await fetch("/__claira/tts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: t }),
+    });
+  } catch (e) {
+    console.warn(
+      "[Claira] TTS request failed (network). Is the API server running? From repo root run: npm run dev:full — or in two terminals: npm run start:server and npm run dev",
+      e instanceof Error ? e.message : e,
+    );
+    return false;
+  }
 
   if (!res.ok) {
     logTtsBackendUnavailableHint(res.status);
+    if (res.status === 503 || res.status === 502) {
+      console.warn(
+        "[Claira] Voice: stream TTS unavailable (API not reachable on PORT). Run the Express server so /__claira/tts can be proxied — e.g. npm run dev:full",
+      );
+    }
     return false;
   }
 
@@ -271,12 +285,38 @@ export function initClairaVoiceClient() {
   return p;
 }
 
+/** @type {boolean} */
+let htmlAudioPrimed = false;
+
 /**
- * No-op unlock for stream path (optional user gesture still helps some browsers).
+ * Plays a near-silent clip once (after a user gesture) so the next `HTMLAudioElement.play()`
+ * is less likely to be blocked by browser autoplay policy.
  * @returns {Promise<void>}
  */
 export async function primeClairaVoicePlayback() {
-  voiceDbg("primeClairaVoicePlayback (optional)");
+  if (typeof window === "undefined" || htmlAudioPrimed) {
+    voiceDbg("primeClairaVoicePlayback (skip — already primed or no window)");
+    return;
+  }
+  try {
+    // Minimal valid WAV — duration ~0; volume minimal. Unlocks media playback in many browsers.
+    const silentWav =
+      "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAA=";
+    const a = new Audio(silentWav);
+    a.volume = 0.001;
+    try {
+      a.playsInline = true;
+      a.setAttribute("playsInline", "");
+    } catch {
+      /* ignore */
+    }
+    await a.play();
+    a.pause();
+    htmlAudioPrimed = true;
+    voiceDbg("primeClairaVoicePlayback: HTMLAudio primed");
+  } catch (e) {
+    voiceDbg("primeClairaVoicePlayback: priming failed (may still work on next play)", e);
+  }
 }
 
 export function pauseClairaSpeechPlayback() {

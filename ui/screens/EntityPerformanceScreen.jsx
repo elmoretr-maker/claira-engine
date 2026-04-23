@@ -101,7 +101,7 @@ export default function EntityPerformanceScreen({ entities, onBack }) {
           <div className="ep-screen__no-data-icon">📊</div>
           <h2 className="ep-screen__no-data-title">No performance data yet</h2>
           <p className="ep-screen__no-data-body">
-            Run a complete workflow — or use Business Analyzer — to see ranked entity results here.
+            Run a complete workflow — or use Insight Engine — to see ranked entity results here.
           </p>
         </div>
       ) : (
