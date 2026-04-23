@@ -19,6 +19,7 @@
 
 import "./EntityPerformance.css";
 import { ActionPill, UrgencyChip, AlertBadge } from "./EntityPerformanceAtoms.jsx";
+import { wellnessActionLabel } from "../utils/wellnessAnalysis.js";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -566,6 +567,8 @@ export default function EntityDetailPanel({ entity, totalCount }) {
     netDelta, salesTotal, startValue, endValue, deliveryTotal,
     timeRange,
     action, urgency, reason, alertCount,
+    analyzerIntent,
+    wellnessHorizonsFormatted,
   } = entity;
 
   // ── Derived values ──────────────────────────────────────────────────────────
@@ -716,7 +719,10 @@ export default function EntityDetailPanel({ entity, totalCount }) {
 
         {/* Primary: Action */}
         <div className="ep-detail__rec-action">
-          <ActionPill action={action} />
+          <ActionPill
+            action={action}
+            label={analyzerIntent === "weightloss" ? wellnessActionLabel(action) : undefined}
+          />
         </div>
 
         {/* Secondary: Urgency + Alerts */}
@@ -724,6 +730,21 @@ export default function EntityDetailPanel({ entity, totalCount }) {
           <UrgencyChip urgency={urgency} />
           {alertCount > 0 && <AlertBadge count={alertCount} />}
         </div>
+
+        {analyzerIntent === "weightloss" && wellnessHorizonsFormatted ? (
+          <dl className="ep-detail__wellness-horizons">
+            <dt>If today&apos;s pace continued (linear)</dt>
+            <dd>
+              <span>Week: {wellnessHorizonsFormatted.week}</span>
+              <span> · Month: {wellnessHorizonsFormatted.month}</span>
+              <span> · 6 mo: {wellnessHorizonsFormatted.sixMonths}</span>
+              <span> · Year: {wellnessHorizonsFormatted.year}</span>
+            </dd>
+            <dd className="ep-detail__wellness-disclaimer">
+              Illustrative only — real progress is rarely linear. Not medical advice.
+            </dd>
+          </dl>
+        ) : null}
 
         {/* Supporting: Reason */}
         {reason?.trim() ? (

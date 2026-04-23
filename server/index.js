@@ -10,7 +10,7 @@ import { getCapabilityForEvent, describeCapability } from "./capabilities.js";
 import { getClairaTtsRuntimeSummary, initClairaTtsService, synthesizeClairaSpeech } from "../lib/clairaTts.mjs";
 import { loadRootEnv } from "./loadRootEnv.mjs";
 import { resetTunnelStagingTree } from "../interfaces/tunnelStaging.js";
-import { initRunClaira, runClaira } from "./runClaira.js";
+import { initRunClaira, operationArgsFromRunBody, runClaira } from "./runClaira.js";
 import { computeStateDelta as computeStateDeltaHandler } from "./handlers/computeStateDelta.js";
 import { interpretTrends as interpretTrendsHandler } from "./handlers/interpretTrends.js";
 import { analyzePerformanceTrends as analyzePerformanceTrendsHandler } from "./handlers/analyzePerformanceTrends.js";
@@ -1072,7 +1072,8 @@ const CLAIRA_RUN_HANDLERS = {
       mismatchReason: body.mismatchReason,
     }),
   getRiskInsights: (_body, api) => api.getRiskInsights(),
-  ingestData: (body, api) => api.ingestData(body.payload, body.cwd ? { cwd: body.cwd } : {}),
+  ingestData: (body, api) =>
+    api.ingestData(operationArgsFromRunBody(body), typeof body.cwd === "string" ? { cwd: body.cwd } : {}),
   buildProductCatalog: async (body, api) => {
     // useVision defaults true — set to false to skip CLIP (faster, heuristic only).
     const useVision  = body.useVision  !== false;
@@ -1621,6 +1622,9 @@ initRunClaira(CLAIRA_RUN_HANDLERS);
  *
  *    // Operation-specific fields (see CLAIRA_RUN_HANDLERS above for each kind).
  *    ...operationFields,
+ *
+ *    // Alternatively, nest operation fields under `payload` (merged flat before dispatch).
+ *    // "payload": { ...operationFields },
  *
  *    // Optional context — accepted and passed through without enforcement.
  *    // Reserved for future auth / multi-tenant routing.

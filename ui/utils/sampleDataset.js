@@ -7,7 +7,7 @@
  * Data rules (same as user-created datasets):
  *   - No fabricated data — all values are plausible and pre-chosen
  *   - Event timestamp = periodEnd
- *   - One snapshot per entity (current state)
+ *   - Two snapshots per entity (baseline + current) so computeStateDelta can run
  */
 
 import { generateDatasetId } from "./datasetStore.js";
@@ -26,9 +26,10 @@ function daysAgo(n) {
  * @returns {import("./datasetStore.js").Dataset}
  */
 export function createSampleDataset() {
-  const now      = new Date().toISOString();
-  const today    = daysAgo(0);
-  const monthEnd = daysAgo(0);
+  const now       = new Date().toISOString();
+  const today     = daysAgo(0);
+  const monthEnd  = daysAgo(0);
+  const priorPeriod = daysAgo(30);
 
   /** @type {Array<{ entityId: string, label: string }>} */
   const entities = [
@@ -41,6 +42,13 @@ export function createSampleDataset() {
 
   /** @type {Array<{ entityId: string, value: number, timestamp: string }>} */
   const snapshots = [
+    // Baseline (~30 days ago) — pairs with "today" so each entity has ≥2 snapshots.
+    { entityId: "oxford-classic",  value: 38, timestamp: priorPeriod },
+    { entityId: "running-sneaker", value: 12, timestamp: priorPeriod },
+    { entityId: "chelsea-boot",    value: 71, timestamp: priorPeriod },
+    { entityId: "loafer-lite",     value: 11, timestamp: priorPeriod },
+    { entityId: "canvas-high-top", value: 48, timestamp: priorPeriod },
+    // Current period
     { entityId: "oxford-classic",  value: 42, timestamp: today },
     { entityId: "running-sneaker", value: 18, timestamp: today },
     { entityId: "chelsea-boot",    value: 76, timestamp: today },

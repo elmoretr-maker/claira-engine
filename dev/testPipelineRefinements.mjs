@@ -418,10 +418,12 @@ await test("handlers never return undefined for arrays — always empty array on
   const g = generateRecommendations({ alerts: [], rankedEntities: [] });
 
   assert(Array.isArray(d.deltas),               "computeStateDelta returns array");
+  assert(Array.isArray(d.insufficientSnapshotEntities), "insufficientSnapshotEntities returns array");
   assert(Array.isArray(t.trends),               "interpretTrends returns array");
   assert(Array.isArray(r.entities),             "analyzePerformanceTrends returns array");
   assert(Array.isArray(g.recommendations),      "generateRecommendations returns array");
   assertEqual(d.deltas.length, 0,               "deltas empty");
+  assertEqual(d.insufficientSnapshotEntities.length, 0, "no insufficient entities when empty input");
   assertEqual(t.trends.length, 0,               "trends empty");
   assertEqual(r.entities.length, 0,             "entities empty");
   assertEqual(g.recommendations.length, 0,      "recommendations empty");

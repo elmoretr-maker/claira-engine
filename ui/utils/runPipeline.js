@@ -14,6 +14,7 @@
  */
 
 import { mergeEntityPipelineData } from "./engineDisplayFormatters.js";
+import { enrichMergedForWellnessIntent } from "./wellnessAnalysis.js";
 
 const ENGINE_URL = "/__claira/run";
 
@@ -25,10 +26,12 @@ const ENGINE_URL = "/__claira/run";
  * @returns {Promise<Record<string, unknown>>}
  */
 async function callEngine(kind, payload) {
+  // Prefer flat `{ kind, ...fields }` (matches clairaApiClient). Server also unwraps nested
+  // `{ kind, payload: { ... } }` in runClaira.normalizeRunRequestBody for backward compatibility.
   const res = await fetch(ENGINE_URL, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ kind, payload }),
+    body:    JSON.stringify({ kind, ...payload }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -85,5 +88,6 @@ export async function runPipeline(dataset) {
   const recommendations = /** @type {any[]} */ (stage4.recommendations ?? []);
 
   // ── Merge using existing utility (engineDisplayFormatters.js — unchanged) ──
-  return mergeEntityPipelineData(trends, rankedEntities, recommendations);
+  const merged = mergeEntityPipelineData(trends, rankedEntities, recommendations);
+  return enrichMergedForWellnessIntent(merged, dataset);
 }

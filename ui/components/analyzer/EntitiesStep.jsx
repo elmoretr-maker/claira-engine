@@ -1,21 +1,34 @@
 /**
  * EntitiesStep.jsx — Screen 1
- * User enters entity names (one per line).
- * Parsed list is shown in real time as a preview.
+ * Non-wellness: multi-line textarea of entity names.
+ * Weightloss: structured metric builder (name / value / unit per row).
  */
 
 import { parseEntityNames } from "../../utils/datasetTransformer.js";
+import WellnessMetricBuilder from "./WellnessMetricBuilder.jsx";
 import "./BusinessAnalyzer.css";
 
 /**
  * @param {{
- *   formData: { entityNamesRaw?: string },
- *   onChange: (updates: { entityNamesRaw: string }) => void,
+ *   formData: object,
+ *   onChange: (updates: object) => void,
  *   labels:   import("../../utils/intentLabels.js").IntentLabels,
+ *   intent:   string | null,
  * }} props
  */
-export default function EntitiesStep({ formData, onChange, labels }) {
-  const raw    = formData.entityNamesRaw ?? "";
+export default function EntitiesStep({ formData, onChange, labels, intent }) {
+  const raw = formData.entityNamesRaw ?? "";
+
+  if (intent === "weightloss") {
+    return (
+      <WellnessMetricBuilder
+        metrics={formData.metrics ?? []}
+        onChange={onChange}
+        labels={labels}
+      />
+    );
+  }
+
   const parsed = parseEntityNames(raw);
 
   return (

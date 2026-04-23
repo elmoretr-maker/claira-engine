@@ -83,13 +83,13 @@ const ACTION_ICONS = {
   monitor:     "◎",
 };
 
-/** @param {{ action: "reorder"|"promote"|"investigate"|"monitor"|string }} props */
-export function ActionPill({ action }) {
+/** @param {{ action: "reorder"|"promote"|"investigate"|"monitor"|string, label?: string }} props */
+export function ActionPill({ action, label }) {
   const key = ["reorder", "promote", "investigate", "monitor"].includes(action) ? action : "monitor";
   return (
     <span className={`ep-action-pill ep-action-pill--${key}`}>
       <span aria-hidden="true">{ACTION_ICONS[key] ?? "•"}</span>
-      {formatActionLabel(action)}
+      {label ?? formatActionLabel(action)}
     </span>
   );
 }

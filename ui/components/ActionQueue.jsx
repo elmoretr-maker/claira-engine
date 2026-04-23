@@ -15,6 +15,7 @@
 
 import "./EntityPerformance.css";
 import { groupByActionTier } from "../utils/engineDisplayFormatters.js";
+import { wellnessActionLabel } from "../utils/wellnessAnalysis.js";
 import { ActionPill, DirectionIndicator } from "./EntityPerformanceAtoms.jsx";
 
 // ── Tier strip ─────────────────────────────────────────────────────────────────
@@ -74,7 +75,14 @@ function ActionQueueItem({ entity, onScrollTo }) {
       <DirectionIndicator direction={entity.direction} size="sm" />
       <span className="ep-action-queue__item-label">{entity.label}</span>
       <span className="ep-action-queue__item-action">
-        <ActionPill action={entity.action} />
+        <ActionPill
+          action={entity.action}
+          label={
+            entity.analyzerIntent === "weightloss"
+              ? wellnessActionLabel(entity.action)
+              : undefined
+          }
+        />
       </span>
     </button>
   );

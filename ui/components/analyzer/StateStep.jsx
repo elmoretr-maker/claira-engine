@@ -22,12 +22,19 @@ function isoDateToday() {
  *   onChange: (updates: object) => void,
  *   labels:   import("../../utils/intentLabels.js").IntentLabels,
  *   mode:     "create" | "edit",
+ *   intent:   string | null,
  * }} props
  */
-export default function StateStep({ formData, onChange, labels, mode }) {
+export default function StateStep({ formData, onChange, labels, mode, intent }) {
   const entities    = formData.entities    ?? [];
   const stateValues = formData.stateValues ?? {};
-  const stateDate   = formData.stateDate   ?? isoDateToday();
+  const stateDate = formData.stateDate ?? isoDateToday();
+
+  const isWellness = intent === "weightloss";
+
+  function setWellness(updates) {
+    onChange(updates);
+  }
 
   function setValueFor(entityId, val) {
     onChange({ stateValues: { ...stateValues, [entityId]: val } });
@@ -64,6 +71,7 @@ export default function StateStep({ formData, onChange, labels, mode }) {
               className="ba-input ba-input--number"
               placeholder="0"
               min={0}
+              step={isWellness ? "0.1" : "1"}
               value={stateValues[entity.entityId] ?? ""}
               onChange={(e) => setValueFor(entity.entityId, e.target.value)}
               aria-label={`${labels.stateValueLabel} for ${entity.label}`}
@@ -72,6 +80,86 @@ export default function StateStep({ formData, onChange, labels, mode }) {
           </div>
         ))}
       </div>
+
+      {isWellness && (
+        <div className="ba-wellness-extra">
+          <div className="ba-wellness-extra__title">Goals & lifestyle (today)</div>
+          <div className="ba-wellness-grid">
+            <label className="ba-label" htmlFor="wl-goal">
+              Goal weight (lbs, optional)
+            </label>
+            <input
+              id="wl-goal"
+              type="number"
+              className="ba-input ba-input--number"
+              min={0}
+              step="0.1"
+              placeholder="—"
+              value={formData.wellnessGoalWeight ?? ""}
+              onChange={(e) => setWellness({ wellnessGoalWeight: e.target.value })}
+            />
+
+            <label className="ba-label" htmlFor="wl-bed">
+              Bedtime (typical)
+            </label>
+            <input
+              id="wl-bed"
+              type="time"
+              className="ba-input"
+              value={formData.wellnessSleepBed ?? ""}
+              onChange={(e) => setWellness({ wellnessSleepBed: e.target.value })}
+            />
+
+            <label className="ba-label" htmlFor="wl-wake">
+              Wake time (typical)
+            </label>
+            <input
+              id="wl-wake"
+              type="time"
+              className="ba-input"
+              value={formData.wellnessSleepWake ?? ""}
+              onChange={(e) => setWellness({ wellnessSleepWake: e.target.value })}
+            />
+
+            <label className="ba-label" htmlFor="wl-hours">
+              Sleep last night (hours)
+            </label>
+            <input
+              id="wl-hours"
+              type="number"
+              className="ba-input ba-input--number"
+              min={0}
+              max={24}
+              step="0.25"
+              placeholder="—"
+              value={formData.wellnessSleepHours ?? ""}
+              onChange={(e) => setWellness({ wellnessSleepHours: e.target.value })}
+            />
+          </div>
+
+          <label className="ba-label" htmlFor="wl-meals">
+            Meals note (what you ate, timing, hunger)
+          </label>
+          <textarea
+            id="wl-meals"
+            className="ba-input ba-textarea"
+            rows={2}
+            value={formData.wellnessMealsNote ?? ""}
+            onChange={(e) => setWellness({ wellnessMealsNote: e.target.value })}
+          />
+
+          <label className="ba-label" htmlFor="wl-snacks">
+            Snacks note
+          </label>
+          <textarea
+            id="wl-snacks"
+            className="ba-input ba-textarea"
+            rows={2}
+            value={formData.wellnessSnacksNote ?? ""}
+            onChange={(e) => setWellness({ wellnessSnacksNote: e.target.value })}
+          />
+        </div>
+      )}
 
       {/* Single-snapshot warning — shown in create mode (no prior period data) */}
       {showSnapshotWarning && (

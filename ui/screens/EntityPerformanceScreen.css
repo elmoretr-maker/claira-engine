@@ -142,3 +142,292 @@
   line-height: 1.55;
   margin: 0;
 }
+
+/* ── Shared wellness section heading ────────────────────────────────────── */
+
+.ep-wellness-section__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+}
+
+/* ── Section 1: Current routine ─────────────────────────────────────────── */
+
+.ep-wellness-routine {
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-card);
+}
+
+.ep-wellness-routine__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ep-wellness-routine__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.87rem;
+  line-height: 1.45;
+}
+
+.ep-wellness-routine__row--meta {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ep-wellness-routine__label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 130px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+
+.ep-wellness-routine__value {
+  color: var(--text-primary);
+}
+
+.ep-wellness-routine__value--soft {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.82rem;
+}
+
+/* ── Section 3: What you can do ─────────────────────────────────────────── */
+
+.ep-wellness-actions {
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-card);
+}
+
+.ep-wellness-actions__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  counter-reset: insight-counter;
+}
+
+.ep-wellness-actions__item {
+  counter-increment: insight-counter;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+  position: relative;
+  padding-left: 28px;
+}
+
+.ep-wellness-actions__item::before {
+  content: counter(insight-counter);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.18);
+  color: rgba(167, 139, 250, 0.95);
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ep-wellness-actions__obs {
+  font-size: 0.87rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1.45;
+  margin: 0 0 2px;
+}
+
+.ep-wellness-actions__impact {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 4px;
+}
+
+.ep-wellness-actions__action {
+  font-size: 0.84rem;
+  color: rgba(167, 139, 250, 0.9);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Section 4: Projection ───────────────────────────────────────────────── */
+
+.ep-wellness-projection {
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 12px);
+  background: rgba(99, 102, 241, 0.07);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+}
+
+.ep-wellness-projection__body {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.55;
+  margin: 0 0 10px;
+}
+
+.ep-wellness-projection__horizon {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.ep-wellness-projection__disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.85;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* ── Overall disclaimer ──────────────────────────────────────────────────── */
+
+.ep-wellness-disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.8;
+  line-height: 1.5;
+  margin: 0;
+  text-align: center;
+  padding: 0 var(--space-md);
+}
+
+/* ── Wellness: What this means (primary takeaway first) ─── */
+
+.ep-wellness-meaning {
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-card);
+}
+
+.ep-wellness-meaning__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0 0 10px;
+}
+
+.ep-wellness-meaning__takeaway {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.45;
+  margin: 0 0 12px;
+}
+
+.ep-wellness-meaning__detail {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.55;
+  margin: 0 0 10px;
+}
+
+.ep-wellness-meaning__combined {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.55;
+  margin: 0 0 10px;
+  padding-left: 12px;
+  border-left: 3px solid rgba(99, 102, 241, 0.45);
+}
+
+.ep-wellness-meaning__meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 6px;
+}
+
+.ep-wellness-meaning__meta:last-child {
+  margin-bottom: 0;
+}
+
+.ep-wellness-meaning__meta--soft {
+  opacity: 0.92;
+}
+
+.ep-wellness-meaning__data-quality {
+  font-size: 0.79rem;
+  line-height: 1.5;
+  border-radius: var(--radius-sm, 6px);
+  padding: 7px 11px;
+  margin: 6px 0 6px;
+}
+.ep-wellness-meaning__data-quality--warning {
+  color: rgba(251, 191, 36, 0.9);
+  background: rgba(251, 191, 36, 0.06);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+}
+.ep-wellness-meaning__data-quality--positive {
+  color: rgba(52, 211, 153, 0.95);       /* green — confirms data completeness */
+  background: rgba(52, 211, 153, 0.06);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+.ep-wellness-meaning__reality-check {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  opacity: 0.85;
+}
+
+.ep-wellness-banner {
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 12px);
+  background: rgba(99, 102, 241, 0.09);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+}
+.ep-wellness-banner__title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(167, 139, 250, 0.95);
+  margin: 0 0 8px;
+}
+.ep-wellness-banner__body {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin: 0;
+}
+.ep-wellness-banner__disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 10px 0 0;
+  opacity: 0.9;
+  line-height: 1.45;
+}

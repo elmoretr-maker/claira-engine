@@ -30,15 +30,25 @@ function isoDateDaysAgo(n) {
  *   },
  *   onChange: (updates: object) => void,
  *   labels:   import("../../utils/intentLabels.js").IntentLabels,
+ *   intent:   string | null,
  * }} props
  */
-export default function ActivityStep({ formData, onChange, labels }) {
+export default function ActivityStep({ formData, onChange, labels, intent }) {
   const entities       = formData.entities       ?? [];
   const salesValues    = formData.salesValues    ?? {};
   const deliveryValues = formData.deliveryValues ?? {};
   const periodStart    = formData.periodStart    ?? isoDateDaysAgo(30);
   const periodEnd      = formData.periodEnd      ?? isoDateToday();
   const today          = isoDateToday();
+
+  const isWellness = intent === "weightloss";
+  const baselineStateValues = formData.baselineStateValues ?? {};
+
+  function setBaseline(entityId, val) {
+    onChange({
+      baselineStateValues: { ...baselineStateValues, [entityId]: val },
+    });
+  }
 
   const hasAnyActivity = entities.some(
     (e) =>
@@ -82,6 +92,35 @@ export default function ActivityStep({ formData, onChange, labels }) {
       <div className="ba-step-helper">
         Event data will be recorded as of the end date you choose above.
       </div>
+
+      {isWellness && (
+        <div className="ba-baseline-block">
+          <div className="ba-baseline-block__title">
+            Starting measurements (as of <strong>{periodStart}</strong>)
+          </div>
+          <div className="ba-step-helper">
+            Enter where each metric stood at the <em>start</em> of the reporting window so we can compute
+            change vs your latest readings. Put your body-weight row first for trend forecasts.
+          </div>
+          <div className="ba-state-table ba-state-table--compact">
+            {entities.map((entity) => (
+              <div key={`base-${entity.entityId}`} className="ba-state-row">
+                <span className="ba-state-row__label">{entity.label}</span>
+                <input
+                  type="number"
+                  className="ba-input ba-input--number"
+                  placeholder="—"
+                  min={0}
+                  step="0.1"
+                  value={baselineStateValues[entity.entityId] ?? ""}
+                  onChange={(e) => setBaseline(entity.entityId, e.target.value)}
+                  aria-label={`Starting value for ${entity.label}`}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Activity table */}
       <div className="ba-activity-table">

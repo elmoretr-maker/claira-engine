@@ -12,6 +12,7 @@
  */
 
 import { computeStateDelta } from "../server/handlers/computeStateDelta.js";
+import { normalizeRunRequestBody, operationArgsFromRunBody } from "../server/runClaira.js";
 
 let passed = 0;
 let failed = 0;
@@ -184,6 +185,10 @@ await test("entity with only 1 snapshot — skipped (insufficient baseline)", as
 
   assert(Array.isArray(result.deltas), "deltas is array");
   assertEqual(result.deltas.length, 0, "entity with 1 snapshot produces no delta");
+  assert(
+    result.insufficientSnapshotEntities.includes("flip-flop-1"),
+    "flip-flop-1 listed as insufficient snapshots",
+  );
 });
 
 await test("empty snapshots array — returns empty deltas", async () => {
@@ -210,6 +215,10 @@ await test("mixed: some entities have 1 snapshot, some have 2+ — only 2+ inclu
 
   assertEqual(result.deltas.length, 1, "only entity with 2+ snapshots appears");
   assertEqual(result.deltas[0].entityId, "include-me", "correct entity in result");
+  assert(
+    result.insufficientSnapshotEntities.includes("skip-me"),
+    "skip-me listed when only one snapshot",
+  );
 });
 
 // ── Test 6: Input immutability ────────────────────────────────────────────────
@@ -232,32 +241,20 @@ await test("input snapshots array is not mutated", async () => {
 
 // ── Test 7: Validation — invalid snapshots ────────────────────────────────────
 
-await test("throws clearly when snapshots is not an array", async () => {
-  try {
-    computeStateDelta({
-      snapshots: "not-an-array",
-      deliveryEvents: [],
-      saleEvents: [],
-    });
-    throw new Error("should have thrown");
-  } catch (e) {
-    assert(
-      String(e).includes("snapshots must be an array"),
-      `expected clear error, got: ${e}`,
-    );
-  }
+await test("non-array snapshots coerces to empty deltas (no throw)", async () => {
+  const result = computeStateDelta({
+    snapshots: "not-an-array",
+    deliveryEvents: [],
+    saleEvents: [],
+  });
+  assert(Array.isArray(result.deltas), "deltas is array");
+  assertEqual(result.deltas.length, 0, "no deltas");
+  assert(Array.isArray(result.insufficientSnapshotEntities), "insufficientSnapshotEntities present");
 });
 
-await test("throws clearly when snapshots is null", async () => {
-  try {
-    computeStateDelta({ snapshots: null });
-    throw new Error("should have thrown");
-  } catch (e) {
-    assert(
-      String(e).includes("snapshots must be an array"),
-      `expected clear error, got: ${e}`,
-    );
-  }
+await test("null snapshots coerces to empty deltas (no throw)", async () => {
+  const result = computeStateDelta({ snapshots: null });
+  assertEqual(result.deltas.length, 0, "no deltas");
 });
 
 // ── Test 8: Events isolated per entity ───────────────────────────────────────
@@ -345,6 +342,37 @@ await test("events arrays present but no entries for an entity — defaults to 0
   assertEqual(d.entityId,      "pump-C", "entityId");
   assertEqual(d.deliveryTotal, 0,        "deliveryTotal = 0 (no events for this entity)");
   assertEqual(d.salesTotal,    0,        "salesTotal = 0 (no events for this entity)");
+});
+
+// ── runClaira request normalization (used by POST /__claira/run) ───────────────
+
+await test("normalizeRunRequestBody unwraps nested payload", async () => {
+  const n = normalizeRunRequestBody({
+    kind: "computeStateDelta",
+    accountId: "a1",
+    payload: {
+      snapshots: [{ entityId: "x", value: 1, timestamp: "2024-01-01" }],
+      saleEvents: [],
+    },
+  });
+  assertEqual(n.kind, "computeStateDelta");
+  assertEqual(n.accountId, "a1");
+  assert(Array.isArray(n.snapshots));
+  assertEqual(n.snapshots.length, 1);
+  assert(n.payload === undefined, "nested payload flattened");
+});
+
+await test("operationArgsFromRunBody strips transport keys for ingest-style handlers", async () => {
+  const o = operationArgsFromRunBody({
+    kind: "ingestData",
+    cwd: "/tmp",
+    source: "file",
+    input: "/data",
+  });
+  assertEqual(o.source, "file");
+  assertEqual(o.input, "/data");
+  assert(o.kind === undefined);
+  assert(o.cwd === undefined);
 });
 
 // ── Summary ───────────────────────────────────────────────────────────────────

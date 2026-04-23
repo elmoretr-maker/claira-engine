@@ -6,8 +6,10 @@
  *
  * Layout (top → bottom):
  *   1. Header      — title, entity count, Back button
- *   2. Top row     — ActionQueue (left) + PrioritySummary (right)
- *   3. Table       — EntityTable with expandable rows (one open at a time)
+ *   2. Wellness    — "What this means" (primary takeaway + interpretation) when weightloss
+ *   3. Projection  — pace banner when horizons exist
+ *   4. Top row     — ActionQueue (left) + PrioritySummary (right)
+ *   5. Table       — EntityTable with expandable rows (one open at a time)
  *
  * Props:
  *   entities — MergedEntity[] from mergeEntityPipelineData()
@@ -29,6 +31,10 @@ import EntityTable    from "../components/EntityTable.jsx";
  */
 export default function EntityPerformanceScreen({ entities, onBack }) {
   const sorted = sortByUrgencyThenRank(Array.isArray(entities) ? entities : []);
+
+  const isWellnessView      = sorted.some((e) => e.analyzerIntent === "weightloss");
+  const primaryWellnessRow    = sorted.find((e) => e.wellnessPrimary);
+  const wellnessHorizonBanner = primaryWellnessRow?.wellnessHorizonsFormatted;
 
   // Shared ref map: entityId → <tr> element
   const scrollRefMap = useRef(new Map());
@@ -62,9 +68,13 @@ export default function EntityPerformanceScreen({ entities, onBack }) {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="ep-screen__header">
         <div className="ep-screen__title-block">
-          <h1 className="ep-screen__title">Entity Performance</h1>
+          <h1 className="ep-screen__title">
+            {isWellnessView ? "Wellness & weight trends" : "Entity Performance"}
+          </h1>
           <p className="ep-screen__subtitle">
-            Ranked by urgency · {sorted.length} {sorted.length === 1 ? "entity" : "entities"}
+            {isWellnessView
+              ? `Trends from your metrics · ${sorted.length} tracked row${sorted.length === 1 ? "" : "s"}`
+              : `Ranked by urgency · ${sorted.length} ${sorted.length === 1 ? "entity" : "entities"}`}
           </p>
         </div>
         <div className="ep-screen__header-actions">
@@ -85,6 +95,215 @@ export default function EntityPerformanceScreen({ entities, onBack }) {
         </div>
       ) : (
         <>
+          {/* ══ Wellness sections (weightloss intent only) ════════════ */}
+          {isWellnessView && primaryWellnessRow ? (() => {
+            const pw  = primaryWellnessRow;
+            const sum = pw.wellnessSummary;
+
+            return (
+              <>
+                {/* ── Section 1: Current routine (facts only) ───────── */}
+                <section className="ep-wellness-routine" aria-labelledby="ep-routine-title">
+                  <h2 id="ep-routine-title" className="ep-wellness-section__title">Current routine</h2>
+                  <ul className="ep-wellness-routine__list">
+                    {/* Weight */}
+                    {sum?.weightChange?.value != null && (
+                      <li className="ep-wellness-routine__row">
+                        <span className="ep-wellness-routine__label">Weight trend</span>
+                        <span className="ep-wellness-routine__value">
+                          {sum.weightChange.direction === "down" ? "↓" : sum.weightChange.direction === "up" ? "↑" : "→"}{" "}
+                          {Math.abs(sum.weightChange.value).toFixed(1)} lb
+                          {sum.weightChange.durationDays ? ` over ${sum.weightChange.durationDays} days` : ""}
+                          {sum.weightChange.perWeek != null
+                            ? ` (~${Math.abs(sum.weightChange.perWeek).toFixed(1)} lb/week)`
+                            : ""}
+                        </span>
+                      </li>
+                    )}
+                    {/* Sleep */}
+                    {sum?.sleep?.hoursPerNight != null && (
+                      <li className="ep-wellness-routine__row">
+                        <span className="ep-wellness-routine__label">Sleep</span>
+                        <span className="ep-wellness-routine__value">
+                          {sum.sleep.hoursPerNight.toFixed(1)} hours/night
+                          {sum.sleep.bedTime  ? ` · bed ${sum.sleep.bedTime}` : ""}
+                          {sum.sleep.wakeTime ? ` · wake ${sum.sleep.wakeTime}` : ""}
+                        </span>
+                      </li>
+                    )}
+                    {/* Activity — pipeline entity row (tracked metric) */}
+                    {sum?.activityRow && (
+                      <li className="ep-wellness-routine__row">
+                        <span className="ep-wellness-routine__label">{sum.activityRow.label ?? "Activity"}</span>
+                        <span className="ep-wellness-routine__value">
+                          {sum.activityRow.direction === "down" ? "↓ Trending down"
+                            : sum.activityRow.direction === "up"   ? "↑ Trending up"
+                            : "→ Stable"}{" "}
+                          (this period)
+                        </span>
+                      </li>
+                    )}
+                    {/* Activity — structured intake (FIX 4: shown when no pipeline row) */}
+                    {!sum?.activityRow && sum?.structuredActivity?.daysPerWeek != null && (
+                      <li className="ep-wellness-routine__row">
+                        <span className="ep-wellness-routine__label">Activity</span>
+                        <span className="ep-wellness-routine__value">
+                          {Number.isInteger(sum.structuredActivity.daysPerWeek)
+                            ? sum.structuredActivity.daysPerWeek
+                            : sum.structuredActivity.daysPerWeek.toFixed(1)}{" "}
+                          day{Math.round(sum.structuredActivity.daysPerWeek) === 1 ? "" : "s"}/week
+                          {sum.structuredActivity.avgMinutesPerSession
+                            ? ` · ${sum.structuredActivity.avgMinutesPerSession} min/session`
+                            : ""}
+                          {sum.structuredActivity.intensity
+                            ? ` · ${sum.structuredActivity.intensity}`
+                            : ""}
+                        </span>
+                      </li>
+                    )}
+                    {/* Meals — FIX 4: show exact structured values, fallback to note */}
+                    {(sum?.meals?.frequency != null || sum?.meals?.note) && (
+                      <li className="ep-wellness-routine__row">
+                        <span className="ep-wellness-routine__label">Meals</span>
+                        <span className="ep-wellness-routine__value">
+                          {sum.meals.frequency != null
+                            ? `${sum.meals.frequency} meal${sum.meals.frequency === 1 ? "" : "s"}/day${sum.meals.estimatedKcal != null ? ` (~${sum.meals.estimatedKcal} kcal)` : ""}`
+                            : sum.meals.note}
+                        </span>
+                      </li>
+                    )}
+                    {/* Snacks — FIX 4: show exact structured values, fallback to note */}
+                    {(sum?.snacks?.frequency != null || sum?.snacks?.note) && (
+                      <li className="ep-wellness-routine__row">
+                        <span className="ep-wellness-routine__label">Snacks</span>
+                        <span className="ep-wellness-routine__value">
+                          {sum.snacks.frequency != null
+                            ? `${sum.snacks.frequency} snack${sum.snacks.frequency === 1 ? "" : "s"}/day${sum.snacks.estimatedKcal != null ? ` (~${sum.snacks.estimatedKcal} kcal)` : ""}`
+                            : sum.snacks.note}
+                        </span>
+                      </li>
+                    )}
+                    {/* Intake vs activity — directional label (FIX 1) */}
+                    {sum?.energyComparison && (
+                      <li className="ep-wellness-routine__row ep-wellness-routine__row--meta">
+                        <span className="ep-wellness-routine__label">Intake vs activity</span>
+                        <span className="ep-wellness-routine__value ep-wellness-routine__value--soft">
+                          {sum.energyComparison.qualitativeRead === "higher"
+                            ? "Intake may appear higher relative to recorded activity (directional estimate)"
+                            : sum.energyComparison.qualitativeRead === "lower"
+                              ? "Intake may appear lower relative to recorded activity (directional estimate)"
+                              : "Relationship between intake and recorded activity is unclear this period"}
+                        </span>
+                      </li>
+                    )}
+                  </ul>
+                </section>
+
+                {/* ── Section 2: What this means ────────────────────── */}
+                <section className="ep-wellness-meaning" aria-labelledby="ep-wellness-meaning-title">
+                  <h2 id="ep-wellness-meaning-title" className="ep-wellness-meaning__title">
+                    What this means
+                  </h2>
+
+                  {/* Primary takeaway — bold entry point */}
+                  {pw.wellnessPrimaryTakeaway && (
+                    <p className="ep-wellness-meaning__takeaway">{pw.wellnessPrimaryTakeaway}</p>
+                  )}
+
+                  {/* Combined behavioral insight (if 2+ factors) */}
+                  {pw.wellnessCombinedInsight && (
+                    <p className="ep-wellness-meaning__combined">{pw.wellnessCombinedInsight}</p>
+                  )}
+
+                  {/* Energy context note (FIX 1-4: hedged, limitation shown) */}
+                  {pw.wellnessEnergyNote ? (
+                    <>
+                      <p className="ep-wellness-meaning__detail">{pw.wellnessEnergyNote.body}</p>
+                      <p className="ep-wellness-meaning__meta ep-wellness-meaning__meta--soft">
+                        {pw.wellnessEnergyNote.limitationNote}
+                      </p>
+                    </>
+                  ) : pw.wellnessInterpretationDetail ? (
+                    <p className="ep-wellness-meaning__detail">{pw.wellnessInterpretationDetail}</p>
+                  ) : null}
+
+                  {/* Consistency */}
+                  {pw.wellnessConsistencyNote && (
+                    <p className="ep-wellness-meaning__meta">{pw.wellnessConsistencyNote}</p>
+                  )}
+
+                  {/* Data quality note — positive (green) when data is complete,
+                      warning (amber) when gaps or sparse data are detected */}
+                  {pw.wellnessDataQualityNote && (
+                    <p className={[
+                      "ep-wellness-meaning__data-quality",
+                      pw.wellnessDataQualityNote.type === "positive"
+                        ? "ep-wellness-meaning__data-quality--positive"
+                        : "ep-wellness-meaning__data-quality--warning",
+                    ].join(" ")}>
+                      {pw.wellnessDataQualityNote.message ?? pw.wellnessDataQualityNote}
+                    </p>
+                  )}
+
+                  {/* Variability — only shown when well-data note is absent or
+                      addresses different concern (periodCount sparsity) */}
+                  {pw.wellnessVariabilityNote && (
+                    <p className="ep-wellness-meaning__meta ep-wellness-meaning__meta--soft">
+                      {pw.wellnessVariabilityNote}
+                    </p>
+                  )}
+
+                  {/* FIX 7 — Reality check line */}
+                  <p className="ep-wellness-meaning__reality-check">
+                    This reflects patterns in your logged routine — real results can vary based on consistency and other factors.
+                  </p>
+                </section>
+
+                {/* ── Section 3: What you can do ────────────────────── */}
+                {pw.wellnessActionableInsights?.length > 0 && (
+                  <section className="ep-wellness-actions" aria-labelledby="ep-actions-title">
+                    <h2 id="ep-actions-title" className="ep-wellness-section__title">What you can do</h2>
+                    <ol className="ep-wellness-actions__list">
+                      {pw.wellnessActionableInsights.map((ins) => (
+                        <li key={ins.id} className="ep-wellness-actions__item">
+                          <p className="ep-wellness-actions__obs">{ins.observation}</p>
+                          <p className="ep-wellness-actions__impact">{ins.impact}</p>
+                          <p className="ep-wellness-actions__action">{ins.action}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                )}
+
+                {/* ── Section 4: Projection ─────────────────────────── */}
+                {(pw.wellnessProjectionNote || wellnessHorizonBanner) && (
+                  <section className="ep-wellness-projection" aria-labelledby="ep-projection-title">
+                    <h2 id="ep-projection-title" className="ep-wellness-section__title">Projection</h2>
+                    {pw.wellnessProjectionNote && (
+                      <p className="ep-wellness-projection__body">{pw.wellnessProjectionNote}</p>
+                    )}
+                    {wellnessHorizonBanner && (
+                      <p className="ep-wellness-projection__horizon">
+                        At the current slope: one week ≈ {wellnessHorizonBanner.week}; one month ≈{" "}
+                        {wellnessHorizonBanner.month}; six months ≈ {wellnessHorizonBanner.sixMonths}; one year ≈{" "}
+                        {wellnessHorizonBanner.year}.
+                      </p>
+                    )}
+                    <p className="ep-wellness-projection__disclaimer">
+                      These are directional estimates — real progress is rarely linear.
+                    </p>
+                  </section>
+                )}
+
+                {/* ── Disclaimer ────────────────────────────────────── */}
+                <p className="ep-wellness-disclaimer">
+                  General wellness information only — not medical or nutritional advice. Talk to a qualified
+                  clinician before making significant changes to your diet, exercise, or health routine.
+                </p>
+              </>
+            );
+          })() : null}
+
           {/* ── Top row: ActionQueue + PrioritySummary ──────────────── */}
           <div className="ep-screen__top-row">
             <ActionQueue entities={sorted} onScrollTo={handleScrollTo} />

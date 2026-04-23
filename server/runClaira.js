@@ -82,6 +82,53 @@ export function _resetRunClairaForTesting() {
   _handlerMap = null;
 }
 
+/** Transport keys not part of engine operation payloads (after `payload` unwrapping). */
+const RUN_BODY_TRANSPORT_KEYS = new Set([
+  "kind",
+  "accountId",
+  "environment",
+  "metadata",
+  "cwd",
+  "payload",
+]);
+
+/**
+ * Flatten `{ kind, payload: { ...ops } }` → `{ kind, ...ops }` so handlers read operation
+ * fields at the top level. Omits the nested `payload` property from the result.
+ * Bodies that are already flat are returned unchanged.
+ *
+ * Called inside {@link runClaira} for every dispatch (HTTP and workflow).
+ *
+ * @param {Record<string, any> | null | undefined} body
+ * @returns {Record<string, any>}
+ */
+export function normalizeRunRequestBody(body) {
+  if (body == null || typeof body !== "object") return body;
+  const inner = body.payload;
+  if (inner != null && typeof inner === "object" && !Array.isArray(inner)) {
+    const { payload: _omit, ...rest } = body;
+    return { ...rest, ...inner };
+  }
+  return body;
+}
+
+/**
+ * Strips HTTP / run transport keys from a normalized body for handlers that expect a
+ * single operation object (e.g. `ingestData` after flattening legacy `payload` wrappers).
+ *
+ * @param {Record<string, any>} body
+ * @returns {Record<string, any>}
+ */
+export function operationArgsFromRunBody(body) {
+  if (body == null || typeof body !== "object") return {};
+  /** @type {Record<string, any>} */
+  const out = {};
+  for (const [k, v] of Object.entries(body)) {
+    if (!RUN_BODY_TRANSPORT_KEYS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
 /**
  * Normalize and validate the caller-supplied context.
  * All three fields are guaranteed to be present in the returned object.
@@ -119,8 +166,9 @@ function normalizeContext(context = {}) {
  * (auth, rate-limiting, tracing) apply uniformly to every call site.
  *
  * @param {string} kind        The operation to run (matches a CLAIRA_RUN_HANDLERS key).
- * @param {Record<string, any>} payload  Operation-specific fields (the full request body for
- *                             HTTP callers; a built payload for module orchestrator callers).
+ * @param {Record<string, any>} payload  Raw request body (HTTP) or orchestrator payload.
+ *                             Normalized internally: nested `{ payload: { ... } }` is flattened
+ *                             before the handler runs (see {@link normalizeRunRequestBody}).
  * @param {RunClairaContext} [context]  Caller identity and trace context.
  * @returns {Promise<any>}     Raw handler result (HTTP routes wrap this; orchestrator uses directly).
  * @throws {Error}             If not initialized, kind is unknown, or the handler throws.
@@ -153,7 +201,8 @@ export async function runClaira(kind, payload, context = {}) {
   console.log(`${tag} start`);
 
   try {
-    const result = await handler(payload, api);
+    const normalizedBody = normalizeRunRequestBody(payload);
+    const result = await handler(normalizedBody, api);
     console.log(`${tag} status=ok ms=${Date.now() - started}`);
     return result;
   } catch (e) {

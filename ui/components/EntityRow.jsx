@@ -25,6 +25,7 @@ import {
   formatDirectionalVelocity,
   formatImpactSummary,
 } from "../utils/engineDisplayFormatters.js";
+import { wellnessActionLabel } from "../utils/wellnessAnalysis.js";
 import {
   UrgencyChip,
   DirectionIndicator,
@@ -63,6 +64,7 @@ export default function EntityRow({ entity, totalCount, isExpanded, onToggle, ro
     entityId, label, rank, tieBreakReason,
     direction, velocity, velocityPerTime,
     action, urgency, reason, alertCount, percentile,
+    analyzerIntent,
   } = entity;
 
   const accentClass     = resolveRowAccentClass(urgency, percentile, direction);
@@ -121,7 +123,10 @@ export default function EntityRow({ entity, totalCount, isExpanded, onToggle, ro
 
         {/* Action + reason */}
         <td style={{ minWidth: 160 }}>
-          <ActionPill action={action} />
+          <ActionPill
+            action={action}
+            label={analyzerIntent === "weightloss" ? wellnessActionLabel(action) : undefined}
+          />
           {impactLine ? (
             <div className="ep-row__reason" title={impactLine}>{impactLine}</div>
           ) : null}

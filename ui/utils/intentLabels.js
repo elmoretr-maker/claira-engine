@@ -4,7 +4,7 @@
  * Maps intent keys to all user-facing label strings.
  * Every step component reads from this module — no hardcoded UI text in step components.
  *
- * @typedef {"inventory"|"sales"|"workforce"|"custom"} IntentKey
+ * @typedef {"inventory"|"sales"|"workforce"|"weightloss"|"custom"} IntentKey
  *
  * @typedef {{
  *   intentLabel:        string,
@@ -74,6 +74,26 @@ const INTENT_LABELS = {
     deliveryLabel:       "Assignments received",
     deliveryHelperText:  "Knowing assignments gives context for completion rates.",
   },
+  weightloss: {
+    intentLabel:         "Track weight & wellness",
+    entitiesPrompt:      "What are you measuring?",
+    entitiesPlaceholder:
+      "Body weight (lbs)\nSleep (hours per night)\nMeals (quality 1–10)\nSnacks (quality 1–10)",
+    entityNoun:          "Metric",
+    entityNounPlural:    "Metrics",
+    statePrompt:         "Your latest measurements",
+    stateValueLabel:     "Amount",
+    stateHelperText:
+      "Put body weight first for trend projections. Use decimals for lbs (e.g. 182.4). Add one row per metric.",
+    salesPrompt:         "Consistency over your reporting window",
+    salesLabel:          "Days on track",
+    salesHelperText:
+      "Rough count of days you stayed close to plan (food, routine, sleep). Helps spot streaks.",
+    deliveryPrompt:      "What worked against your plan?",
+    deliveryLabel:       "Off-plan days",
+    deliveryHelperText:
+      "Travel, stress, skipped sleep, larger meals — anything that tended to stall progress.",
+  },
   custom: {
     intentLabel:         "Custom analysis",
     entitiesPrompt:      "Add your items",
@@ -116,6 +136,12 @@ export const INTENT_OPTIONS = [
     key:         "workforce",
     label:       "Monitor employee output",
     description: "Measure task completion, productivity, and workload",
+  },
+  {
+    key:         "weightloss",
+    label:       "Track weight & wellness",
+    description:
+      "Log weight, meals, snacks, sleep, goals — see trends and forecasts for weeks to a year ahead",
   },
   {
     key:         "custom",

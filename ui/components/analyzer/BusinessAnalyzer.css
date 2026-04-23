@@ -612,6 +612,140 @@
 
 .ba-name-field { margin-top: 8px; }
 
+/* ── Wellness (weightloss intent) ──────────────────────────────────────────── */
+
+.ba-wellness-extra {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ba-wellness-extra__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+.ba-wellness-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) 1fr;
+  gap: 8px 14px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.ba-baseline-block {
+  margin: 14px 0 18px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md, 12px);
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+.ba-baseline-block__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+.ba-state-table--compact .ba-state-row__label {
+  max-width: 55%;
+}
+.ba-review-wellness-summary {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 12px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ba-review-wellness-summary > div + div { margin-top: 6px; }
+
+/* ── Wellness metric builder (Items step, weightloss) ─────────────────────── */
+
+.ba-metric-builder .ba-metric-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.ba-metric-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.02);
+  align-items: start;
+}
+
+.ba-metric-row__main {
+  grid-column: 1;
+  display: grid;
+  grid-template-columns: minmax(100px, 130px) 1fr;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.ba-metric-row__nums {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: auto 100px auto minmax(80px, 1fr);
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.ba-metric-row__label {
+  grid-column: 1 / -1;
+  margin-bottom: -4px;
+}
+
+.ba-metric-row__preset {
+  font-size: 0.82rem;
+}
+
+.ba-metric-row__name {
+  min-width: 0;
+}
+
+.ba-metric-row__remove {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.ba-metric-row__unit-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ba-metric-row__unit-custom {
+  width: 90px;
+}
+
+.ba-metric-add {
+  margin-top: 12px;
+}
+
+@media (max-width: 720px) {
+  .ba-metric-row {
+    grid-template-columns: 1fr;
+  }
+  .ba-metric-row__remove {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: flex-start;
+  }
+  .ba-metric-row__nums {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 600px) {
@@ -620,4 +754,395 @@
   .ba-review-header, .ba-review-row { grid-template-columns: 1fr repeat(4, minmax(0, 1fr)); font-size: 0.78rem; }
   .ba-dataset-card { flex-direction: column; align-items: flex-start; }
   .ba-home__header { flex-direction: column; }
+}
+
+/* ╔═════════════════════════════════════════════════════════════════════════╗
+   ║  Wellness Intake Step (WellnessIntakeStep.jsx)                         ║
+   ╚═════════════════════════════════════════════════════════════════════════╝ */
+
+/* ── Onboarding banner ─────────────────────────────────────────────────────── */
+
+.wl-intake-onboarding {
+  background: rgba(99, 102, 241, 0.10);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: var(--radius-md, 10px);
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-style: italic;
+  margin-bottom: 20px;
+}
+
+/* ── Mode selection cards (WellnessModeSelectionStep) ──────────────────────── */
+
+.wls-mode-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.wls-mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  background: var(--bg-card);
+  border: 2px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-md, 10px);
+  padding: 20px 18px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  color: var(--text-primary);
+}
+.wls-mode-card:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+  background: rgba(99, 102, 241, 0.05);
+}
+.wls-mode-card--selected {
+  border-color: rgba(99, 102, 241, 0.8);
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.wls-mode-card__badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(99, 102, 241, 0.15);
+  color: rgba(99, 102, 241, 0.9);
+  align-self: flex-start;
+  margin-bottom: 4px;
+}
+.wls-mode-card__badge--rec {
+  background: rgba(52, 211, 153, 0.15);
+  color: rgba(52, 211, 153, 0.9);
+}
+
+.wls-mode-card__title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.wls-mode-card__subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: -2px;
+}
+
+.wls-mode-card__desc {
+  font-size: 0.83rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.wls-mode-card__cta {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(99, 102, 241, 0.85);
+}
+.wls-mode-card--selected .wls-mode-card__cta {
+  color: rgba(52, 211, 153, 0.9);
+}
+
+/* ── Mode hint (passive, read-only — shown inside WellnessIntakeStep) ──────── */
+
+.wl-intake-mode-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.wl-intake-mode-hint--passive {
+  margin-bottom: 16px;
+}
+
+/* ── Intake section block ──────────────────────────────────────────────────── */
+
+.wl-section {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-md, 10px);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.wl-section__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+/* Goal section — separated from the rest with a top margin */
+.wl-section--goal {
+  margin-top: 22px;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.wl-unit-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  padding: 0 4px;
+  align-self: center;
+}
+
+/* ── Labeled input row ─────────────────────────────────────────────────────── */
+
+.wl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.wl-row--sm { margin-bottom: 8px; }
+
+.wl-row__label {
+  /* override ba-label display:block so it stays inline */
+  display: inline-block !important;
+  margin-bottom: 0 !important;
+  min-width: 170px;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.wl-row__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wl-row__unit {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* ── Meal table ────────────────────────────────────────────────────────────── */
+
+.wl-meal-block {
+  display: grid;
+  grid-template-columns: 100px 1fr 170px;
+  gap: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+}
+
+.wl-meal-header,
+.wl-meal-row {
+  display: contents;
+}
+
+.wl-meal-header > span,
+.wl-meal-row > span,
+.wl-meal-row > input,
+.wl-meal-row > select {
+  padding: 8px 10px;
+}
+
+.wl-meal-header > span {
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.wl-meal-row > * {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.wl-meal-row:last-child > * {
+  border-bottom: none;
+}
+
+.wl-meal-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  align-self: center;
+}
+
+.wl-meal-col-label  { /* intentional — grid column sizing above */ }
+.wl-meal-col-desc   { width: 100%; box-sizing: border-box; }
+.wl-meal-col-portion { width: 100%; box-sizing: border-box; }
+
+/* ── Snack rows ────────────────────────────────────────────────────────────── */
+
+.wl-snack-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wl-snack-header,
+.wl-snack-row {
+  display: grid;
+  grid-template-columns: 1fr 130px 36px;
+  align-items: center;
+  gap: 8px;
+}
+
+.wl-snack-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 2px;
+}
+
+.wl-col-desc   { /* grows with grid */ }
+.wl-col-kcal   { text-align: right; }
+.wl-col-remove { justify-self: center; }
+
+.wl-snack-add {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+/* ── Guided day list ───────────────────────────────────────────────────────── */
+
+.wl-guided-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.wl-guided-empty {
+  padding: 18px 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-style: italic;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md, 10px);
+  margin: 8px 0 16px;
+}
+
+.wl-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+/* ── Day card (accordion) ──────────────────────────────────────────────────── */
+
+.wl-day-card {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-md, 10px);
+  overflow: hidden;
+  background: var(--bg-card);
+  transition: border-color 0.15s ease;
+}
+
+.wl-day-card--open {
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.wl-day-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wl-day-card__header:hover {
+  background: var(--bg-hover);
+}
+
+.wl-day-card__date {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wl-day-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wl-day-card__chevron {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.wl-day-card__body {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 16px;
+}
+
+/* ── Day form (inside accordion) ──────────────────────────────────────────── */
+
+.wl-day-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wl-day-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wl-day-section__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+/* ── Add day button ────────────────────────────────────────────────────────── */
+
+.wl-add-day-btn {
+  align-self: flex-start;
+}
+
+.wl-guided-status {
+  margin-top: 8px;
+}
+
+/* ── Baseline form ─────────────────────────────────────────────────────────── */
+
+.wl-baseline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .wl-meal-block {
+    grid-template-columns: 80px 1fr 120px;
+  }
+
+  .wl-row__label {
+    min-width: 120px;
+  }
+
+  .wls-mode-cards {
+    grid-template-columns: 1fr;
+  }
 }

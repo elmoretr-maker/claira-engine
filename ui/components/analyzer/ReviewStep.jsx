@@ -17,9 +17,10 @@ import "./BusinessAnalyzer.css";
  *   },
  *   onChange: (updates: { datasetName: string }) => void,
  *   labels:   import("../../utils/intentLabels.js").IntentLabels,
+ *   intent:   string | null,
  * }} props
  */
-export default function ReviewStep({ formData, onChange, labels }) {
+export default function ReviewStep({ formData, onChange, labels, intent }) {
   const {
     entities       = [],
     stateValues    = {},
@@ -28,13 +29,48 @@ export default function ReviewStep({ formData, onChange, labels }) {
     datasetName    = "",
   } = formData;
 
+  const isWellness = intent === "weightloss";
+
   return (
     <div className="ba-step-content">
       <div className="ba-step-prompt">Review your data before saving</div>
       <div className="ba-step-helper">
-        Net Change is shown for reference only — it is not sent to the engine directly.
-        The engine recalculates all values from your raw data.
+        {isWellness
+          ? "We will chart each metric over your date range, project simple linear trends, and add practical notes. This is not medical advice — talk to a clinician for health decisions."
+          : "Net Change is shown for reference only — it is not sent to the engine directly. The engine recalculates all values from your raw data."}
       </div>
+
+      {isWellness && (
+        <div className="ba-review-wellness-summary">
+          {formData.wellnessGoalWeight ? (
+            <div>
+              <strong>Goal weight:</strong> {formData.wellnessGoalWeight} lbs
+            </div>
+          ) : null}
+          {(formData.wellnessSleepBed || formData.wellnessSleepWake || formData.wellnessSleepHours) ? (
+            <div>
+              <strong>Sleep:</strong>{" "}
+              {[
+                formData.wellnessSleepBed && `bed ${formData.wellnessSleepBed}`,
+                formData.wellnessSleepWake && `wake ${formData.wellnessSleepWake}`,
+                formData.wellnessSleepHours && `${formData.wellnessSleepHours} h`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          ) : null}
+          {formData.wellnessMealsNote ? (
+            <div>
+              <strong>Meals:</strong> {formData.wellnessMealsNote}
+            </div>
+          ) : null}
+          {formData.wellnessSnacksNote ? (
+            <div>
+              <strong>Snacks:</strong> {formData.wellnessSnacksNote}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* Summary table */}
       <div className="ba-review-table">

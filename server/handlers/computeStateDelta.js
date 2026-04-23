@@ -35,8 +35,13 @@
  *       salesTotal:     number,
  *       snapshotCount:  number,   // count of valid sorted snapshots used (always >= 2)
  *       timeRange:      { startTimestamp: string, endTimestamp: string, durationMs: number },
- *     }>
+ *     }>,
+ *     insufficientSnapshotEntities: string[],
+ *       // entityIds that had snapshots but fewer than 2 — no delta computed for them
  *   }
+ *
+ * Non-array or missing `snapshots` is treated as [] (no throw).
+ * When `NODE_ENV !== "production"`, a non-array value logs one `console.warn` with its typeof.
  */
 
 /**
@@ -75,20 +80,28 @@
  * Compute per-entity state deltas from snapshot history and event logs.
  *
  * @param {{
- *   snapshots:        SnapshotRow[],
+ *   snapshots?:       SnapshotRow[] | null,
  *   deliveryEvents?:  EventRow[],
  *   saleEvents?:      EventRow[],
  * }} body
- * @returns {{ deltas: EntityDelta[] }}
+ * @returns {{
+ *   deltas: EntityDelta[],
+ *   insufficientSnapshotEntities: string[],
+ * }}
  */
 export function computeStateDelta(body) {
-  const snapshots      = body.snapshots;
-  const deliveryEvents = Array.isArray(body.deliveryEvents) ? body.deliveryEvents : [];
-  const saleEvents     = Array.isArray(body.saleEvents)     ? body.saleEvents     : [];
+  const isArray = Array.isArray(body?.snapshots);
 
-  if (!Array.isArray(snapshots)) {
-    throw new Error("computeStateDelta: snapshots must be an array");
+  if (!isArray && process.env.NODE_ENV !== "production") {
+    console.warn(
+      "[computeStateDelta] snapshots was not an array. Received:",
+      typeof body?.snapshots,
+    );
   }
+
+  const snapshots = isArray ? /** @type {SnapshotRow[]} */ (body.snapshots) : [];
+  const deliveryEvents = Array.isArray(body?.deliveryEvents) ? body.deliveryEvents : [];
+  const saleEvents     = Array.isArray(body?.saleEvents)     ? body.saleEvents     : [];
 
   // ── Group snapshots by entityId ──────────────────────────────────────────
   /** @type {Map<string, SnapshotRow[]>} */
@@ -123,6 +136,9 @@ export function computeStateDelta(body) {
   // ── Compute delta per entity ─────────────────────────────────────────────
   /** @type {EntityDelta[]} */
   const deltas = [];
+  /** Entities that had >=1 snapshot but <2 valid rows for a delta (baseline requirement). */
+  /** @type {string[]} */
+  const insufficientSnapshotEntities = [];
 
   for (const [entityId, entitySnapshots] of snapshotsByEntity) {
     // Sort a copy ascending by timestamp — never mutate input.
@@ -133,7 +149,10 @@ export function computeStateDelta(body) {
     });
 
     // Require at least 2 snapshots to compute a meaningful delta.
-    if (sorted.length < 2) continue;
+    if (sorted.length < 2) {
+      insufficientSnapshotEntities.push(entityId);
+      continue;
+    }
 
     const startValue    = Number(sorted[0].value ?? 0);
     const endValue      = Number(sorted[sorted.length - 1].value ?? 0);
@@ -156,5 +175,5 @@ export function computeStateDelta(body) {
     deltas.push({ entityId, startValue, endValue, netDelta, deliveryTotal, salesTotal, snapshotCount: sorted.length, timeRange });
   }
 
-  return { deltas };
+  return { deltas, insufficientSnapshotEntities };
 }

@@ -15,6 +15,26 @@
  *   snapshots:      Array<{ entityId: string, value: number, timestamp: string }>,
  *   saleEvents:     Array<{ entityId: string, quantity: number, timestamp: string, eventType: "sale" }>,
  *   deliveryEvents: Array<{ entityId: string, quantity: number, timestamp: string, eventType: "delivery" }>,
+ *   wellness?: {
+ *     goalWeightLb?: number | null,
+ *     sleepBed?: string,
+ *     sleepWake?: string,
+ *     sleepHours?: number | null,
+ *     mealsNote?: string,
+ *     snacksNote?: string,
+ *     primaryEntityId?: string,
+ *     structured?: object,
+ *     dailyLogs?: Array<import("./wellnessLogs.js").DailyLog>,
+ *     baselineIntake?: import("./wellnessLogs.js").BaselineIntake,
+ *     intakeMode?: "baseline" | "guided",
+ *   },
+ *   baselineStateValues?: { [entityId: string]: string | number },
+ *   metrics?: Array<{
+ *     entityId?: string,
+ *     name: string,
+ *     unit: string,
+ *     value?: number | null,
+ *   }>,
  * }} Dataset
  */
 

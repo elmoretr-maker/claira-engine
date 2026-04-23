@@ -759,6 +759,32 @@
   line-height: 1.5;
 }
 
+.ep-detail__wellness-horizons {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+.ep-detail__wellness-horizons dt {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.ep-detail__wellness-horizons dd {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+.ep-detail__wellness-disclaimer {
+  margin-top: 8px !important;
+  font-size: 0.72rem !important;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
 /* ── Responsive ──────────────────────────────────── */
 
 @media (max-width: 900px) {

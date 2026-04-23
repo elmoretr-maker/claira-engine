@@ -77,6 +77,43 @@ export function buildSnapshots(entities, stateData) {
 }
 
 /**
+ * Build snapshots at two dates per entity when baseline values exist (Business Analyzer wellness flow).
+ * Current measurement uses `currentDate`; optional earlier point uses `baselineDate` + `baselineValues`.
+ * Same validation rules as buildSnapshots — no fabricated points.
+ *
+ * @param {Array<{ entityId: string, label: string }>} entities
+ * @param {{ [entityId: string]: string | number }} currentValues
+ * @param {string} currentDate
+ * @param {{ [entityId: string]: string | number }} baselineValues
+ * @param {string} baselineDate
+ * @returns {Array<{ entityId: string, value: number, timestamp: string }>}
+ */
+export function buildSnapshotsWithBaseline(
+  entities,
+  currentValues,
+  currentDate,
+  baselineValues,
+  baselineDate,
+) {
+  /** @type {Array<{ entityId: string, value: number, timestamp: string }>} */
+  const snapshots = [];
+  const curDate = String(currentDate ?? "").trim();
+  const baseDate = String(baselineDate ?? "").trim();
+
+  for (const entity of entities) {
+    const cv = currentValues[entity.entityId];
+    if (cv !== "" && cv != null && Number.isFinite(Number(cv)) && Number(cv) >= 0 && curDate) {
+      snapshots.push({ entityId: entity.entityId, value: Number(cv), timestamp: curDate });
+    }
+    const bv = baselineValues[entity.entityId];
+    if (bv !== "" && bv != null && Number.isFinite(Number(bv)) && Number(bv) >= 0 && baseDate) {
+      snapshots.push({ entityId: entity.entityId, value: Number(bv), timestamp: baseDate });
+    }
+  }
+  return snapshots;
+}
+
+/**
  * Build sale and delivery event records from activity form values.
  *
  * TIMESTAMP RULE: timestamp = periodEnd date as selected by user.
