@@ -4,7 +4,25 @@
  * Post-processing for Business Analyzer "weightloss" intent: attach wellness-specific
  * labels, linear projections from pipeline velocity, and goal-oriented suggestions.
  * Pure functions — no I/O.
+ *
+ * Rate model for goal analysis — weight change (lbs per day):
+ *   currentRate  = (endValue − startValue) / durationDays   ← direct measurement
+ *   projection   = currentWeight + currentRate × daysToDeadline
+ *   neededRate   = (targetWeight − currentWeight) / daysToDeadline
+ *
+ * velocityPerTime is NOT used for goal analysis. It remains in projectLinearHorizons
+ * for the horizon-display section (1 wk / 1 mo / 6 mo / 1 yr estimates) which is
+ * separate from the decision engine.
  */
+
+import {
+  daysBetween,
+  formatDate,
+  feasibilityNote,
+  formatWellnessWeightRateDerivationLine,
+  formatWeightLbForDisplay,
+  formatLbsPerWeekNumberForDisplay,
+} from "./rateUtils.js";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -758,6 +776,191 @@ function fmtLb(lb) {
   return `${sign}${n} lb`;
 }
 
+// ── Rate + projection model (wellness) ───────────────────────────────────────
+
+/**
+ * Weight change rate: lbs per day derived from actual measurements.
+ * Uses (endValue − startValue) / durationDays — the direct observed change.
+ *
+ * Does NOT use velocityPerTime — that field is optional pipeline metadata and
+ * is unreliable as a primary input for goal calculations.
+ *
+ * Negative result = weight loss (endValue < startValue). Returns null when
+ * durationDays ≤ 0 or weight values are missing / invalid.
+ *
+ * @param {Record<string, unknown>} row
+ * @param {number} durationDays  Length of the tracked period in days.
+ * @returns {number | null}
+ */
+export function extractRate(row, durationDays) {
+  const startWeight = Number(row?.startValue ?? 0);
+  const endWeight   = Number(row?.endValue   ?? 0);
+  if (!Number.isFinite(durationDays) || durationDays <= 0) return null;
+  if (!Number.isFinite(startWeight) || startWeight <= 0 || !Number.isFinite(endWeight) || endWeight <= 0) return null;
+  return (endWeight - startWeight) / durationDays; // lbs/day (negative = loss)
+}
+
+/**
+ * Forward model: projected weight after `days` at the current daily rate.
+ *
+ * @param {number} rate     Weight change per day (negative = loss).
+ * @param {number} current  Current weight in lbs.
+ * @param {number} days     Days to project forward.
+ * @returns {number | null}
+ */
+export function projectOutcome(rate, current, days) {
+  if (!Number.isFinite(rate) || !Number.isFinite(current) || !Number.isFinite(days)) return null;
+  return current + rate * days;
+}
+
+/**
+ * Inverse model: required daily rate to move from `current` to `target` in `days`.
+ *
+ * @param {number} target   Goal weight in lbs.
+ * @param {number} current  Current weight in lbs.
+ * @param {number} days     Days until deadline.
+ * @returns {number | null}
+ */
+export function requiredRate(target, current, days) {
+  if (!Number.isFinite(target) || !Number.isFinite(current) || !Number.isFinite(days) || days <= 0) return null;
+  return (target - current) / days; // negative = required loss per day
+}
+
+/** Wellness strategies for closing a weight-loss gap or getting moving. */
+const WELLNESS_LOSS_STRATEGIES = [
+  "Increase activity — adding regular movement (walks, workouts, daily steps) is often the most controllable lever and compounds over time.",
+  "Adjust your intake — even moderate changes to portions or meal timing can shift the weekly trend meaningfully over several weeks.",
+  "Improve consistency — sleep quality and regular routines have an outsized effect on body composition, often more than any single habit change.",
+];
+
+/** Wellness strategies for maintaining or staying on track. */
+const WELLNESS_MAINTAIN_STRATEGIES = [
+  "Stay consistent — the biggest risk when progress is going well is making sudden changes; keep doing what's working.",
+  "Keep logging — regular data makes it easier to see whether the trend holds or needs a small adjustment.",
+];
+
+/**
+ * Goal-based analysis for wellness.
+ * Compares the observed weight-change rate (endValue − startValue) / durationDays
+ * against what is required to reach the goal weight by the target date.
+ *
+ * Output structure:
+ *   1. Restate goal
+ *   2. Projected outcome at current rate
+ *   3. Required rate to hit goal if not on track
+ *   4. Feasibility note if gap is material
+ *   5. 2–3 strategies (paths forward)
+ *
+ * Returns null when no goal or insufficient data. Never fabricates values.
+ *
+ * @param {Record<string, unknown>} primaryRow   Pipeline row for the weight metric.
+ * @param {object} wellness                       dataset.wellness (goalWeightLb source).
+ * @param {{ targetValue?: string | number, targetDate?: string } | null | undefined} goal
+ * @param {number} durationDays                   Length of the tracked period in days.
+ * @returns {{ summary: string, strategies: string[], rateDerivation?: string } | null}
+ */
+function wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay) {
+  const startWeight = Number(primaryRow?.startValue ?? 0);
+  const endWeight   = Number(primaryRow?.endValue   ?? 0);
+  return formatWellnessWeightRateDerivationLine(startWeight, endWeight, durationDays, lbsPerDay);
+}
+
+function generateGoalAnalysis(primaryRow, wellness, goal, durationDays) {
+  // Resolve goal weight: prefer formData.goal.targetValue, fall back to wellness.goalWeightLb
+  const goalFromStep     = goal?.targetValue ? Number(goal.targetValue) : null;
+  const goalFromWellness = Number(wellness?.goalWeightLb ?? 0);
+  const targetWeight     = goalFromStep ?? (goalFromWellness > 0 ? goalFromWellness : null);
+
+  if (!targetWeight || !Number.isFinite(targetWeight) || targetWeight <= 0) return null;
+
+  const currentWeight = Number(primaryRow?.endValue ?? 0);
+  if (!Number.isFinite(currentWeight) || currentWeight <= 0) {
+    return { summary: "Not enough data to calculate a projection.", strategies: [] };
+  }
+
+  const lbsPerDay = extractRate(primaryRow, durationDays);
+  if (lbsPerDay === null) {
+    return { summary: "Not enough data to calculate a projection.", strategies: [] };
+  }
+
+  const lbsPerWeek = lbsPerDay * 7;
+  const isLossGoal = targetWeight < currentWeight;
+
+  const targetDate     = String(goal?.targetDate ?? "").trim();
+  const hasDeadline    = !!targetDate;
+  const daysToDeadline = hasDeadline ? daysBetween(new Date(), new Date(targetDate)) : null;
+
+  // ── Deadline path ────────────────────────────────────────────────────────
+  if (hasDeadline && daysToDeadline !== null && daysToDeadline > 0) {
+    const projectedWeight = projectOutcome(lbsPerDay, currentWeight, daysToDeadline) ?? currentWeight;
+    const needed          = requiredRate(targetWeight, currentWeight, daysToDeadline);
+    const reqPerWeek      = needed !== null ? formatLbsPerWeekNumberForDisplay(Math.abs(needed * 7)) : null;
+    const curPerWeek      = formatLbsPerWeekNumberForDisplay(Math.abs(lbsPerWeek));
+
+    const daysRemaining = `${daysToDeadline} day${daysToDeadline !== 1 ? "s" : ""}`;
+
+    if (isLossGoal) {
+      if (lbsPerDay >= 0) {
+        // Trending flat or gaining — no current loss
+        if (reqPerWeek === null) return null;
+        const feasibility = needed !== null
+          ? feasibilityNote(0.001, Math.abs(needed)) // current ≈ 0, any required rate is a large ask
+          : null;
+        let summary = `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, your current trend is flat or moving in the other direction. To lose about ${formatWeightLbForDisplay(currentWeight - targetWeight)} lbs in time, you'd need to average about ${reqPerWeek} lbs of loss per week.`;
+        if (feasibility) summary += ` ${feasibility}`;
+        return {
+          summary,
+          rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
+          strategies: WELLNESS_LOSS_STRATEGIES,
+        };
+      }
+
+      if (projectedWeight <= targetWeight) {
+        return {
+          summary: `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, at your current rate of about ${curPerWeek} lbs per week, you're trending toward around ${formatWeightLbForDisplay(projectedWeight)} lbs — looking good, you're on track.`,
+          rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
+          strategies: WELLNESS_MAINTAIN_STRATEGIES,
+        };
+      }
+
+      if (reqPerWeek === null) return null;
+      // Current loss rate exists but insufficient — compute feasibility
+      const curLossPerDay = Math.abs(lbsPerDay);
+      const reqLossPerDay = needed !== null ? Math.abs(needed) : 0;
+      const gapLb        = formatWeightLbForDisplay(projectedWeight - targetWeight);
+      const note = reqLossPerDay > 0 ? feasibilityNote(curLossPerDay, reqLossPerDay) : null;
+      let summary = `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, at your current rate of about ${curPerWeek} lbs per week, you're trending toward around ${formatWeightLbForDisplay(projectedWeight)} lbs — about ${gapLb} lbs above your target. To close that gap, you'd need to increase your rate of loss to about ${reqPerWeek} lbs per week.`;
+      if (note) summary += ` ${note}`;
+      return {
+        summary,
+        rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
+        strategies: WELLNESS_LOSS_STRATEGIES,
+      };
+    }
+
+    // Maintenance or gain goal
+    const outcomeLabel = projectedWeight >= targetWeight ? "on target" : "slightly short of where you want to be";
+    return {
+      summary: `Your goal is to reach ${targetWeight} lbs by ${formatDate(targetDate)} — you have ${daysRemaining} remaining. Starting from ${formatWeightLbForDisplay(currentWeight)} lbs, your current trend puts you at around ${formatWeightLbForDisplay(projectedWeight)} lbs by then — ${outcomeLabel}.`,
+      rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
+      strategies: WELLNESS_MAINTAIN_STRATEGIES,
+    };
+  }
+
+  // ── No deadline: project when the goal will be reached ──────────────────
+  if (isLossGoal && lbsPerDay < 0) {
+    const daysToGoal  = Math.round((currentWeight - targetWeight) / Math.abs(lbsPerDay));
+    const weeksToGoal = (daysToGoal / 7).toFixed(1);
+    return {
+      summary: `At your current rate of about ${formatLbsPerWeekNumberForDisplay(Math.abs(lbsPerWeek))} lbs per week, you're trending toward ${targetWeight} lbs in roughly ${weeksToGoal} week${weeksToGoal !== "1.0" ? "s" : ""}. This is a directional estimate — small shifts in habit or measurement timing can move the timeline.`,
+      rateDerivation: wellnessWeightRateDerivation(primaryRow, durationDays, lbsPerDay),
+      strategies: WELLNESS_MAINTAIN_STRATEGIES,
+    };
+  }
+
+  return null;
+}
+
 /**
  * Enrich merged pipeline rows for weightloss datasets (primary metric = first entity).
  *
@@ -786,6 +989,16 @@ export function enrichMergedForWellnessIntent(merged, dataset) {
 
   const goalLb  = Number(wellness.goalWeightLb);
   const hasGoal = Number.isFinite(goalLb) && goalLb > 0;
+
+  // Compute historical period length for rate calculation (endValue − startValue) / durationDays
+  const durationDays =
+    dataset.periodStart && dataset.periodEnd
+      ? Math.max(0, daysBetween(String(dataset.periodStart), String(dataset.periodEnd)))
+      : 0;
+
+  // Pre-compute goal analysis for the primary row (uses both dataset.goal and wellness.goalWeightLb)
+  const datasetGoal  = dataset.goal ?? null;
+  const goalAnalysis = generateGoalAnalysis(rawPrimary, wellness, datasetGoal, durationDays);
 
   return merged.map((row) => {
     const r  = { ...row };
@@ -853,6 +1066,12 @@ export function enrichMergedForWellnessIntent(merged, dataset) {
       r.wellnessSuggestion = r.wellnessInterpretationDetail;
       const baseReason = String(r.reason ?? "").trim();
       r.reason = [baseReason, r.wellnessSuggestion].filter(Boolean).join(" ").trim();
+
+      // Goal analysis — attached as intentAnalysis.goalAnalysis so the screen can render it
+      // uniformly alongside the other intent goal sections
+      if (goalAnalysis !== null) {
+        r.intentAnalysis = { goalAnalysis };
+      }
     }
 
     return r;

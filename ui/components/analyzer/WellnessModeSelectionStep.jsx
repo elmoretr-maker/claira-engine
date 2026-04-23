@@ -1,77 +1,53 @@
 /**
- * WellnessModeSelectionStep.jsx — Step 1 for weightloss intent (replaces "Items").
+ * WellnessModeSelectionStep.jsx — Thin wrapper around ModeSelectionStep.
  *
- * Presents two intake modes as clickable cards:
- *   - Quick snapshot  → formData.intakeMode = "baseline"
- *   - Track for a few days → formData.intakeMode = "guided"
+ * Owns the wellness-specific card content and routes the selection to
+ * formData.intakeMode (wellness uses "intakeMode", not "intentMode").
  *
- * Advancing is gated on a selection having been made (isStepValid checks intakeMode).
+ * The generic ModeSelectionStep handles layout, selection state, and styling.
  */
 
-import "./BusinessAnalyzer.css";
+import ModeSelectionStep from "./ModeSelectionStep.jsx";
+
+/** @type {import("./ModeSelectionStep.jsx").default extends (props: infer P) => any ? P["cards"] : never} */
+const WELLNESS_CARDS = [
+  {
+    key:          "baseline",
+    badge:        "Instant results",
+    badgeVariant: "default",
+    title:        "Quick snapshot",
+    subtitle:     "Takes ~2 minutes",
+    desc:         "Describe your typical daily habits once and get immediate insights.",
+    cta:          "Start now →",
+  },
+  {
+    key:          "guided",
+    badge:        "Deeper insights",
+    badgeVariant: "accent",
+    title:        "Track for a few days",
+    subtitle:     "3–7 days for best results",
+    desc:         "Log your habits day by day for insights grounded in your actual patterns.",
+    cta:          "Start assessment →",
+  },
+];
 
 /**
  * @param {{
- *   formData: { intakeMode?: string },
+ *   formData: { intakeMode?: string | null },
  *   onChange: (updates: object) => void,
  * }} props
  */
 export default function WellnessModeSelectionStep({ formData, onChange }) {
-  const selected = formData.intakeMode ?? null;
-
-  function pick(mode) {
-    onChange({ intakeMode: mode });
-  }
-
   return (
-    <div className="ba-step-content">
-      <div className="ba-step-prompt">How would you like to get started?</div>
-      <div className="ba-step-helper">
-        This helps us tailor how we understand your routine.
-      </div>
-      <div className="ba-step-helper">
-        Both options give you the same insights — the difference is depth and accuracy over time.
-      </div>
-
-      <div className="wls-mode-cards">
-
-        {/* ── Option 1: Quick snapshot ─────────────────────────────────────── */}
-        <button
-          type="button"
-          className={`wls-mode-card${selected === "baseline" ? " wls-mode-card--selected" : ""}`}
-          onClick={() => pick("baseline")}
-          aria-pressed={selected === "baseline"}
-        >
-          <div className="wls-mode-card__badge">Instant results</div>
-          <div className="wls-mode-card__title">Quick snapshot</div>
-          <div className="wls-mode-card__subtitle">Takes ~2 minutes</div>
-          <div className="wls-mode-card__desc">
-            Describe your typical daily habits once and get immediate insights.
-          </div>
-          <div className="wls-mode-card__cta">
-            {selected === "baseline" ? "✓ Selected" : "Start now →"}
-          </div>
-        </button>
-
-        {/* ── Option 2: Track for a few days ───────────────────────────────── */}
-        <button
-          type="button"
-          className={`wls-mode-card${selected === "guided" ? " wls-mode-card--selected" : ""}`}
-          onClick={() => pick("guided")}
-          aria-pressed={selected === "guided"}
-        >
-          <div className="wls-mode-card__badge wls-mode-card__badge--rec">Deeper insights</div>
-          <div className="wls-mode-card__title">Track for a few days</div>
-          <div className="wls-mode-card__subtitle">3–7 days for best results</div>
-          <div className="wls-mode-card__desc">
-            Log your habits day by day for insights grounded in your actual patterns.
-          </div>
-          <div className="wls-mode-card__cta">
-            {selected === "guided" ? "✓ Selected" : "Start assessment →"}
-          </div>
-        </button>
-
-      </div>
-    </div>
+    <ModeSelectionStep
+      prompt="How would you like to get started?"
+      helpers={[
+        "This helps us tailor how we understand your routine.",
+        "Both options give you the same insights — the difference is depth and accuracy over time.",
+      ]}
+      cards={WELLNESS_CARDS}
+      value={formData.intakeMode ?? null}
+      onChange={(selected) => onChange({ intakeMode: selected })}
+    />
   );
 }

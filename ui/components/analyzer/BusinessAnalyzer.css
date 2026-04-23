@@ -493,6 +493,19 @@
   color: var(--text-secondary);
 }
 
+.ba-period-meta {
+  margin: 4px 0 8px;
+}
+.ba-period-meta__duration {
+  font-size: 0.8rem;
+  color: rgba(167, 139, 250, 0.85);
+  font-weight: 500;
+}
+.ba-period-meta__warn {
+  font-size: 0.8rem;
+  color: rgba(251, 191, 36, 0.85);
+}
+
 .ba-activity-table {
   display: flex;
   flex-direction: column;
@@ -558,6 +571,38 @@
 .ba-activity-helpers .ba-step-helper:last-child  { grid-column: 3; text-align: right; padding-right: 8px; }
 
 /* ── Review step ─────────────────────────────────────────────────────────── */
+
+.ba-review-period {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(167, 139, 250, 0.06);
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: var(--radius-sm, 6px);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.ba-review-period__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(167, 139, 250, 0.75);
+  flex-shrink: 0;
+}
+.ba-review-period__value {
+  font-size: 0.875rem;
+  color: rgba(248, 250, 252, 0.88);
+}
+.ba-review-period__days {
+  color: rgba(167, 139, 250, 0.9);
+  font-weight: 600;
+}
+.ba-review-period__warn {
+  font-size: 0.8rem;
+  color: rgba(251, 191, 36, 0.8);
+}
 
 .ba-review-table {
   display: flex;
@@ -778,6 +823,10 @@
 .wls-mode-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
+}
+/* OutputTypeStep uses three cards */
+.wls-mode-cards--three {
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 14px;
   margin-top: 22px;
 }
@@ -1142,7 +1191,8 @@
     min-width: 120px;
   }
 
-  .wls-mode-cards {
+  .wls-mode-cards,
+  .wls-mode-cards--three {
     grid-template-columns: 1fr;
   }
 }

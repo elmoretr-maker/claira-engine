@@ -2,14 +2,15 @@
  * BusinessAnalyzerWizard.jsx
  *
  * Multi-step intake form for creating or editing a Business Analyzer dataset.
- * Renders one step at a time with progress indicator and back/next navigation.
+ * Step sequence and labels are driven by intentConfig.js — no hardcoded step arrays.
  *
  * CONSTRAINT: No engine logic here. All transformation is in datasetTransformer.js.
  * runPipeline.js calls the existing engine handlers unchanged.
  */
 
-import { useState, useMemo } from "react";
-import { getLabels }         from "../../utils/intentLabels.js";
+import { useState, useMemo, useEffect } from "react";
+import { getLabels }                    from "../../utils/intentLabels.js";
+import { getIntentConfig, getActiveSteps } from "../../utils/intentConfig.js";
 import {
   parseEntityNames,
   buildSnapshots,
@@ -28,20 +29,18 @@ import {
   transformLogsToWellnessInputs,
   createDefaultBaselineIntake,
 } from "../../utils/wellnessLogs.js";
-import { runPipeline }        from "../../utils/runPipeline.js";
-import IntentStep                from "../../components/analyzer/IntentStep.jsx";
-import EntitiesStep              from "../../components/analyzer/EntitiesStep.jsx";
-import StateStep                 from "../../components/analyzer/StateStep.jsx";
-import ActivityStep              from "../../components/analyzer/ActivityStep.jsx";
-import WellnessIntakeStep        from "../../components/analyzer/WellnessIntakeStep.jsx";
-import WellnessModeSelectionStep from "../../components/analyzer/WellnessModeSelectionStep.jsx";
-import ReviewStep                from "../../components/analyzer/ReviewStep.jsx";
+import { runPipeline }               from "../../utils/runPipeline.js";
+import IntentStep                    from "../../components/analyzer/IntentStep.jsx";
+import EntitiesStep                  from "../../components/analyzer/EntitiesStep.jsx";
+import StateStep                     from "../../components/analyzer/StateStep.jsx";
+import ActivityStep                  from "../../components/analyzer/ActivityStep.jsx";
+import ModeSelectionStep             from "../../components/analyzer/ModeSelectionStep.jsx";
+import OutputTypeStep                from "../../components/analyzer/OutputTypeStep.jsx";
+import WellnessIntakeStep            from "../../components/analyzer/WellnessIntakeStep.jsx";
+import WellnessModeSelectionStep     from "../../components/analyzer/WellnessModeSelectionStep.jsx";
+import GoalStep                      from "../../components/analyzer/GoalStep.jsx";
+import ReviewStep                    from "../../components/analyzer/ReviewStep.jsx";
 import "../../components/analyzer/BusinessAnalyzer.css";
-
-// Wellness flow skips "Items" (MetricBuilder) and "Current State" — replaced by
-// intake mode selection + structured habit intake.
-const STEPS_DEFAULT  = ["Intent", "Items", "Current State", "Activity", "Review"];
-const STEPS_WELLNESS = ["Intent", "Start",  "Daily Habits", "Review"];
 
 /** @returns {string} Today as YYYY-MM-DD */
 function isoToday() {
@@ -60,7 +59,6 @@ function buildDefaultName(intent) {
   const d      = new Date();
   const month  = d.toLocaleString("default", { month: "short" });
   const day    = d.getDate();
-  // Use short intent label (first word capitalized only)
   const shortLabel = labels.intentLabel.split(" ").slice(0, 2).map((w, i) =>
     i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w.toLowerCase()
   ).join(" ");
@@ -108,7 +106,7 @@ export default function BusinessAnalyzerWizard({
     periodStart:    isoDaysAgo(30),
     periodEnd:      isoToday(),
 
-    // Step 4 — name
+    // Review — name
     datasetName: init.name ?? "",
 
     // Weight & wellness (weightloss intent)
@@ -126,10 +124,18 @@ export default function BusinessAnalyzerWizard({
     wellnessMealsNote:  initWellness.mealsNote ?? "",
     wellnessSnacksNote: initWellness.snacksNote ?? "",
 
-    // Structured intake (new — replaces free-text notes)
-    intakeMode:     initWellness.intakeMode    ?? "baseline",
+    // Wellness structured intake
+    // intakeMode defaults to null so the mode-selection step correctly gates on a choice.
+    intakeMode:     initWellness.intakeMode    ?? null,
     baselineIntake: initWellness.baselineIntake ?? createDefaultBaselineIntake(),
     dailyLogs:      initWellness.dailyLogs     ?? [],
+
+    // Phase 2 — non-wellness mode selection and workforce output type
+    intentMode:          init.intentMode          ?? null,
+    workforceOutputType: init.workforceOutputType ?? null,
+
+    // Phase 4 — goal-based analysis
+    goal: init.goal ?? /** @type {{ targetValue: string, targetDate: string }} */ ({}),
   });
 
   /** @param {object} updates */
@@ -137,6 +143,7 @@ export default function BusinessAnalyzerWizard({
     setFormData((prev) => {
       let next = { ...prev, ...updates };
 
+      // Sync metric values ↔ stateValues for wellness
       if (updates.metrics) {
         const sv = { ...prev.stateValues };
         for (const m of updates.metrics) {
@@ -146,30 +153,65 @@ export default function BusinessAnalyzerWizard({
         }
         next.stateValues = sv;
       }
-
       if (updates.stateValues && prev.intent === "weightloss" && next.metrics?.length) {
         next.metrics = next.metrics.map((m) => {
           const v = updates.stateValues[m.entityId];
-          if (v !== undefined) {
-            return { ...m, value: v === "" ? "" : String(v) };
-          }
+          if (v !== undefined) return { ...m, value: v === "" ? "" : String(v) };
           return m;
         });
       }
 
+      // Auto-create default wellness metric row when switching to weightloss
       if (updates.intent === "weightloss" && (!next.metrics || next.metrics.length === 0)) {
         next.metrics = [createDefaultMetricRow()];
+      }
+
+      // Reset intent-specific mode fields when intent changes
+      if (updates.intent !== undefined && updates.intent !== prev.intent) {
+        next.intentMode          = null;
+        next.workforceOutputType = null;
+        // intakeMode is wellness-specific; reset it too when leaving wellness
+        if (updates.intent !== "weightloss") next.intakeMode = null;
       }
 
       return next;
     });
   }
 
-  const labels = useMemo(() => getLabels(formData.intent ?? "custom"), [formData.intent]);
+  // ── Config-driven step system ─────────────────────────────────────────────
 
-  const STEPS = formData.intent === "weightloss" ? STEPS_WELLNESS : STEPS_DEFAULT;
+  /** Base intent labels. ActivityStep applies output-type overrides internally via getActivityLabels. */
+  const labels = useMemo(
+    () => getLabels(formData.intent ?? "custom"),
+    [formData.intent],
+  );
 
-  /** Parsed entity list — from structured metrics (weightloss) or textarea / edit init. */
+  /** Full intent config for the current intent. */
+  const intentConfig = useMemo(
+    () => getIntentConfig(formData.intent ?? "custom"),
+    [formData.intent],
+  );
+
+  /**
+   * Active step array — may be a subset of intentConfig.steps when a mode has been
+   * selected that removes optional steps (e.g. inventory "quick" skips ActivityStep).
+   */
+  const STEPS = useMemo(
+    () => getActiveSteps(intentConfig, formData),
+    // Only recompute when the config or the two mode fields change, not on every keystroke.
+    [intentConfig, formData.intakeMode, formData.intentMode],
+  );
+
+  // Guard: if the active step array shrinks (e.g. mode switched after advancing),
+  // pull the current step back within bounds.
+  useEffect(() => {
+    if (step > 0 && step >= STEPS.length) {
+      setStep(STEPS.length - 1);
+    }
+  }, [STEPS.length]);
+
+  // ── Parsed entity list ────────────────────────────────────────────────────
+
   const entities = useMemo(() => {
     if (formData.intent === "weightloss") {
       return entitiesFromWellnessMetrics(formData.metrics ?? []);
@@ -185,7 +227,6 @@ export default function BusinessAnalyzerWizard({
     () => ({
       ...formData,
       entities,
-      // Auto-suggest name only if user hasn't typed one yet
       datasetName: formData.datasetName || buildDefaultName(formData.intent ?? "custom"),
     }),
     [formData, entities],
@@ -195,23 +236,40 @@ export default function BusinessAnalyzerWizard({
 
   /** @param {number} s */
   function isStepValid(s) {
-    if (s === 0) return !!formData.intent;
+    const stepType = STEPS[s];
+    if (!stepType) return false;
 
-    // ── Wellness 4-step flow ─────────────────────────────────────────────────
-    if (formData.intent === "weightloss") {
-      if (s === 1) return !!formData.intakeMode; // mode must be selected before advancing
-      return true;                               // steps 2 (habits) and 3 (review) always passable
-    }
+    switch (stepType) {
+      case "intent":
+        return !!formData.intent;
 
-    // ── Default 5-step flow ──────────────────────────────────────────────────
-    if (s === 1) return entities.length > 0;
-    if (s === 2) {
-      return entities.some((e) => {
-        const v = formData.stateValues[e.entityId];
-        return v !== "" && v !== undefined && v !== null && Number.isFinite(Number(v)) && Number(v) >= 0;
-      });
+      case "modeSelection":
+        // Wellness uses intakeMode; all other intents use intentMode
+        return formData.intent === "weightloss"
+          ? !!formData.intakeMode
+          : !!formData.intentMode;
+
+      case "outputType":
+        return !!formData.workforceOutputType;
+
+      case "entities":
+        return entities.length > 0;
+
+      case "state":
+        return entities.some((e) => {
+          const v = formData.stateValues[e.entityId];
+          return v !== "" && v !== undefined && v !== null &&
+                 Number.isFinite(Number(v)) && Number(v) >= 0;
+        });
+
+      // goal — always passable (completely optional step)
+      case "goal":
+        return true;
+
+      // activity, intake, review — always passable (data is optional or auto-suggested)
+      default:
+        return true;
     }
-    return true; // steps 3 and 4 always valid (activity optional; name auto-suggested)
   }
 
   // ── Dataset assembly ──────────────────────────────────────────────────────
@@ -223,8 +281,7 @@ export default function BusinessAnalyzerWizard({
         ? resolveWellnessStateValues(formData.metrics ?? [], formData.stateValues)
         : formData.stateValues;
 
-    // Wellness new flow: no "Current State" step, so sync weight from intake form.
-    // Uses intake value only when no manual state entry was set by an older edit flow.
+    // Wellness new flow: sync weight from intake form when no manual state entry exists
     if (intent === "weightloss") {
       const firstMetric = (formData.metrics ?? [])[0];
       if (firstMetric?.entityId && !(Number(resolvedState[firstMetric.entityId]) > 0)) {
@@ -257,10 +314,10 @@ export default function BusinessAnalyzerWizard({
           )
         : buildSnapshots(entities, stateData);
 
-    const goalN   = Number(formData.wellnessGoalWeight);
+    // For wellness: prefer goal step value; fall back to legacy wellnessGoalWeight field
+    const goalN   = Number(formData.goal?.targetValue ?? formData.wellnessGoalWeight);
     const sleepHN = Number(formData.wellnessSleepHours);
 
-    // Build structured-intake override — spread last so structured values win.
     const intakeTransform =
       intent === "weightloss"
         ? transformLogsToWellnessInputs(
@@ -275,6 +332,13 @@ export default function BusinessAnalyzerWizard({
       name:        enriched.datasetName,
       intent,
       intentLabel: labels.intentLabel,
+      // Phase 2 fields — persisted for future use by config-driven output layer
+      intentMode:          formData.intentMode          ?? null,
+      workforceOutputType: formData.workforceOutputType ?? null,
+      // Phase 4 — period dates (for throughput rate in workforce/sales) + goal
+      periodStart: formData.periodStart,
+      periodEnd:   formData.periodEnd,
+      goal: (formData.goal?.targetValue ?? "") !== "" ? formData.goal : null,
       entities,
       snapshots,
       saleEvents,
@@ -284,7 +348,6 @@ export default function BusinessAnalyzerWizard({
             metrics: serializeWellnessMetricsForStore(formData.metrics ?? [], resolvedState),
             baselineStateValues: formData.baselineStateValues ?? {},
             wellness: {
-              // Legacy / StateStep values (used as fallback when intake step was skipped)
               goalWeightLb:    Number.isFinite(goalN)   ? goalN   : null,
               sleepBed:        formData.wellnessSleepBed  ?? "",
               sleepWake:       formData.wellnessSleepWake ?? "",
@@ -292,9 +355,7 @@ export default function BusinessAnalyzerWizard({
               mealsNote:       formData.wellnessMealsNote  ?? "",
               snacksNote:      formData.wellnessSnacksNote ?? "",
               primaryEntityId: formData.metrics?.[0]?.entityId ?? entities[0]?.entityId ?? "",
-              // Structured intake overrides legacy values when present
               ...(intakeTransform ?? {}),
-              // Persist raw intake data for re-edit and future use
               dailyLogs:      formData.dailyLogs      ?? [],
               baselineIntake: formData.baselineIntake ?? {},
               intakeMode:     formData.intakeMode     ?? "baseline",
@@ -329,6 +390,7 @@ export default function BusinessAnalyzerWizard({
 
   const canAdvance = isStepValid(step);
   const isLastStep = step === STEPS.length - 1;
+  const stepType   = STEPS[step] ?? "intent";
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -352,11 +414,11 @@ export default function BusinessAnalyzerWizard({
         </button>
       </div>
 
-      {/* Progress indicator */}
+      {/* Progress indicator — step labels come from intentConfig.stepLabels */}
       <div className="ba-progress" role="list" aria-label="Setup steps">
-        {STEPS.map((name, i) => (
+        {STEPS.map((sType, i) => (
           <div
-            key={name}
+            key={`${sType}-${i}`}
             role="listitem"
             className={[
               "ba-progress__step",
@@ -365,29 +427,48 @@ export default function BusinessAnalyzerWizard({
             ].join(" ").trim()}
           >
             <span className="ba-progress__num" aria-hidden="true">{i + 1}</span>
-            <span className="ba-progress__label">{name}</span>
+            <span className="ba-progress__label">
+              {intentConfig.stepLabels[sType] ?? sType}
+            </span>
           </div>
         ))}
       </div>
 
-      {/* Step content */}
+      {/* Step content — rendered by step type, not by index */}
       <div className="ba-flow__body">
-        {/* Step 0 — intent selection (all flows) */}
-        {step === 0 && <IntentStep value={formData.intent} onChange={handleChange} />}
 
-        {/* Step 1 — wellness: intake mode card selection; default: entity list */}
-        {step === 1 && formData.intent === "weightloss" && (
+        {stepType === "intent" && (
+          <IntentStep value={formData.intent} onChange={handleChange} />
+        )}
+
+        {/* Mode selection — wellness uses its own wrapper; others use the generic component */}
+        {stepType === "modeSelection" && formData.intent === "weightloss" && (
           <WellnessModeSelectionStep formData={enriched} onChange={handleChange} />
         )}
-        {step === 1 && formData.intent !== "weightloss" && (
-          <EntitiesStep formData={enriched} onChange={handleChange} labels={labels} intent={formData.intent} />
+        {stepType === "modeSelection" && formData.intent !== "weightloss" && (
+          <ModeSelectionStep
+            prompt="How would you like to get started?"
+            helpers={["Choosing a mode helps us show you the right inputs."]}
+            cards={intentConfig.modes ?? []}
+            value={formData.intentMode ?? null}
+            onChange={(selected) => handleChange({ intentMode: selected })}
+          />
         )}
 
-        {/* Step 2 — wellness: structured habit intake; default: current state */}
-        {step === 2 && formData.intent === "weightloss" && (
-          <WellnessIntakeStep formData={enriched} onChange={handleChange} />
+        {stepType === "outputType" && (
+          <OutputTypeStep formData={enriched} onChange={handleChange} />
         )}
-        {step === 2 && formData.intent !== "weightloss" && (
+
+        {stepType === "entities" && (
+          <EntitiesStep
+            formData={enriched}
+            onChange={handleChange}
+            labels={labels}
+            intent={formData.intent}
+          />
+        )}
+
+        {stepType === "state" && (
           <StateStep
             formData={enriched}
             onChange={handleChange}
@@ -397,18 +478,32 @@ export default function BusinessAnalyzerWizard({
           />
         )}
 
-        {/* Step 3 — wellness: review; default: activity */}
-        {step === 3 && formData.intent === "weightloss" && (
-          <ReviewStep formData={enriched} onChange={handleChange} labels={labels} intent={formData.intent} />
-        )}
-        {step === 3 && formData.intent !== "weightloss" && (
-          <ActivityStep formData={enriched} onChange={handleChange} labels={labels} intent={formData.intent} />
+        {stepType === "activity" && (
+          <ActivityStep
+            formData={enriched}
+            onChange={handleChange}
+            labels={labels}
+            intent={formData.intent}
+          />
         )}
 
-        {/* Step 4 — default flow only: review */}
-        {step === 4 && formData.intent !== "weightloss" && (
-          <ReviewStep formData={enriched} onChange={handleChange} labels={labels} intent={formData.intent} />
+        {stepType === "intake" && (
+          <WellnessIntakeStep formData={enriched} onChange={handleChange} />
         )}
+
+        {stepType === "goal" && (
+          <GoalStep formData={enriched} onChange={handleChange} />
+        )}
+
+        {stepType === "review" && (
+          <ReviewStep
+            formData={enriched}
+            onChange={handleChange}
+            labels={labels}
+            intent={formData.intent}
+          />
+        )}
+
       </div>
 
       {runError && <div className="ba-error" role="alert">{runError}</div>}

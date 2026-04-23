@@ -38,6 +38,11 @@ export default function EntitiesStep({ formData, onChange, labels, intent }) {
         One {labels.entityNoun.toLowerCase()} per line.
         We will track each one separately and compare them in the results.
       </div>
+      {intent === "workforce" && (
+        <div className="ba-step-helper" style={{ marginTop: "4px", fontSize: "0.8rem", opacity: 0.9 }}>
+          Modeling: use one line per person to compare people side by side, or a single line if you treat the whole team as one combined unit.
+        </div>
+      )}
 
       <textarea
         className="ba-textarea"

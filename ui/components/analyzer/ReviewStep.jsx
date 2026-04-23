@@ -31,6 +31,17 @@ export default function ReviewStep({ formData, onChange, labels, intent }) {
 
   const isWellness = intent === "weightloss";
 
+  // Activity period — shown for all intents so users can verify before running
+  const periodStart = formData.periodStart ?? "";
+  const periodEnd   = formData.periodEnd   ?? "";
+  const periodDays  = (() => {
+    if (!periodStart || !periodEnd) return 0;
+    const d = Math.round((new Date(periodEnd) - new Date(periodStart)) / 86_400_000);
+    return d > 0 ? d : 0;
+  })();
+  const fmtDate = (/** @type {string} */ s) =>
+    s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+
   return (
     <div className="ba-step-content">
       <div className="ba-step-prompt">Review your data before saving</div>
@@ -42,23 +53,51 @@ export default function ReviewStep({ formData, onChange, labels, intent }) {
 
       {isWellness && (
         <div className="ba-review-wellness-summary">
+          {/* Goal weight — set in WellnessIntakeStep */}
           {formData.wellnessGoalWeight ? (
             <div>
               <strong>Goal weight:</strong> {formData.wellnessGoalWeight} lbs
             </div>
           ) : null}
-          {(formData.wellnessSleepBed || formData.wellnessSleepWake || formData.wellnessSleepHours) ? (
+
+          {/* Intake mode — baseline vs. guided daily log */}
+          {formData.intakeMode ? (
             <div>
-              <strong>Sleep:</strong>{" "}
-              {[
-                formData.wellnessSleepBed && `bed ${formData.wellnessSleepBed}`,
-                formData.wellnessSleepWake && `wake ${formData.wellnessSleepWake}`,
-                formData.wellnessSleepHours && `${formData.wellnessSleepHours} h`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              <strong>Intake mode:</strong>{" "}
+              {formData.intakeMode === "baseline" ? "Quick snapshot (typical habits)" : "Guided daily log"}
+              {formData.intakeMode === "guided" && Array.isArray(formData.dailyLogs) && formData.dailyLogs.length > 0
+                ? ` · ${formData.dailyLogs.length} day${formData.dailyLogs.length === 1 ? "" : "s"} logged`
+                : null}
             </div>
           ) : null}
+
+          {/* Baseline sleep — from baselineIntake (new flow) or legacy fields (old flow) */}
+          {(() => {
+            const bed  = formData.baselineIntake?.sleepBed  || formData.wellnessSleepBed  || "";
+            const wake = formData.baselineIntake?.sleepWake || formData.wellnessSleepWake || "";
+            const hrs  = formData.wellnessSleepHours || "";
+            if (!bed && !wake && !hrs) return null;
+            return (
+              <div>
+                <strong>Sleep:</strong>{" "}
+                {[
+                  bed  && `bed ${bed}`,
+                  wake && `wake ${wake}`,
+                  hrs  && `${hrs} h`,
+                ].filter(Boolean).join(" · ")}
+              </div>
+            );
+          })()}
+
+          {/* Baseline weight — from baselineIntake (new flow) */}
+          {formData.baselineIntake?.weightValue ? (
+            <div>
+              <strong>Current weight:</strong>{" "}
+              {formData.baselineIntake.weightValue} {formData.baselineIntake?.weightUnit ?? "lb"}
+            </div>
+          ) : null}
+
+          {/* Legacy meal/snack notes — shown only when old flow was used */}
           {formData.wellnessMealsNote ? (
             <div>
               <strong>Meals:</strong> {formData.wellnessMealsNote}
@@ -72,13 +111,29 @@ export default function ReviewStep({ formData, onChange, labels, intent }) {
         </div>
       )}
 
+      {/* Activity period — always shown so users can verify before running */}
+      {(periodStart || periodEnd) && (
+        <div className="ba-review-period">
+          <span className="ba-review-period__label">Activity period</span>
+          <span className="ba-review-period__value">
+            {fmtDate(periodStart)} → {fmtDate(periodEnd)}
+            {periodDays > 0 && (
+              <span className="ba-review-period__days"> ({periodDays} day{periodDays !== 1 ? "s" : ""})</span>
+            )}
+            {periodDays === 0 && (
+              <span className="ba-review-period__warn"> — set a valid range in the Activity step for accurate projections</span>
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Summary table */}
       <div className="ba-review-table">
         <div className="ba-review-header">
           <span className="ba-review-header__col">{labels.entityNoun}</span>
           <span className="ba-review-header__col">Current Count</span>
-          <span className="ba-review-header__col">{labels.salesLabel}</span>
-          <span className="ba-review-header__col">{labels.deliveryLabel}</span>
+          <span className="ba-review-header__col">{labels.outLabel}</span>
+          <span className="ba-review-header__col">{labels.inLabel}</span>
           <span className="ba-review-header__col">Net Change</span>
         </div>
 

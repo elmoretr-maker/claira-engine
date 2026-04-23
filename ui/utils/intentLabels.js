@@ -7,20 +7,23 @@
  * @typedef {"inventory"|"sales"|"workforce"|"weightloss"|"custom"} IntentKey
  *
  * @typedef {{
- *   intentLabel:        string,
- *   entitiesPrompt:     string,
- *   entitiesPlaceholder:string,
- *   entityNoun:         string,
- *   entityNounPlural:   string,
- *   statePrompt:        string,
- *   stateValueLabel:    string,
- *   stateHelperText:    string,
- *   salesPrompt:        string,
- *   salesLabel:         string,
- *   salesHelperText:    string,
- *   deliveryPrompt:     string,
- *   deliveryLabel:      string,
- *   deliveryHelperText: string,
+ *   intentLabel:         string,
+ *   entitiesPrompt:      string,
+ *   entitiesPlaceholder: string,
+ *   entityNoun:          string,
+ *   entityNounPlural:    string,
+ *   statePrompt:         string | null,   // null = intent has no StateStep
+ *   stateValueLabel:     string | null,   // null = intent has no StateStep
+ *   stateHelperText:     string | null,   // null = intent has no StateStep
+ *   stateDateLabel:      string,
+ *   salesPrompt:         string,          // reserved — not rendered by any current component
+ *   outLabel:            string,
+ *   outHelperText:       string,
+ *   deliveryPrompt:      string,          // reserved — not rendered by any current component
+ *   inLabel:             string,
+ *   inHelperText:        string,
+ *   periodLabel:         string,
+ *   output:              { interpretation: string, actions: string, projection: string, goalHeader: string },
  * }} IntentLabels
  */
 
@@ -28,51 +31,76 @@
 const INTENT_LABELS = {
   inventory: {
     intentLabel:         "Track my inventory",
-    entitiesPrompt:      "Add your products",
+    entitiesPrompt:      "What are you tracking?",
     entitiesPlaceholder: "Oxford Classic\nRunning Sneaker\nChelsea Boot",
     entityNoun:          "Product",
     entityNounPlural:    "Products",
-    statePrompt:         "How many do you have right now?",
-    stateValueLabel:     "Current stock",
-    stateHelperText:     "Your count right now — the most recent stock measurement you have.",
+    statePrompt:         "How much do you have right now?",
+    stateValueLabel:     "On hand",
+    stateHelperText:     "Your count as of today — or the most recent count you have.",
+    stateDateLabel:      "Count taken on",
     salesPrompt:         "What have you sold recently?",
-    salesLabel:          "Units sold",
-    salesHelperText:     "Helps us understand what's moving and at what rate.",
+    outLabel:            "Sold",
+    outHelperText:       "Units that left the shelf during this period.",
     deliveryPrompt:      "What have you received recently?",
-    deliveryLabel:       "Units received",
-    deliveryHelperText:  "Tells us what stock came in — needed to calculate net change accurately.",
+    inLabel:             "Received",
+    inHelperText:        "Units that came in from restocking during this period.",
+    periodLabel:         "This covers:",
+    output: {
+      interpretation: "What this means",
+      actions:        "What to act on",
+      projection:     "Stock forecast",
+      goalHeader:     "Will you run out in time?",
+    },
   },
   sales: {
     intentLabel:         "Understand sales performance",
-    entitiesPrompt:      "Add your products or items",
+    entitiesPrompt:      "What are you comparing?",
     entitiesPlaceholder: "Product A\nProduct B\nProduct C",
     entityNoun:          "Item",
     entityNounPlural:    "Items",
-    statePrompt:         "What is your current stock level?",
-    stateValueLabel:     "Current quantity",
-    stateHelperText:     "Your current inventory level — the baseline for understanding performance.",
+    // StateStep is not part of the sales flow — null prevents accidental rendering.
+    statePrompt:         null,
+    stateValueLabel:     null,
+    stateHelperText:     null,
+    stateDateLabel:      "As of",
     salesPrompt:         "What have you sold recently?",
-    salesLabel:          "Units sold",
-    salesHelperText:     "Sales data lets us measure velocity and identify top performers.",
-    deliveryPrompt:      "What have you received recently?",
-    deliveryLabel:       "Units received",
-    deliveryHelperText:  "Restocking tells us your true sell-through rate.",
+    outLabel:            "Sold this period",
+    outHelperText:       "Sales during this period — helps measure velocity and identify top performers.",
+    deliveryPrompt:      "What have you sold in the prior period?",
+    inLabel:             "Last period",
+    inHelperText:        "Sales from the previous period — used for direct comparison.",
+    periodLabel:         "This period covers:",
+    output: {
+      interpretation: "What this means",
+      actions:        "Where to focus",
+      projection:     "Trend outlook",
+      goalHeader:     "Can you hit your target?",
+    },
   },
   workforce: {
     intentLabel:         "Monitor employee output",
-    entitiesPrompt:      "Add your employees or team members",
+    entitiesPrompt:      "Who are you tracking?",
     entitiesPlaceholder: "Alice\nBob\nCharlie",
     entityNoun:          "Employee",
     entityNounPlural:    "Employees",
-    statePrompt:         "What is their current output count?",
+    statePrompt:         "Where does each person stand right now?",
     stateValueLabel:     "Current output",
-    stateHelperText:     "The most recent measurement of their output — your baseline.",
+    stateHelperText:     "Their most recent output measurement — the baseline for comparison.",
+    stateDateLabel:      "As of",
     salesPrompt:         "What did they complete recently?",
-    salesLabel:          "Tasks completed",
-    salesHelperText:     "Completions help us measure productivity and compare output rates.",
+    outLabel:            "Completed",
+    outHelperText:       "Work finished by this person during the period.",
     deliveryPrompt:      "What was assigned to them?",
-    deliveryLabel:       "Assignments received",
-    deliveryHelperText:  "Knowing assignments gives context for completion rates.",
+    inLabel:             "Assigned",
+    inHelperText:        "Work given to this person during the period.",
+    periodLabel:         "Over this period:",
+    output: {
+      interpretation: "What this means",
+      actions:        "Where to focus",
+      projection:     "Capacity outlook",
+      goalHeader:     "Will the team finish on time?",
+    },
   },
   weightloss: {
     intentLabel:         "Track weight & wellness",
@@ -85,34 +113,79 @@ const INTENT_LABELS = {
     stateValueLabel:     "Amount",
     stateHelperText:
       "Put body weight first for trend projections. Use decimals for lbs (e.g. 182.4). Add one row per metric.",
+    stateDateLabel:      "Measured on",
     salesPrompt:         "Consistency over your reporting window",
-    salesLabel:          "Days on track",
-    salesHelperText:
+    outLabel:            "Days on track",
+    outHelperText:
       "Rough count of days you stayed close to plan (food, routine, sleep). Helps spot streaks.",
     deliveryPrompt:      "What worked against your plan?",
-    deliveryLabel:       "Off-plan days",
-    deliveryHelperText:
+    inLabel:             "Off-plan days",
+    inHelperText:
       "Travel, stress, skipped sleep, larger meals — anything that tended to stall progress.",
+    periodLabel:         "Over this window:",
+    output: {
+      interpretation: "What this means",
+      actions:        "What you can do",
+      projection:     "Projection",
+      goalHeader:     "Can you reach your goal?",
+    },
   },
   custom: {
     intentLabel:         "Custom analysis",
-    entitiesPrompt:      "Add your items",
+    entitiesPrompt:      "What are you keeping an eye on?",
     entitiesPlaceholder: "Item A\nItem B\nItem C",
     entityNoun:          "Item",
     entityNounPlural:    "Items",
     statePrompt:         "What is the current quantity for each?",
     stateValueLabel:     "Current quantity",
     stateHelperText:     "Your current measurement — the starting point for tracking.",
+    stateDateLabel:      "As of",
     salesPrompt:         "What activity has reduced quantity?",
-    salesLabel:          "Outgoing quantity",
-    salesHelperText:     "What was used, sold, or removed during the period.",
+    outLabel:            "Outgoing",
+    outHelperText:       "What was used, sold, or removed during the period.",
     deliveryPrompt:      "What activity has increased quantity?",
-    deliveryLabel:       "Incoming quantity",
-    deliveryHelperText:  "What was added or received during the period.",
+    inLabel:             "Incoming",
+    inHelperText:        "What was added or received during the period.",
+    periodLabel:         "This covers:",
+    output: {
+      interpretation: "What this means",
+      actions:        "Suggested actions",
+      projection:     "Projection",
+      goalHeader:     "Goal analysis",
+    },
   },
 };
 
 /**
+ * Overrides for ActivityStep column labels when a workforce output type is selected.
+ * Applied only by getActivityLabels() — never merged into the global label object.
+ * @type {Record<string, Partial<IntentLabels>>}
+ */
+const WORKFORCE_OUTPUT_LABELS = {
+  tasks: {
+    outLabel:      "Completed",
+    outHelperText: "Work finished by this person during the period.",
+    inLabel:       "Assigned",
+    inHelperText:  "Work given to this person during the period.",
+  },
+  hours: {
+    outLabel:      "Hours logged",
+    outHelperText: "Actual time worked during the period.",
+    inLabel:       "Hours scheduled",
+    inHelperText:  "Time allocated to this person.",
+  },
+  revenue: {
+    outLabel:      "Revenue generated",
+    outHelperText: "Sales, billings, or output with a dollar value.",
+    inLabel:       "Target / quota",
+    inHelperText:  "Their target for this period.",
+  },
+};
+
+/**
+ * Returns the base intent labels. No output-type merging.
+ * Use for all UI except ActivityStep column headers.
+ *
  * @param {string} intent
  * @returns {IntentLabels}
  */
@@ -120,22 +193,38 @@ export function getLabels(intent) {
   return INTENT_LABELS[intent] ?? INTENT_LABELS.custom;
 }
 
+/**
+ * Returns intent labels with output-type column overrides applied.
+ * Only ActivityStep should call this — overrides affect outLabel/inLabel only.
+ *
+ * @param {string}      intent
+ * @param {string|null} [outputType]
+ * @returns {IntentLabels}
+ */
+export function getActivityLabels(intent, outputType = null) {
+  const base = INTENT_LABELS[intent] ?? INTENT_LABELS.custom;
+  if (intent === "workforce" && outputType && WORKFORCE_OUTPUT_LABELS[outputType]) {
+    return { ...base, ...WORKFORCE_OUTPUT_LABELS[outputType] };
+  }
+  return base;
+}
+
 /** Intent options shown on Screen 0. */
 export const INTENT_OPTIONS = [
   {
     key:         "inventory",
     label:       "Track my inventory",
-    description: "Monitor stock levels, sales, and restocking over time",
+    description: "See what's selling, what's sitting, and what needs attention",
   },
   {
     key:         "sales",
     label:       "Understand sales performance",
-    description: "Track what sells, how fast, and what needs attention",
+    description: "Find out what's performing, what's slipping, and where the opportunity is",
   },
   {
     key:         "workforce",
     label:       "Monitor employee output",
-    description: "Measure task completion, productivity, and workload",
+    description: "See who's keeping up, who needs support, and where work is piling up",
   },
   {
     key:         "weightloss",
@@ -146,6 +235,6 @@ export const INTENT_OPTIONS = [
   {
     key:         "custom",
     label:       "Something else",
-    description: "Define your own tracking need",
+    description: "Track anything that matters to your situation",
   },
 ];

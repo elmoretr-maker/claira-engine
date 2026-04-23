@@ -431,3 +431,148 @@
   opacity: 0.9;
   line-height: 1.45;
 }
+
+/* ── Intent analysis sections (inventory · sales · workforce) ──────────────── */
+
+.ep-intent-section {
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 12px);
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-card);
+}
+
+.ep-intent-section--projection {
+  background: rgba(99, 102, 241, 0.07);
+  border-color: rgba(99, 102, 241, 0.18);
+}
+
+.ep-intent-section__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0 0 10px;
+}
+
+.ep-intent-section__body {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.ep-intent-section__actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  counter-reset: action-counter;
+}
+
+.ep-intent-section__action-item {
+  counter-increment: action-counter;
+  position: relative;
+  padding-left: 30px;
+  font-size: 0.87rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.ep-intent-section__action-item::before {
+  content: counter(action-counter);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.18);
+  color: rgba(167, 139, 250, 0.95);
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ep-intent-section__scope-note {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(167, 139, 250, 0.65);
+  margin: 0 0 6px;
+}
+
+.ep-intent-section__disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.85;
+  line-height: 1.45;
+  margin: 10px 0 0;
+}
+
+/* ── Goal analysis section ──────────────────────────────── */
+
+.ep-intent-section--goal {
+  border-left: 3px solid rgba(99, 102, 241, 0.45);
+  background: rgba(99, 102, 241, 0.04);
+  padding: 16px 18px;
+  border-radius: 0 var(--radius-md, 10px) var(--radius-md, 10px) 0;
+}
+
+.ep-intent-section--goal .ep-intent-section__title {
+  color: rgba(167, 139, 250, 0.9);
+}
+
+.ep-goal-rate-derivation {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  opacity: 0.8;
+  margin: 0.4rem 0 0;
+}
+
+/* ── Goal strategies list ───────────────────────────────── */
+
+.ep-goal-strategies {
+  margin: 12px 0 4px;
+}
+
+.ep-goal-strategies__intro {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.65);
+  letter-spacing: 0.01em;
+  margin: 0 0 8px;
+}
+
+.ep-goal-strategies__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ep-goal-strategies__item {
+  position: relative;
+  padding-left: 1.4rem;
+  font-size: 0.875rem;
+  color: rgba(248, 250, 252, 0.75);
+  line-height: 1.55;
+}
+
+.ep-goal-strategies__item::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: rgba(167, 139, 250, 0.65);
+  font-size: 0.8rem;
+  top: 0.1em;
+}

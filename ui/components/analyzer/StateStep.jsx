@@ -74,9 +74,9 @@ export default function StateStep({ formData, onChange, labels, mode, intent }) 
               step={isWellness ? "0.1" : "1"}
               value={stateValues[entity.entityId] ?? ""}
               onChange={(e) => setValueFor(entity.entityId, e.target.value)}
-              aria-label={`${labels.stateValueLabel} for ${entity.label}`}
+              aria-label={`${labels.stateValueLabel ?? "Value"} for ${entity.label}`}
             />
-            <span className="ba-state-row__unit">{labels.stateValueLabel.toLowerCase()}</span>
+            <span className="ba-state-row__unit">{(labels.stateValueLabel ?? "").toLowerCase()}</span>
           </div>
         ))}
       </div>

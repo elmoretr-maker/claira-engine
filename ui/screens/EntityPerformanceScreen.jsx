@@ -19,9 +19,10 @@
 import { useCallback, useRef, useState } from "react";
 import "./EntityPerformanceScreen.css";
 import { sortByUrgencyThenRank } from "../utils/engineDisplayFormatters.js";
-import ActionQueue    from "../components/ActionQueue.jsx";
+import { getLabels }   from "../utils/intentLabels.js";
+import ActionQueue     from "../components/ActionQueue.jsx";
 import PrioritySummary from "../components/PrioritySummary.jsx";
-import EntityTable    from "../components/EntityTable.jsx";
+import EntityTable     from "../components/EntityTable.jsx";
 
 /**
  * @param {{
@@ -32,9 +33,17 @@ import EntityTable    from "../components/EntityTable.jsx";
 export default function EntityPerformanceScreen({ entities, onBack }) {
   const sorted = sortByUrgencyThenRank(Array.isArray(entities) ? entities : []);
 
-  const isWellnessView      = sorted.some((e) => e.analyzerIntent === "weightloss");
+  // ── Intent detection ─────────────────────────────────────────────────────────
+  const analyzerIntent      = sorted[0]?.analyzerIntent ?? null;
+  const isWellnessView      = analyzerIntent === "weightloss";
+  const isIntentView        = !!analyzerIntent && !isWellnessView;
+
   const primaryWellnessRow    = sorted.find((e) => e.wellnessPrimary);
   const wellnessHorizonBanner = primaryWellnessRow?.wellnessHorizonsFormatted;
+
+  const primaryIntentRow = isIntentView ? (sorted.find((e) => e.intentPrimary) ?? null) : null;
+  const intentAnalysis   = primaryIntentRow?.intentAnalysis ?? null;
+  const intentLabels     = isIntentView ? getLabels(analyzerIntent) : null;
 
   // Shared ref map: entityId → <tr> element
   const scrollRefMap = useRef(new Map());
@@ -69,12 +78,14 @@ export default function EntityPerformanceScreen({ entities, onBack }) {
       <div className="ep-screen__header">
         <div className="ep-screen__title-block">
           <h1 className="ep-screen__title">
-            {isWellnessView ? "Wellness & weight trends" : "Entity Performance"}
+            {isWellnessView ? "Wellness & weight trends"
+              : isIntentView ? intentLabels.intentLabel
+              : "Entity Performance"}
           </h1>
           <p className="ep-screen__subtitle">
             {isWellnessView
               ? `Trends from your metrics · ${sorted.length} tracked row${sorted.length === 1 ? "" : "s"}`
-              : `Ranked by urgency · ${sorted.length} ${sorted.length === 1 ? "entity" : "entities"}`}
+              : `Ranked by urgency · ${sorted.length} ${sorted.length === 1 ? intentLabels?.entityNoun?.toLowerCase() ?? "entity" : intentLabels?.entityNounPlural?.toLowerCase() ?? "entities"}`}
           </p>
         </div>
         <div className="ep-screen__header-actions">
@@ -295,6 +306,35 @@ export default function EntityPerformanceScreen({ entities, onBack }) {
                   </section>
                 )}
 
+                {/* ── Section 5: Goal analysis (wellness) ──────────── */}
+                {pw.intentAnalysis?.goalAnalysis && (
+                  <section
+                    className="ep-intent-section ep-intent-section--goal"
+                    aria-labelledby="ep-wellness-goal-title"
+                  >
+                    <h2 id="ep-wellness-goal-title" className="ep-intent-section__title">
+                      Can you reach your goal?
+                    </h2>
+                    <p className="ep-intent-section__body">{pw.intentAnalysis.goalAnalysis.summary}</p>
+                    {pw.intentAnalysis.goalAnalysis.rateDerivation && (
+                      <p className="ep-goal-rate-derivation">{pw.intentAnalysis.goalAnalysis.rateDerivation}</p>
+                    )}
+                    {pw.intentAnalysis.goalAnalysis.strategies?.length > 0 && (
+                      <div className="ep-goal-strategies">
+                        <p className="ep-goal-strategies__intro">Here are a few ways you could approach this:</p>
+                        <ul className="ep-goal-strategies__list">
+                          {pw.intentAnalysis.goalAnalysis.strategies.map((s, i) => (
+                            <li key={i} className="ep-goal-strategies__item">{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <p className="ep-intent-section__disclaimer">
+                      Directional estimate — actual results depend on consistency and factors not captured in this data.
+                    </p>
+                  </section>
+                )}
+
                 {/* ── Disclaimer ────────────────────────────────────── */}
                 <p className="ep-wellness-disclaimer">
                   General wellness information only — not medical or nutritional advice. Talk to a qualified
@@ -303,6 +343,86 @@ export default function EntityPerformanceScreen({ entities, onBack }) {
               </>
             );
           })() : null}
+
+          {/* ══ Intent analysis sections (inventory · sales · workforce) ══ */}
+          {isIntentView && intentAnalysis && (() => {
+            const out = intentLabels.output;
+            return (
+              <>
+                {/* ── Section: Interpretation ──── */}
+                {intentAnalysis.interpretation && (
+                  <section className="ep-intent-section" aria-labelledby="ep-intent-interp-title">
+                    <h2 id="ep-intent-interp-title" className="ep-intent-section__title">
+                      {out.interpretation}
+                    </h2>
+                    <p className="ep-intent-section__body">{intentAnalysis.interpretation}</p>
+                  </section>
+                )}
+
+                {/* ── Section: Actions ─────────── */}
+                {intentAnalysis.actions?.length > 0 && (
+                  <section className="ep-intent-section" aria-labelledby="ep-intent-actions-title">
+                    <h2 id="ep-intent-actions-title" className="ep-intent-section__title">
+                      {out.actions}
+                    </h2>
+                    <ol className="ep-intent-section__actions">
+                      {intentAnalysis.actions.map((text, i) => (
+                        <li key={i} className="ep-intent-section__action-item">{text}</li>
+                      ))}
+                    </ol>
+                  </section>
+                )}
+
+                {/* ── Section: Projection ─────── */}
+                {intentAnalysis.projection && (
+                  <section
+                    className="ep-intent-section ep-intent-section--projection"
+                    aria-labelledby="ep-intent-proj-title"
+                  >
+                    <h2 id="ep-intent-proj-title" className="ep-intent-section__title">
+                      {out.projection}
+                    </h2>
+                    <p className="ep-intent-section__body">{intentAnalysis.projection}</p>
+                    <p className="ep-intent-section__disclaimer">
+                      This is a directional estimate — actual results depend on factors not captured in this data.
+                    </p>
+                  </section>
+                )}
+
+                {/* ── Section: Goal analysis ─── */}
+                {intentAnalysis.goalAnalysis && (
+                  <section
+                    className="ep-intent-section ep-intent-section--goal"
+                    aria-labelledby="ep-intent-goal-title"
+                  >
+                    <h2 id="ep-intent-goal-title" className="ep-intent-section__title">
+                      {out.goalHeader}
+                    </h2>
+                    {analyzerIntent === "workforce" && (
+                      <p className="ep-intent-section__scope-note">Looking at the team as a whole:</p>
+                    )}
+                    <p className="ep-intent-section__body">{intentAnalysis.goalAnalysis.summary}</p>
+                    {intentAnalysis.goalAnalysis.rateDerivation && (
+                      <p className="ep-goal-rate-derivation">{intentAnalysis.goalAnalysis.rateDerivation}</p>
+                    )}
+                    {intentAnalysis.goalAnalysis.strategies?.length > 0 && (
+                      <div className="ep-goal-strategies">
+                        <p className="ep-goal-strategies__intro">Here are a few ways you could approach this:</p>
+                        <ul className="ep-goal-strategies__list">
+                          {intentAnalysis.goalAnalysis.strategies.map((s, i) => (
+                            <li key={i} className="ep-goal-strategies__item">{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <p className="ep-intent-section__disclaimer">
+                      Directional estimate — actual results depend on factors not captured in this data.
+                    </p>
+                  </section>
+                )}
+              </>
+            );
+          })()}
 
           {/* ── Top row: ActionQueue + PrioritySummary ──────────────── */}
           <div className="ep-screen__top-row">
