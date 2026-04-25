@@ -279,6 +279,17 @@ function SuggestionsStrip({ suggestions, onRefresh }) {
 const START_OVER_CONFIRM = "Are you sure you want to start over? This will reset your setup.";
 
 function App() {
+  useEffect(() => {
+    const loader = document.getElementById("app-loading");
+    if (loader) {
+      const t = window.setTimeout(() => {
+        loader.remove();
+      }, 500);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
+  }, []);
+
   const { cancelAllSpeech } = useVoiceOnboarding();
   const { industrySlug, setIndustrySlug, packDomainMode } = useIndustry();
   const { vertical, setVertical, clearVertical, canAccess, isProductVerticalActive } = useVertical();
