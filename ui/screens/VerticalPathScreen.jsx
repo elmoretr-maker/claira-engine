@@ -32,6 +32,16 @@ export default function VerticalPathScreen({ onSelectVertical }) {
                 className="vertical-path-card card"
                 onClick={() => onSelectVertical("personal")}
               >
+                <div className="vertical-path-card__media">
+                  <img
+                    className="vertical-path-card__img"
+                    src="/assets/tool-thumbnails/business-analyzer.png"
+                    alt=""
+                    width={160}
+                    height={160}
+                    decoding="async"
+                  />
+                </div>
                 <span className="vertical-path-card__label">Personal</span>
                 <span className="vertical-path-card__title">Wellness &amp; goals</span>
                 <span className="vertical-path-card__desc">
@@ -43,6 +53,16 @@ export default function VerticalPathScreen({ onSelectVertical }) {
                 className="vertical-path-card card"
                 onClick={() => onSelectVertical("business")}
               >
+                <div className="vertical-path-card__media">
+                  <img
+                    className="vertical-path-card__img"
+                    src="/assets/tool-thumbnails/business-assets.png"
+                    alt=""
+                    width={160}
+                    height={160}
+                    decoding="async"
+                  />
+                </div>
                 <span className="vertical-path-card__label">Business</span>
                 <span className="vertical-path-card__title">How things are running</span>
                 <span className="vertical-path-card__desc">
@@ -54,6 +74,24 @@ export default function VerticalPathScreen({ onSelectVertical }) {
                 className="vertical-path-card card"
                 onClick={() => onSelectVertical("commerce")}
               >
+                <div className="vertical-path-card__media vertical-path-card__media--pair" aria-hidden="true">
+                  <img
+                    className="vertical-path-card__img vertical-path-card__img--sm"
+                    src="/assets/tool-thumbnails/photo-sorter.png"
+                    alt=""
+                    width={120}
+                    height={120}
+                    decoding="async"
+                  />
+                  <img
+                    className="vertical-path-card__img vertical-path-card__img--sm"
+                    src="/assets/tool-thumbnails/build-product-catalog.png"
+                    alt=""
+                    width={120}
+                    height={120}
+                    decoding="async"
+                  />
+                </div>
                 <span className="vertical-path-card__label">Commerce</span>
                 <span className="vertical-path-card__title">Photos &amp; products</span>
                 <span className="vertical-path-card__desc">
