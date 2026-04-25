@@ -1,3 +1,4 @@
+import { isDevMode } from "../utils/devMode.js";
 /**
  * Additive product layer — mock user and entitlement helpers.
  * No server auth yet; entitlements are derived from vertical + dev query overrides.
@@ -28,6 +29,7 @@ const DEV_UNLOCK_PARAM = "unlock";
  * @returns {boolean}
  */
 export function canAccess(ent, feature) {
+  if (isDevMode()) return true;
   return ent?.features?.[feature] === true;
 }
 

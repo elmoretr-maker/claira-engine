@@ -64,6 +64,7 @@ import RequireEntitlement from "./product/RequireEntitlement.jsx";
 import LockedDoorPanel from "./product/LockedDoorPanel.jsx";
 import "./product/LockedDoorPanel.css";
 import { buildDoorTools, getDoorSectionMeta } from "./product/doorTools.js";
+import { isDevMode } from "./utils/devMode.js";
 import VerticalPathScreen from "./screens/VerticalPathScreen.jsx";
 import VerticalModeBanner from "./product/VerticalModeBanner.jsx";
 import { VoiceOnboardingProvider, VoiceOnboardingRouteSync } from "./voice/VoiceOnboardingContext.jsx";
@@ -722,7 +723,7 @@ function App() {
 
   const insightPanelVariant = vertical === "personal" ? "personal" : "business";
   const productDoorLockOverlay =
-    doorLockFeature ? (
+    isDevMode() || !doorLockFeature ? null : (
       <div
         className="door-lock-overlay"
         role="dialog"
@@ -745,7 +746,7 @@ function App() {
           />
         </div>
       </div>
-    ) : null;
+    );
 
   const pathPickerOverlay = pathPickerOpen ? (
     <div

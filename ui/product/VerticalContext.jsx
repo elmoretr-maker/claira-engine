@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { isDevMode } from "../utils/devMode.js";
 import {
   applyDevUnlockFromSearch,
   canAccess,
@@ -34,6 +35,15 @@ const VerticalContext = createContext(null);
  */
 export function VerticalProvider({ children }) {
   const [vertical, setVerticalState] = useState(/** @type {AppVertical | null} */ (null));
+  /** Bumps when `location.search` may have changed (e.g. back/forward) so dev-mode entitlements stay in sync. */
+  const [entitlementUrlRev, setEntitlementUrlRev] = useState(0);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const bump = () => setEntitlementUrlRev((n) => n + 1);
+    window.addEventListener("popstate", bump);
+    return () => window.removeEventListener("popstate", bump);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -73,16 +83,24 @@ export function VerticalProvider({ children }) {
   }, []);
 
   const entitlements = useMemo(() => {
+    const allUnlocked = {
+      insight: true,
+      photo: true,
+      catalog: true,
+    };
     if (vertical == null) {
       return {
         vertical: "business",
-        features: { insight: false, photo: false, catalog: false },
+        features: isDevMode() ? { ...allUnlocked } : { insight: false, photo: false, catalog: false },
       };
     }
     const base = getDefaultEntitlementsForVertical(vertical);
     if (typeof window === "undefined") return base;
+    if (isDevMode()) {
+      return { ...base, features: { ...allUnlocked } };
+    }
     return applyDevUnlockFromSearch(window.location.search, base);
-  }, [vertical]);
+  }, [vertical, entitlementUrlRev]);
 
   const canAccessFeature = useCallback(
     (/** @type {keyof AppEntitlements["features"]} */ feature) => canAccess(entitlements, feature),

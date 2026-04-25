@@ -1,3 +1,4 @@
+import { isDevMode } from "../utils/devMode.js";
 import LockedDoorPanel from "./LockedDoorPanel.jsx";
 import { useVertical } from "./VerticalContext.jsx";
 
@@ -11,6 +12,9 @@ import { useVertical } from "./VerticalContext.jsx";
  */
 export default function RequireEntitlement({ feature, children, onBackFromLocked }) {
   const { canAccess, vertical } = useVertical();
+  if (isDevMode()) {
+    return children;
+  }
   if (canAccess(feature)) {
     return children;
   }
