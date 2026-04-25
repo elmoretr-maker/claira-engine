@@ -3,10 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b0f14" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="Claira — clarity for your work" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="icon" href="/claira-engine-logo.png" type="image/png" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,6 +17,25 @@
       rel="stylesheet"
     />
     <title>Claira Engine</title>
+    <style>
+      body {
+        background-color: #0f172a;
+      }
+    </style>
+    <style>
+      #app-loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0f172a;
+        color: white;
+        font-size: 18px;
+        z-index: 9999;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+    </style>
     <script>
       try {
         var k = "claira_ui_theme";
@@ -26,6 +48,7 @@
     </script>
   </head>
   <body>
+    <div id="app-loading">Loading Claira...</div>
     <div id="root">
       <div
         id="claira-boot-plaque"
