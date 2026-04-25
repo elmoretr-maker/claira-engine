@@ -1282,3 +1282,57 @@ details[open] .ps-workflow-log__summary::before { transform: rotate(90deg); }
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border-color: var(--accent);
 }
+
+/* — Commerce product funnel (additive) — */
+.ps-commerce-funnel {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, #2d3340);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-card));
+}
+.ps-commerce-funnel--entry {
+  margin-top: 0;
+  margin-bottom: var(--space-lg);
+}
+.ps-commerce-funnel--next {
+  margin-bottom: var(--space-lg);
+}
+.ps-commerce-funnel__entry-line {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.ps-commerce-funnel__kicker {
+  margin: 0 0 var(--space-xs);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--accent) 80%, var(--text-secondary));
+}
+.ps-commerce-funnel__head {
+  margin: 0 0 2px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.ps-commerce-funnel__body {
+  margin: 0 0 var(--space-md);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.ps-commerce-funnel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+.ps-commerce-funnel__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  opacity: 0.9;
+}

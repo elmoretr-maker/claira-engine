@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from "fs";
 import { mkdir, readFile, writeFile, rename as renameFile } from "fs/promises";
-import net from "net";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -19,6 +18,10 @@ loadRootEnv();
 
 /** Absolute path to the repository root (one level above server/). */
 const engineRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/** Built Vite UI (`npm run ui:build`). When present, `/` serves the SPA instead of JSON. */
+const uiDist = path.join(engineRoot, "ui", "dist");
+const hasUiDist = existsSync(uiDist);
 
 /**
  * Content-type helper shared by pack-asset and tracking-asset routes.
@@ -467,11 +470,13 @@ app.get("/api/admin/keys", (_req, res) => {
 
 // =============================================================================
 
-app.get("/", (req, res) => {
-  res.json({
-    message: "Claira API running",
+if (!hasUiDist) {
+  app.get("/", (req, res) => {
+    res.json({
+      message: "Claira API running",
+    });
   });
-});
+}
 
 app.get("/health", (req, res) => {
   res.json({
@@ -2226,51 +2231,20 @@ app.post("/run", (req, res) => {
 
 // ---------------------------------------------------------------------------
 // STATIC UI — serve the built React app in production / desktop mode.
-// Only activates when ui/dist exists (i.e. after `npm run ui:build`).
+// Only activates when ui/dist exists (i.e. after `npm run ui:build` — set on Render).
 // In dev mode the Vite dev server handles UI delivery instead.
 // ---------------------------------------------------------------------------
-const uiDist = path.join(engineRoot, "ui", "dist");
-if (existsSync(uiDist)) {
+if (hasUiDist) {
   app.use(express.static(uiDist));
   // SPA catch-all: any unmatched GET returns index.html so client-side routing works.
   app.get("*", (_req, res) => res.sendFile(path.join(uiDist, "index.html")));
 }
 
-/**
- * Probe whether a TCP port is free. Resolves true if free, false if occupied.
- * @param {number} p
- */
-function isPortFree(p) {
-  return new Promise((resolve) => {
-    const probe = net.createServer();
-    probe.once("error", () => resolve(false));
-    probe.once("listening", () => probe.close(() => resolve(true)));
-    probe.listen(p, "127.0.0.1");
-  });
-}
+const PORT = Number(process.env.PORT) || 10000;
 
-/**
- * Return the first free TCP port at or above `start`.
- * @param {number} start
- */
-async function findAvailablePort(start) {
-  let p = start;
-  while (!(await isPortFree(p))) {
-    p += 1;
-  }
-  return p;
-}
-
-const preferredPort = Number(process.env.PORT) || 3000;
-const port = await findAvailablePort(preferredPort);
-
-if (port !== preferredPort) {
-  console.warn(`[Claira] Port ${preferredPort} is in use — using port ${port} instead.`);
-}
-
-app.listen(port, "127.0.0.1", () => {
+app.listen(PORT, "0.0.0.0", () => {
   // Structured signal parsed by the Electron main process to learn the actual port.
   // Keep this line intact — changing its format breaks Electron startup.
-  process.stdout.write(`CLAIRA_SERVER_READY:${port}\n`);
-  console.log(`Claira server running on http://127.0.0.1:${port}`);
+  process.stdout.write(`CLAIRA_SERVER_READY:${PORT}\n`);
+  console.log(`Server running on port ${PORT}`);
 });

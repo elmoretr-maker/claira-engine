@@ -59,6 +59,13 @@ import FitnessTrackingPanel from "./components/FitnessTrackingPanel.jsx";
 import ContractorTrackingPanel from "./components/ContractorTrackingPanel.jsx";
 import ContractorReportShareView from "./components/ContractorReportShareView.jsx";
 import { IndustryProvider, useIndustry } from "./IndustryContext.jsx";
+import { VerticalProvider, useVertical } from "./product/VerticalContext.jsx";
+import RequireEntitlement from "./product/RequireEntitlement.jsx";
+import LockedDoorPanel from "./product/LockedDoorPanel.jsx";
+import "./product/LockedDoorPanel.css";
+import { buildDoorTools, getDoorSectionMeta } from "./product/doorTools.js";
+import VerticalPathScreen from "./screens/VerticalPathScreen.jsx";
+import VerticalModeBanner from "./product/VerticalModeBanner.jsx";
 import { VoiceOnboardingProvider, VoiceOnboardingRouteSync } from "./voice/VoiceOnboardingContext.jsx";
 import { useVoiceOnboarding } from "./voice/useVoiceOnboarding.js";
 import OnboardingVoiceSync from "./voice/OnboardingVoiceSync.jsx";
@@ -274,9 +281,16 @@ const START_OVER_CONFIRM = "Are you sure you want to start over? This will reset
 function App() {
   const { cancelAllSpeech } = useVoiceOnboarding();
   const { industrySlug, setIndustrySlug, packDomainMode } = useIndustry();
+  const { vertical, setVertical, clearVertical, canAccess, isProductVerticalActive } = useVertical();
   const [industryGateDone, setIndustryGateDone] = useState(() => getIndustryGateComplete());
-  const [preAppPhase, setPreAppPhase] = useState(/** @type {"packEntry" | "welcome"} */ () => getInitialPreAppPhase());
+  const [preAppPhase, setPreAppPhase] = useState(
+    /** @type {"packEntry" | "welcome" | "verticalPick"} */ () => getInitialPreAppPhase(),
+  );
   const [industryHomeKey, setIndustryHomeKey] = useState(0);
+  /** When entering pack: from welcome (URL had path) vs from vertical picker. */
+  const packEntrySourceRef = useRef(/** @type {"welcome" | "vertical"} */ ("vertical"));
+  const [doorLockFeature, setDoorLockFeature] = useState(/** @type {null | "insight" | "photo" | "catalog"} */ (null));
+  const [pathPickerOpen, setPathPickerOpen] = useState(false);
 
   const [appMode, setAppModeState] = useState(getAppMode);
   const [oversightLevel, setOversightLevelState] = useState(getOversightLevel);
@@ -503,6 +517,18 @@ function App() {
 
   const workflowAutoCheckActive = hasWorkflowMonitorInputs(expectedItems, pipelineResults);
 
+  const productDoorSection = useMemo(() => getDoorSectionMeta(vertical), [vertical]);
+  const productDoorTools = useMemo(
+    () =>
+      buildDoorTools({
+        vertical,
+        canAccess,
+        setScreen,
+        onLocked: (f) => setDoorLockFeature(f),
+      }),
+    [vertical, canAccess, setScreen],
+  );
+
   const showRealIntegrationGap = SYSTEM_MODE === "real" && !isRealExternalIntegrationReady();
 
   const canGoBack = useMemo(
@@ -531,8 +557,17 @@ function App() {
     cancelAllSpeech();
 
     if (!industryGateDone) {
-      if (preAppPhase === "packEntry") {
+      if (preAppPhase === "verticalPick") {
         setPreAppPhase("welcome");
+        setIndustryHomeKey((k) => k + 1);
+        return;
+      }
+      if (preAppPhase === "packEntry") {
+        if (packEntrySourceRef.current === "welcome") {
+          setPreAppPhase("welcome");
+        } else {
+          setPreAppPhase("verticalPick");
+        }
         setIndustryHomeKey((k) => k + 1);
       }
       return;
@@ -624,6 +659,7 @@ function App() {
     if (!window.confirm(START_OVER_CONFIRM)) return;
     cancelAllSpeech();
     clearAllOnboardingLocalStorage();
+    clearVertical();
     setIndustrySlug("");
     setIndustryGateDone(false);
     setPreAppPhase("welcome");
@@ -641,14 +677,17 @@ function App() {
     setAppModeState(getAppMode());
     setOversightLevelState(getOversightLevel());
     setTunnelPlanRev((n) => n + 1);
-  }, [cancelAllSpeech, setIndustrySlug]);
+    setPathPickerOpen(false);
+  }, [cancelAllSpeech, setIndustrySlug, clearVertical]);
 
   const goToWelcome = useCallback(() => {
     cancelAllSpeech();
+    clearVertical();
+    setPathPickerOpen(false);
     setIndustryGateDone(false);
     setIndustryGateComplete(false);
     setPreAppPhase("welcome");
-  }, [cancelAllSpeech]);
+  }, [cancelAllSpeech, clearVertical]);
 
   const onboardingNavValue = useMemo(
     () => ({
@@ -670,6 +709,62 @@ function App() {
     [industryGateDone, preAppPhase, screen],
   );
 
+  const insightPanelVariant = vertical === "personal" ? "personal" : "business";
+  const productDoorLockOverlay =
+    doorLockFeature ? (
+      <div
+        className="door-lock-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="door-lock-title"
+        onClick={() => setDoorLockFeature(null)}
+      >
+        <div className="door-lock-overlay__inner" onClick={(e) => e.stopPropagation()}>
+          <LockedDoorPanel
+            feature={doorLockFeature}
+            insightVariant={doorLockFeature === "insight" ? insightPanelVariant : "business"}
+            onClose={() => setDoorLockFeature(null)}
+            onUpgrade={() => {
+              if (import.meta.env.DEV) {
+                // eslint-disable-next-line no-console
+                console.info("[Claira] upgrade placeholder — Stripe later");
+              }
+              setDoorLockFeature(null);
+            }}
+          />
+        </div>
+      </div>
+    ) : null;
+
+  const pathPickerOverlay = pathPickerOpen ? (
+    <div
+      className="door-lock-overlay door-lock-overlay--path"
+      style={{ zIndex: 2100 }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Choose your path"
+      onClick={() => setPathPickerOpen(false)}
+    >
+      <div
+        className="door-lock-overlay__inner door-lock-overlay__inner--wide"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: "56rem" }}
+      >
+        <VerticalPathScreen
+          onSelectVertical={(v) => {
+            setVertical(v);
+            setPathPickerOpen(false);
+          }}
+        />
+        <div className="path-picker-footer">
+          <button type="button" className="btn btn-secondary" onClick={() => setPathPickerOpen(false)}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   /**
    * @param {import("react").ReactNode} el
    * @param {{ voiceSyncKey?: string }} [opts]
@@ -680,6 +775,7 @@ function App() {
       <OnboardingNavProvider value={onboardingNavValue}>
         <VoiceOnboardingRouteSync step={onboardingVoiceStep} />
         <OnboardingVoiceSync key={voiceSyncKey} />
+        {pathPickerOpen ? pathPickerOverlay : null}
         {el}
       </OnboardingNavProvider>
     );
@@ -693,10 +789,28 @@ function App() {
     return shell(
       <WelcomeScreen
         onStart={() => {
-          setPreAppPhase("packEntry");
+          if (vertical) {
+            packEntrySourceRef.current = "welcome";
+            setPreAppPhase("packEntry");
+          } else {
+            setPreAppPhase("verticalPick");
+          }
         }}
       />,
       { voiceSyncKey: `welcome-${industryHomeKey}` },
+    );
+  }
+
+  if (!industryGateDone && preAppPhase === "verticalPick") {
+    return shell(
+      <VerticalPathScreen
+        onSelectVertical={(v) => {
+          packEntrySourceRef.current = "vertical";
+          setVertical(v);
+          setPreAppPhase("packEntry");
+        }}
+      />,
+      { voiceSyncKey: `vertical-pick-${industryHomeKey}` },
     );
   }
 
@@ -711,72 +825,84 @@ function App() {
 
   if (screen === "business_analyzer") {
     return (
-      <BusinessAnalyzerHome
-        onBack={() => setScreen("entrance")}
-        onAnalysisReady={(merged) => {
-          setPerformanceEntities(merged);
-          setScreen("entity_performance");
+      <RequireEntitlement
+        feature="insight"
+        onBackFromLocked={() => {
+          setScreen("entrance");
         }}
-      />
+      >
+        <BusinessAnalyzerHome
+          onBack={() => setScreen("entrance")}
+          onAnalysisReady={(merged) => {
+            setPerformanceEntities(merged);
+            setScreen("entity_performance");
+          }}
+        />
+      </RequireEntitlement>
     );
   }
 
   if (screen === "catalog_builder") {
     return (
-      <CatalogBuilderScreen
-        initialResult={catalogInitialResult}
-        onBack={() => {
-          setCatalogInitialResult(null); // clear so a fresh entry next time shows the upload form
-          setScreen(catalogInitialResult ? "photo_sorter" : "entrance");
+      <RequireEntitlement
+        feature="catalog"
+        onBackFromLocked={() => {
+          setScreen(vertical === "commerce" ? "photo_sorter" : "entrance");
         }}
-      />
+      >
+        <CatalogBuilderScreen
+          initialResult={catalogInitialResult}
+          onBack={() => {
+            setCatalogInitialResult(null); // clear so a fresh entry next time shows the upload form
+            setScreen(catalogInitialResult ? "photo_sorter" : "entrance");
+          }}
+        />
+      </RequireEntitlement>
     );
   }
 
   if (screen === "photo_sorter") {
     return (
-      <PhotoSorterScreen
-        onBack={() => setScreen("entrance")}
-        onOpenCatalog={(data) => {
-          setCatalogInitialResult(data);
-          setScreen("catalog_builder");
-        }}
-      />
+      <>
+        {pathPickerOpen ? pathPickerOverlay : null}
+        {productDoorLockOverlay}
+        <RequireEntitlement
+          feature="photo"
+          onBackFromLocked={() => {
+            setScreen("entrance");
+          }}
+        >
+          <PhotoSorterScreen
+            commerceFunnel={vertical === "commerce"}
+            canAccessCatalog={canAccess("catalog")}
+            onCatalogLocked={() => setDoorLockFeature("catalog")}
+            onBack={() => setScreen("entrance")}
+            onOpenCatalog={(data) => {
+              setCatalogInitialResult(data);
+              setScreen("catalog_builder");
+            }}
+          />
+        </RequireEntitlement>
+      </>
     );
   }
 
   if (!industryGateDone && preAppPhase === "packEntry") {
     return shell(
-      <IndustrySelector
-        key={industryHomeKey}
-        variant="full"
-        onLoaded={() => {
-          setIndustryGateComplete(true);
-          setIndustryGateDone(true);
-        }}
-        sectionLabel="Business Assets"
-        sectionIcon="/assets/tool-thumbnails/business-assets.png"
-        tools={[
-          {
-            imageSrc: "/assets/tool-thumbnails/business-analyzer.png",
-            title: "Insight Engine",
-            description: "See what will happen—and how to get where you want",
-            onClick: () => setScreen("business_analyzer"),
-          },
-          {
-            imageSrc: "/assets/tool-thumbnails/build-product-catalog.png",
-            title: "Build Product Catalog",
-            description: "Turn images into structured, store-ready product data",
-            onClick: () => setScreen("catalog_builder"),
-          },
-          {
-            imageSrc: "/assets/tool-thumbnails/photo-sorter.png",
-            title: "Photo Sorter",
-            description: "Find your best photos instantly",
-            onClick: () => setScreen("photo_sorter"),
-          },
-        ]}
-      />,
+      <>
+        {productDoorLockOverlay}
+        <IndustrySelector
+          key={industryHomeKey}
+          variant="full"
+          onLoaded={() => {
+            setIndustryGateComplete(true);
+            setIndustryGateDone(true);
+          }}
+          sectionLabel={productDoorSection.sectionLabel}
+          sectionIcon={productDoorSection.sectionIcon}
+          tools={productDoorTools}
+        />
+      </>,
       { voiceSyncKey: `pack-${industryHomeKey}` },
     );
   }
@@ -785,8 +911,9 @@ function App() {
     <header className="app-workflow-top-bar">
       <div className="app-workflow-top-bar-inner">
         <div className="app-workflow-top-bar-row">
-          <div className="app-workflow-top-bar-brand">
+          <div className="app-workflow-top-bar-brand app-workflow-top-bar-brand--with-mode">
             <BrandMark size="sm" />
+            {isProductVerticalActive ? <VerticalModeBanner /> : null}
             {SYSTEM_MODE === "simulation" ? (
               <span className="simulation-mode-badge">Practice</span>
             ) : showRealIntegrationGap ? (
@@ -798,6 +925,15 @@ function App() {
             )}
           </div>
           <div className="app-workflow-top-bar-tools">
+            {isProductVerticalActive && industryGateDone ? (
+              <button
+                type="button"
+                className="btn btn-ghost app-back-to-claira"
+                onClick={() => setPathPickerOpen(true)}
+              >
+                ← Back to Claira
+              </button>
+            ) : null}
             <ThemeToggle />
             {industryGateDone && appMode === "runtime" ? <GuidedVoiceControls /> : null}
             <button
@@ -828,7 +964,7 @@ function App() {
                   setScreen("logs");
                 }}
               >
-                Move logs
+                {isProductVerticalActive ? "File activity" : "Move logs"}
               </button>
             ) : null}
             {isProgressTrackingUiEnabled(industrySlug) ? (
@@ -843,7 +979,7 @@ function App() {
                 Progress tracking
               </button>
             ) : null}
-            {industryGateDone ? (
+            {industryGateDone && !isProductVerticalActive ? (
               <>
                 <button type="button" className="btn btn-secondary" onClick={() => setScreen("workflow_hub")}>
                   Workflows
@@ -862,10 +998,12 @@ function App() {
             <WorkflowStatus workflowResult={workflowResult} />
           </div>
         </div>
-               <details className="app-simulation-details">
-          <summary>Simulated features (audit)</summary>
-          <SimulationPanel />
-        </details>
+               {isProductVerticalActive ? null : (
+          <details className="app-simulation-details">
+            <summary>Simulated features (audit)</summary>
+            <SimulationPanel />
+          </details>
+        )}
         {screen !== "logs" &&
         screen !== "capabilities" &&
         screen !== "structure" &&
@@ -1343,6 +1481,7 @@ createRoot(root).render(
   <AppErrorBoundary>
     <UiThemeProvider>
       <IndustryProvider>
+        <VerticalProvider>
         <VoiceOnboardingProvider>
           <div className="app-brand-backdrop">
             <div className="app-brand-main">
@@ -1359,6 +1498,7 @@ createRoot(root).render(
             </footer>
           </div>
         </VoiceOnboardingProvider>
+        </VerticalProvider>
       </IndustryProvider>
     </UiThemeProvider>
     <InstallPrompt />

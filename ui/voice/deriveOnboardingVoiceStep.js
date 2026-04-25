@@ -1,7 +1,7 @@
 /**
  * @param {{
  *   industryGateDone: boolean,
- *   preAppPhase: "packEntry" | "welcome",
+ *   preAppPhase: "packEntry" | "welcome" | "verticalPick",
  *   screen: string,
  * }} p
  * @param {{ replayForRooms?: boolean }} opts
@@ -10,8 +10,8 @@
 function resolveVoiceStepForShell(p, opts = {}) {
   const replayForRooms = opts.replayForRooms === true;
   if (!p.industryGateDone) {
-    /* Step 0 = Welcome copy; step 1 = Industry (packEntry). */
-    if (p.preAppPhase === "welcome") return 0;
+    /* Step 0 = Welcome / vertical path; step 1 = Industry (packEntry). */
+    if (p.preAppPhase === "welcome" || p.preAppPhase === "verticalPick") return 0;
     if (p.preAppPhase === "packEntry") return 1;
     return null;
   }
@@ -44,7 +44,7 @@ function resolveVoiceStepForShell(p, opts = {}) {
  *
  * @param {{
  *   industryGateDone: boolean,
- *   preAppPhase: "packEntry" | "welcome",
+ *   preAppPhase: "packEntry" | "welcome" | "verticalPick",
  *   screen: string,
  * }} p
  * @returns {number | null}
@@ -56,7 +56,7 @@ export function deriveOnboardingVoiceStep(p) {
 /**
  * @param {{
  *   industryGateDone: boolean,
- *   preAppPhase: "packEntry" | "welcome",
+ *   preAppPhase: "packEntry" | "welcome" | "verticalPick",
  *   screen: string,
  * }} p
  * @returns {number | null}

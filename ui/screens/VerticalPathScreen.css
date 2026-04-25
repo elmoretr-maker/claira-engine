@@ -1,0 +1,70 @@
+.vertical-path-screen__inner {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0.5rem 0 1.5rem;
+  text-align: center;
+}
+
+.vertical-path-screen__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.45rem;
+  font-weight: 600;
+}
+
+.vertical-path-screen__lead {
+  margin: 0 auto 1.5rem;
+  max-width: 36rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--color-fg, #e8ecf4) 85%, transparent);
+}
+
+.vertical-path-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+@media (min-width: 720px) {
+  .vertical-path-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+}
+
+.vertical-path-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 1rem 1.1rem;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.vertical-path-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 28%, transparent);
+}
+
+.vertical-path-card__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+  margin-bottom: 0.35rem;
+}
+
+.vertical-path-card__title {
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.vertical-path-card__desc {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--color-fg, #e8ecf4) 80%, transparent);
+}

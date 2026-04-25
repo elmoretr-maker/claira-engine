@@ -685,7 +685,22 @@ function WorkflowLog({ log, onReapply, onRebuild, catalogLoading, pendingReapply
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-export default function PhotoSorterScreen({ onBack, onOpenCatalog }) {
+/**
+ * @param {{
+ *   onBack: () => void,
+ *   onOpenCatalog: (data: Record<string, unknown>) => void,
+ *   commerceFunnel?: boolean,
+ *   canAccessCatalog?: boolean,
+ *   onCatalogLocked?: () => void,
+ * }} props
+ */
+export default function PhotoSorterScreen({
+  onBack,
+  onOpenCatalog,
+  commerceFunnel = false,
+  canAccessCatalog = true,
+  onCatalogLocked,
+}) {
   const fileInputRef = useRef(/** @type {HTMLInputElement|null} */ (null));
 
   // ── Upload ────────────────────────────────────────────────────────────────
@@ -871,6 +886,19 @@ export default function PhotoSorterScreen({ onBack, onOpenCatalog }) {
     void handleBuildCatalog(images);
   }, [pendingReapply, filteredResults, handleBuildCatalog]);
 
+  const handleCommerceFunnelCta = useCallback(() => {
+    if (!commerceFunnel) return;
+    if (!canAccessCatalog) {
+      onCatalogLocked?.();
+      return;
+    }
+    if (catalogBuild?.result && onOpenCatalog) {
+      onOpenCatalog(catalogBuild.result);
+      return;
+    }
+    document.querySelector(".ps-catalog-action")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [commerceFunnel, canAccessCatalog, catalogBuild, onOpenCatalog, onCatalogLocked]);
+
   // ── Upload helpers ────────────────────────────────────────────────────────
 
   const addFiles = useCallback((fileList) => {
@@ -948,11 +976,21 @@ export default function PhotoSorterScreen({ onBack, onOpenCatalog }) {
           <h1 className="ps-header__title">Photo Sorter</h1>
         </div>
         <p className="ps-header__subtitle">
-          Upload photos and instantly rank them by sharpness, resolution, and content quality.
+          {commerceFunnel
+            ? "Turn photos into products and build your catalog faster."
+            : "Upload photos and instantly rank them by sharpness, resolution, and content quality."}
         </p>
       </header>
 
       <div className="ps-body">
+        {commerceFunnel && !hasResult ? (
+          <div className="ps-commerce-funnel ps-commerce-funnel--entry card" role="status">
+            <p className="ps-commerce-funnel__entry-line">
+              Add photos, then analyze. We’ll help you go from <strong>best shots</strong> to{" "}
+              <strong>ready-to-sell product data</strong> next.
+            </p>
+          </div>
+        ) : null}
         {/* ── Drop zone ───────────────────────────────────────────────── */}
         <section className="ps-section">
           <h2 className="ps-section__heading">Photos</h2>
@@ -1039,6 +1077,28 @@ export default function PhotoSorterScreen({ onBack, onOpenCatalog }) {
                 {showSummary ? "Hide report ↑" : "Summary report ↓"}
               </button>
             </div>
+
+            {commerceFunnel && hasResult ? (
+              <div className="ps-commerce-funnel ps-commerce-funnel--next card" role="region" aria-label="Next step: catalog">
+                <p className="ps-commerce-funnel__kicker">You’ve selected your best photos.</p>
+                <p className="ps-commerce-funnel__head">Next step</p>
+                <p className="ps-commerce-funnel__body">Turn these into ready-to-sell products.</p>
+                <div className="ps-commerce-funnel__actions">
+                  <button type="button" className="btn btn-primary" onClick={() => void handleCommerceFunnelCta()}>
+                    {canAccessCatalog
+                      ? catalogBuild?.result
+                        ? "Open Catalog Builder"
+                        : "Build catalog from your selection"
+                      : "Unlock Catalog Builder"}
+                  </button>
+                </div>
+                {!canAccessCatalog ? (
+                  <p className="ps-commerce-funnel__hint">Upgrade to generate structured listings from your images.</p>
+                ) : !catalogBuild?.result ? (
+                  <p className="ps-commerce-funnel__hint">We’ll use the photos you’ve filtered above—or jump to Build below.</p>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Summary report */}
             {showSummary &&

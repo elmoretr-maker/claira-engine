@@ -35,6 +35,16 @@
   min-width: 0;
 }
 
+.app-workflow-top-bar-brand--with-mode {
+  row-gap: var(--space-xs);
+}
+
+.app-back-to-claira {
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .app-workflow-top-bar-row .app-workflow-top-bar-tools {
   margin-left: auto;
 }

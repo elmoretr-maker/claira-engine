@@ -1,7 +1,7 @@
 /**
  * @param {{
  *   industryGateDone: boolean,
- *   preAppPhase: "packEntry" | "welcome",
+ *   preAppPhase: "packEntry" | "welcome" | "verticalPick",
  *   screen: string,
  *   appMode: "setup" | "runtime",
  * }} ctx
@@ -9,7 +9,7 @@
  */
 export function computeOnboardingCanGoBack({ industryGateDone, preAppPhase, screen, appMode }) {
   if (!industryGateDone) {
-    if (preAppPhase === "packEntry") return true;
+    if (preAppPhase === "packEntry" || preAppPhase === "verticalPick") return true;
     return false;
   }
 
